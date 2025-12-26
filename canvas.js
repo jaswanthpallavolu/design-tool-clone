@@ -12,8 +12,10 @@ let shapeHandlesPath;
 
 // rotation logic
 let isRotating = false;
+let isResizing = false;
 let startAngle = 0;
 let initialRotation = 0;
+let currentHandle;
 
 const init = () => {
   boundRect = canvas.getBoundingClientRect();
@@ -30,25 +32,32 @@ const init = () => {
   shape.p1 = { x: 200, y: 200 };
   shape.width = 200;
   shape.height = 100;
-  shapePath = drawShape(ctx, shape);
-  imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  redrawCanvas();
 };
 
+function redrawCanvas() {
+  clearCanvas();
+  shapePath = drawShape(ctx, shape);
+  imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  if (shape.isSelected) shapeHandlesPath = drawShapeHandles(ctx, shape);
+}
+
 const detectShape = (e) => {
-  ctx.save();
   const x = e.clientX - boundRect.left;
   const y = e.clientY - boundRect.top;
 
   if (shape.isSelected) {
-    detectShapeHandles(ctx, { ...shape, ...shapeHandlesPath }, x, y);
+    // detectShapeHandles(ctx, { ...shape, ...shapeHandlesPath }, x, y);
     return;
   }
+  ctx.save();
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
-  // ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
-  // ctx.rotate(shape.rotation);
+  ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
+  ctx.rotate(shape.rotation);
   const hitfound = ctx.isPointInPath(shapePath, x, y);
-  ctx.restore();
+
+  // ctx.save();
 
   if (hitfound) {
     ctx.strokeStyle = "#00aaff";
@@ -57,6 +66,7 @@ const detectShape = (e) => {
     // ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
     // ctx.rotate(shape.rotation);
     ctx.stroke(shapePath);
+    ctx.restore();
     // ctx.restore();
   } else {
     ctx.putImageData(imageData, 0, 0);
@@ -71,10 +81,11 @@ const selectShape = (e) => {
   const x = e.clientX - boundRect.left;
   const y = e.clientY - boundRect.top;
 
-  // const halfW = shape.width / 2;
-  // const halfH = shape.height / 2;
-  // ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
-  // ctx.rotate(shape.rotation);
+  const halfW = shape.width / 2;
+  const halfH = shape.height / 2;
+  ctx.save();
+  ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
+  ctx.rotate(shape.rotation);
   const hitfound = ctx.isPointInPath(shapePath, x, y);
   ctx.restore();
 
@@ -93,26 +104,20 @@ canvas.addEventListener("click", selectShape);
 
 canvas.addEventListener("mousedown", (e) => {
   if (!shape.isSelected) return;
-  const mouseX = e.offsetX;
-  const mouseY = e.offsetY;
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
 
-  // 1. Move to Local Space to check hit detection
-  ctx.save();
-  ctx.translate(shape.p1.x + shape.width / 2, shape.p1.y + shape.height / 2);
-  ctx.rotate(shape.rotation);
+  const { cornerPaths, edgePaths, rotatePaths } = shapeHandlesPath;
+  const { rotate, resize } = detectShapeHandles(
+    ctx,
+    { ...shape, ...shapeHandlesPath },
+    mouseX,
+    mouseY
+  );
 
-  const { rotatePaths } = shapeHandlesPath;
-  let hitHandle = null;
-  for (let key in rotatePaths) {
-    if (ctx.isPointInPath(rotatePaths[key], mouseX, mouseY)) {
-      hitHandle = key;
-      break;
-    }
-  }
-  ctx.restore();
-
-  if (hitHandle) {
+  if (Object.keys(rotatePaths).find((e) => e === rotate)) {
     isRotating = true;
+    isResizing = false;
 
     // 2. Calculate the "Starting Angle" of the mouse relative to center
     const centerX = shape.p1.x + shape.width / 2;
@@ -123,6 +128,13 @@ canvas.addEventListener("mousedown", (e) => {
 
     // Save the shape's current rotation
     initialRotation = shape.rotation;
+  } else if (
+    Object.keys(cornerPaths).find((e) => e === resize) ||
+    Object.keys(edgePaths).find((e) => e === resize)
+  ) {
+    isRotating = false;
+    isResizing = true;
+    currentHandle = resize;
   }
 });
 
@@ -149,16 +161,97 @@ canvas.addEventListener("mousemove", (e) => {
 
   shape.rotation = newRotation;
 
-  // render(); // Redraw the canvas
-  clearCanvas();
-  shapePath = drawShape(ctx, shape);
-  shapeHandlesPath = drawShapeHandles(ctx, shape);
+  // Redraw the canvas
+  redrawCanvas();
 });
 
 window.addEventListener("mouseup", () => {
   isRotating = false;
+  isResizing = false;
 });
 // End of rotation logic
+
+function getLocalMouse(mouseX, mouseY, shape) {
+  const cx = shape.p1.x + shape.width / 2;
+  const cy = shape.p1.y + shape.height / 2;
+
+  // 1. Get mouse relative to center
+  const dx = mouseX - cx;
+  const dy = mouseY - cy;
+
+  // 2. Rotate the point by the NEGATIVE of the shape's rotation
+  const cos = Math.cos(-shape.rotation);
+  const sin = Math.sin(-shape.rotation);
+
+  return {
+    x: dx * cos - dy * sin,
+    y: dx * sin + dy * cos,
+  };
+}
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!isResizing) return;
+
+  // 1. Get Mouse relative to Canvas using 2025 standard clientX/Y
+  const boundRect = canvas.getBoundingClientRect();
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
+
+  // 2. Get mouse in "Un-rotated" local space relative to center
+  const localMouse = getLocalMouse(mouseX, mouseY, shape);
+
+  const oldW = shape.width;
+  const oldH = shape.height;
+
+  // 3. Update Width (Right/Left handles)
+  if (currentHandle.includes("r") || currentHandle === "right") {
+    shape.width = localMouse.x + oldW / 2;
+  } else if (currentHandle.includes("l") || currentHandle === "left") {
+    shape.width = oldW / 2 - localMouse.x;
+  }
+
+  // 4. Update Height (Top/Bottom handles)
+  if (currentHandle.includes("b") || currentHandle === "bottom") {
+    shape.height = localMouse.y + oldH / 2;
+  } else if (currentHandle.includes("t") || currentHandle === "top") {
+    shape.height = oldH / 2 - localMouse.y;
+  }
+
+  // 5. Minimum Size Clamp
+  shape.width = Math.max(5, shape.width);
+  shape.height = Math.max(5, shape.height);
+
+  // 6. POSITION COMPENSATION (The Pivot Logic)
+  // Calculate how much the size changed
+  const dw = shape.width - oldW;
+  const dh = shape.height - oldH;
+
+  let localDX = 0;
+  let localDY = 0;
+
+  // Determine local center shift based on which handle was pulled
+  if (currentHandle.includes("r") || currentHandle === "right")
+    localDX += dw / 2;
+  if (currentHandle.includes("l") || currentHandle === "left")
+    localDX -= dw / 2;
+  if (currentHandle.includes("b") || currentHandle === "bottom")
+    localDY += dh / 2;
+  if (currentHandle.includes("t") || currentHandle === "top") localDY -= dh / 2;
+
+  // 7. Rotate the local shift back to World Space
+  const cos = Math.cos(shape.rotation);
+  const sin = Math.sin(shape.rotation);
+
+  const worldDX = localDX * cos - localDY * sin;
+  const worldDY = localDX * sin + localDY * cos;
+
+  // Update position
+  shape.p1.x += worldDX;
+  shape.p1.y += worldDY;
+
+  // 8. Trigger the redraw
+  redrawCanvas();
+});
 
 const clearCanvas = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);

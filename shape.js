@@ -2,14 +2,14 @@ function drawShape(ctx, shape) {
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
 
-  //   ctx.save();
-  //   ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
-  //   ctx.rotate(shape.rotation);
+  ctx.save();
+  ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
+  ctx.rotate(shape.rotation);
 
   const shapePath = new Path2D();
-  shapePath.moveTo(shape.p1.x, shape.p1.y);
-  shapePath.rect(shape.p1.x, shape.p1.y, shape.width, shape.height);
-  //   shapePath.rect(-halfW, -halfH, shape.width, shape.height);
+  //   shapePath.moveTo(shape.p1.x, shape.p1.y);
+  //   shapePath.rect(shape.p1.x, shape.p1.y, shape.width, shape.height);
+  shapePath.rect(-halfW, -halfH, shape.width, shape.height);
   ctx.fillStyle = shape.fillStyle;
   ctx.fill(shapePath);
   ctx.restore();
@@ -185,7 +185,10 @@ function checkHandlesPathHit(ctx, paths = {}, mouseX, mouseY) {
   ctx.lineWidth = 10;
 
   for (const [side, path] of Object.entries(paths)) {
-    if (ctx.isPointInStroke(path, mouseX, mouseY)) {
+    if (
+      ctx.isPointInStroke(path, mouseX, mouseY) ||
+      ctx.isPointInPath(path, mouseX, mouseY)
+    ) {
       return side; // Returns 'top', 'right', etc.
     }
   }
@@ -195,6 +198,7 @@ function checkHandlesPathHit(ctx, paths = {}, mouseX, mouseY) {
 function detectShapeHandles(ctx, shape, x, y) {
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
+  ctx.save();
   ctx.translate(shape.p1.x + halfW, shape.p1.y + halfH);
   ctx.rotate(shape.rotation);
   const hit1 = checkHandlesPathHit(ctx, shape.cornerPaths, x, y);
@@ -205,6 +209,7 @@ function detectShapeHandles(ctx, shape, x, y) {
   else if (hit2) console.log("checkRotationHit ", hit2);
   else if (hit3) console.log("checkEdgeHit ", hit3);
   ctx.restore();
+  return { rotate: hit2, resize: hit1 || hit3 };
 }
 
 export { drawShape, drawShapeHandles, detectShapeHandles };
