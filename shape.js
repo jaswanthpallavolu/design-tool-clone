@@ -125,7 +125,7 @@ function drawCorners(ctx, shape) {
 function drawRotationCorners(ctx, shape) {
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
-  const padding = 10; // Distance from the corner to the center of the handle
+  const padding = 15; // Distance from the corner to the center of the handle
   const hitRadius = 12; // The radius of the clickable area
 
   // 2. Define Rotation Paths as circles centered at the offset corners
@@ -180,14 +180,15 @@ function drawRotationCorners(ctx, shape) {
   return rotatePaths;
 }
 
-function checkHandlesPathHit(ctx, paths = {}, mouseX, mouseY) {
+function checkHandlesPathHit(ctx, paths = {}, mouseX, mouseY, stroke = false) {
   // Increase lineWidth temporarily for a larger 'grab' area
   ctx.lineWidth = 10;
 
   for (const [side, path] of Object.entries(paths)) {
     if (
-      ctx.isPointInStroke(path, mouseX, mouseY) ||
-      ctx.isPointInPath(path, mouseX, mouseY)
+      stroke
+        ? ctx.isPointInStroke(path, mouseX, mouseY)
+        : ctx.isPointInPath(path, mouseX, mouseY)
     ) {
       return side; // Returns 'top', 'right', etc.
     }
@@ -203,7 +204,7 @@ function detectShapeHandles(ctx, shape, x, y) {
   ctx.rotate(shape.rotation);
   const hit1 = checkHandlesPathHit(ctx, shape.cornerPaths, x, y);
   const hit2 = checkHandlesPathHit(ctx, shape.rotatePaths, x, y);
-  const hit3 = checkHandlesPathHit(ctx, shape.edgePaths, x, y);
+  const hit3 = checkHandlesPathHit(ctx, shape.edgePaths, x, y, true);
 
   if (hit1) console.log("checkCornerHit ", hit1);
   else if (hit2) console.log("checkRotationHit ", hit2);

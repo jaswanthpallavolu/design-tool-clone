@@ -16,6 +16,8 @@ let isResizing = false;
 let startAngle = 0;
 let initialRotation = 0;
 let currentHandle;
+let isDragging = false;
+let dragOffset = { x: 0, y: 0 };
 
 const init = () => {
   boundRect = canvas.getBoundingClientRect();
@@ -77,7 +79,6 @@ const detectShape = (e) => {
 };
 
 const selectShape = (e) => {
-  if (isRotating) return;
   const x = e.clientX - boundRect.left;
   const y = e.clientY - boundRect.top;
 
@@ -100,7 +101,6 @@ const selectShape = (e) => {
 };
 
 canvas.addEventListener("mousemove", detectShape);
-canvas.addEventListener("click", selectShape);
 
 canvas.addEventListener("mousedown", (e) => {
   if (!shape.isSelected) return;
@@ -138,6 +138,29 @@ canvas.addEventListener("mousedown", (e) => {
   }
 });
 
+canvas.addEventListener("mousedown", (e) => {
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
+
+  // 1. Check if we hit the main shape body
+  // (Assuming 'shapePath' is the Path2D returned by your drawShape function)
+  ctx.save();
+  ctx.translate(shape.p1.x + shape.width / 2, shape.p1.y + shape.height / 2);
+  ctx.rotate(shape.rotation);
+
+  const isHit = ctx.isPointInPath(shapePath, mouseX, mouseY);
+  ctx.restore();
+
+  // 2. If it's a hit and NOT a resize/rotate handle, start dragging
+  if (isHit && !isResizing && !isRotating) {
+    isDragging = true;
+
+    // Store the distance from the mouse to the shape's p1
+    dragOffset.x = mouseX - shape.p1.x;
+    dragOffset.y = mouseY - shape.p1.y;
+  }
+});
+
 canvas.addEventListener("mousemove", (e) => {
   if (!isRotating) return;
 
@@ -164,11 +187,6 @@ canvas.addEventListener("mousemove", (e) => {
   // Redraw the canvas
   redrawCanvas();
 });
-
-window.addEventListener("mouseup", () => {
-  isRotating = false;
-  isResizing = false;
-});
 // End of rotation logic
 
 function getLocalMouse(mouseX, mouseY, shape) {
@@ -189,68 +207,185 @@ function getLocalMouse(mouseX, mouseY, shape) {
   };
 }
 
+// Corner resizing
 canvas.addEventListener("mousemove", (e) => {
-  if (!isResizing) return;
+  if (!isResizing || currentHandle.length !== 2) return;
 
-  // 1. Get Mouse relative to Canvas using 2025 standard clientX/Y
   const boundRect = canvas.getBoundingClientRect();
   const mouseX = e.clientX - boundRect.left;
   const mouseY = e.clientY - boundRect.top;
 
-  // 2. Get mouse in "Un-rotated" local space relative to center
-  const localMouse = getLocalMouse(mouseX, mouseY, shape);
-
-  const oldW = shape.width;
-  const oldH = shape.height;
-
-  // 3. Update Width (Right/Left handles)
-  if (currentHandle.includes("r") || currentHandle === "right") {
-    shape.width = localMouse.x + oldW / 2;
-  } else if (currentHandle.includes("l") || currentHandle === "left") {
-    shape.width = oldW / 2 - localMouse.x;
-  }
-
-  // 4. Update Height (Top/Bottom handles)
-  if (currentHandle.includes("b") || currentHandle === "bottom") {
-    shape.height = localMouse.y + oldH / 2;
-  } else if (currentHandle.includes("t") || currentHandle === "top") {
-    shape.height = oldH / 2 - localMouse.y;
-  }
-
-  // 5. Minimum Size Clamp
-  shape.width = Math.max(5, shape.width);
-  shape.height = Math.max(5, shape.height);
-
-  // 6. POSITION COMPENSATION (The Pivot Logic)
-  // Calculate how much the size changed
-  const dw = shape.width - oldW;
-  const dh = shape.height - oldH;
-
-  let localDX = 0;
-  let localDY = 0;
-
-  // Determine local center shift based on which handle was pulled
-  if (currentHandle.includes("r") || currentHandle === "right")
-    localDX += dw / 2;
-  if (currentHandle.includes("l") || currentHandle === "left")
-    localDX -= dw / 2;
-  if (currentHandle.includes("b") || currentHandle === "bottom")
-    localDY += dh / 2;
-  if (currentHandle.includes("t") || currentHandle === "top") localDY -= dh / 2;
-
-  // 7. Rotate the local shift back to World Space
   const cos = Math.cos(shape.rotation);
   const sin = Math.sin(shape.rotation);
 
-  const worldDX = localDX * cos - localDY * sin;
-  const worldDY = localDX * sin + localDY * cos;
+  // --- STEP 1: FIND THE PINNED ANCHOR (The Diagonal Vertex) ---
+  // If we pull Top-Right (tr), the anchor is Bottom-Left (bl).
+  let anchorLocalX, anchorLocalY;
 
-  // Update position
-  shape.p1.x += worldDX;
-  shape.p1.y += worldDY;
+  if (currentHandle === "br") {
+    anchorLocalX = -shape.width / 2;
+    anchorLocalY = -shape.height / 2;
+  } // Anchor: tl
+  if (currentHandle === "bl") {
+    anchorLocalX = shape.width / 2;
+    anchorLocalY = -shape.height / 2;
+  } // Anchor: tr
+  if (currentHandle === "tr") {
+    anchorLocalX = -shape.width / 2;
+    anchorLocalY = shape.height / 2;
+  } // Anchor: bl
+  if (currentHandle === "tl") {
+    anchorLocalX = shape.width / 2;
+    anchorLocalY = shape.height / 2;
+  } // Anchor: br
 
-  // 8. Trigger the redraw
+  const centerX = shape.p1.x + shape.width / 2;
+  const centerY = shape.p1.y + shape.height / 2;
+
+  // Convert local anchor to world coordinates
+  const pinnedX = centerX + anchorLocalX * cos - anchorLocalY * sin;
+  const pinnedY = centerY + anchorLocalX * sin + anchorLocalY * cos;
+
+  // --- STEP 2: CALCULATE NEW DIMENSIONS ---
+  const localMouse = getLocalMouse(mouseX, mouseY, shape);
+  const oldW = shape.width;
+  const oldH = shape.height;
+
+  if (currentHandle.includes("r")) shape.width = localMouse.x + oldW / 2;
+  else shape.width = oldW / 2 - localMouse.x;
+
+  if (currentHandle.includes("b")) shape.height = localMouse.y + oldH / 2;
+  else shape.height = oldH / 2 - localMouse.y;
+
+  // Clamp minimum size
+  shape.width = Math.max(5, shape.width);
+  shape.height = Math.max(5, shape.height);
+
+  // --- STEP 3: RE-ALIGN TO THE PINNED ANCHOR ---
+  // The center has moved because width/height changed.
+  // We find where the anchor is NOW and shift p1 by the difference.
+  const newCenterX = shape.p1.x + shape.width / 2;
+  const newCenterY = shape.p1.y + shape.height / 2;
+
+  // Recalculate local anchor position with NEW dimensions
+  let newAnchorLocalX, newAnchorLocalY;
+  if (currentHandle === "br") {
+    newAnchorLocalX = -shape.width / 2;
+    newAnchorLocalY = -shape.height / 2;
+  }
+  if (currentHandle === "bl") {
+    newAnchorLocalX = shape.width / 2;
+    newAnchorLocalY = -shape.height / 2;
+  }
+  if (currentHandle === "tr") {
+    newAnchorLocalX = -shape.width / 2;
+    newAnchorLocalY = shape.height / 2;
+  }
+  if (currentHandle === "tl") {
+    newAnchorLocalX = shape.width / 2;
+    newAnchorLocalY = shape.height / 2;
+  }
+
+  const currentAnchorX =
+    newCenterX + newAnchorLocalX * cos - newAnchorLocalY * sin;
+  const currentAnchorY =
+    newCenterY + newAnchorLocalX * sin + newAnchorLocalY * cos;
+
+  // Apply the correction shift
+  shape.p1.x += pinnedX - currentAnchorX;
+  shape.p1.y += pinnedY - currentAnchorY;
+
   redrawCanvas();
+});
+
+// Edge resizing
+canvas.addEventListener("mousemove", (e) => {
+  if (!isResizing || currentHandle.length <= 2) return; // Ignore if not a side/corner
+
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
+
+  const cos = Math.cos(shape.rotation);
+  const sin = Math.sin(shape.rotation);
+
+  // --- STEP 1: DEFINE THE PINNED ANCHOR ---
+  // We identify the local coordinate of the point that must stay fixed.
+  // If we pull the Right side, the Left side (-width/2) is the anchor.
+  let anchorLocalX = 0;
+  let anchorLocalY = 0;
+
+  if (currentHandle === "right") anchorLocalX = -shape.width / 2;
+  if (currentHandle === "left") anchorLocalX = shape.width / 2;
+  if (currentHandle === "bottom") anchorLocalY = -shape.height / 2;
+  if (currentHandle === "top") anchorLocalY = shape.height / 2;
+
+  const centerX = shape.p1.x + shape.width / 2;
+  const centerY = shape.p1.y + shape.height / 2;
+
+  // Convert that local anchor point to World Coordinates
+  const pinnedX = centerX + anchorLocalX * cos - anchorLocalY * sin;
+  const pinnedY = centerY + anchorLocalX * sin + anchorLocalY * cos;
+
+  // --- STEP 2: CALCULATE NEW SIZE ---
+  const localMouse = getLocalMouse(mouseX, mouseY, shape);
+  const oldW = shape.width;
+  const oldH = shape.height;
+
+  // Only update the axis associated with the handle
+  if (currentHandle === "right") shape.width = localMouse.x + oldW / 2;
+  if (currentHandle === "left") shape.width = oldW / 2 - localMouse.x;
+  if (currentHandle === "bottom") shape.height = localMouse.y + oldH / 2;
+  if (currentHandle === "top") shape.height = oldH / 2 - localMouse.y;
+
+  // Clamp minimum size for 2025 stability
+  shape.width = Math.max(5, shape.width);
+  shape.height = Math.max(5, shape.height);
+
+  // --- STEP 3: REALIGN TO THE PINNED ANCHOR ---
+  const newCenterX = shape.p1.x + shape.width / 2;
+  const newCenterY = shape.p1.y + shape.height / 2;
+
+  // Recalculate where that anchor is NOW with the new dimensions
+  let newAnchorLocalX = 0;
+  let newAnchorLocalY = 0;
+
+  if (currentHandle === "right") newAnchorLocalX = -shape.width / 2;
+  if (currentHandle === "left") newAnchorLocalX = shape.width / 2;
+  if (currentHandle === "bottom") newAnchorLocalY = -shape.height / 2;
+  if (currentHandle === "top") newAnchorLocalY = shape.height / 2;
+
+  const currentAnchorX =
+    newCenterX + newAnchorLocalX * cos - newAnchorLocalY * sin;
+  const currentAnchorY =
+    newCenterY + newAnchorLocalX * sin + newAnchorLocalY * cos;
+
+  // Apply the correction shift to the base position p1
+  shape.p1.x += pinnedX - currentAnchorX;
+  shape.p1.y += pinnedY - currentAnchorY;
+
+  redrawCanvas();
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!isDragging) return;
+  shape.isSelected = false;
+  ctx.putImageData(imageData, 0, 0);
+
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
+
+  // Update the position
+  shape.p1.x = mouseX - dragOffset.x;
+  shape.p1.y = mouseY - dragOffset.y;
+
+  redrawCanvas();
+});
+
+window.addEventListener("mouseup", (e) => {
+  if (!(isRotating || isResizing)) selectShape(e);
+  isRotating = false;
+  isResizing = false;
+  isDragging = false;
 });
 
 const clearCanvas = () => {
