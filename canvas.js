@@ -138,29 +138,6 @@ canvas.addEventListener("mousedown", (e) => {
   }
 });
 
-canvas.addEventListener("mousedown", (e) => {
-  const mouseX = e.clientX - boundRect.left;
-  const mouseY = e.clientY - boundRect.top;
-
-  // 1. Check if we hit the main shape body
-  // (Assuming 'shapePath' is the Path2D returned by your drawShape function)
-  ctx.save();
-  ctx.translate(shape.p1.x + shape.width / 2, shape.p1.y + shape.height / 2);
-  ctx.rotate(shape.rotation);
-
-  const isHit = ctx.isPointInPath(shapePath, mouseX, mouseY);
-  ctx.restore();
-
-  // 2. If it's a hit and NOT a resize/rotate handle, start dragging
-  if (isHit && !isResizing && !isRotating) {
-    isDragging = true;
-
-    // Store the distance from the mouse to the shape's p1
-    dragOffset.x = mouseX - shape.p1.x;
-    dragOffset.y = mouseY - shape.p1.y;
-  }
-});
-
 canvas.addEventListener("mousemove", (e) => {
   if (!isRotating) return;
 
@@ -366,6 +343,29 @@ canvas.addEventListener("mousemove", (e) => {
   redrawCanvas();
 });
 
+// Dragging
+canvas.addEventListener("mousedown", (e) => {
+  const mouseX = e.clientX - boundRect.left;
+  const mouseY = e.clientY - boundRect.top;
+
+  // 1. Check if we hit the main shape body
+  // (Assuming 'shapePath' is the Path2D returned by your drawShape function)
+  ctx.save();
+  ctx.translate(shape.p1.x + shape.width / 2, shape.p1.y + shape.height / 2);
+  ctx.rotate(shape.rotation);
+
+  const isHit = ctx.isPointInPath(shapePath, mouseX, mouseY);
+  ctx.restore();
+
+  // 2. If it's a hit and NOT a resize/rotate handle, start dragging
+  if (isHit && !isResizing && !isRotating) {
+    isDragging = true;
+
+    // Store the distance from the mouse to the shape's p1
+    dragOffset.x = mouseX - shape.p1.x;
+    dragOffset.y = mouseY - shape.p1.y;
+  }
+});
 canvas.addEventListener("mousemove", (e) => {
   if (!isDragging) return;
   shape.isSelected = false;
@@ -391,26 +391,5 @@ window.addEventListener("mouseup", (e) => {
 const clearCanvas = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 };
-
-function resizeCanvas() {
-  // 1. Get the display size from CSS
-  const displayWidth = canvas.clientWidth;
-  const displayHeight = canvas.clientHeight;
-
-  // 2. Only update if the size actually changed
-  if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
-    // Warning: Changing these values clears the canvas content!
-    canvas.width = displayWidth;
-    canvas.height = displayHeight;
-    // console.log("resizeCanvas");
-    init();
-  }
-}
-
-// Observe changes to the canvas element itself
-const ro = new ResizeObserver((entries) => {
-  resizeCanvas();
-});
-ro.observe(canvas);
 
 export { canvas, ctx, clearCanvas, init };

@@ -10,17 +10,45 @@ function init() {
     width: 200,
     height: 100,
   });
-  state.shapesById = { ...state.shapesById, [shape.id]: shape };
+  let shape1 = getRectangleObject({
+    x: 300,
+    y: 300,
+    width: 200,
+    height: 100,
+  });
+  state.shapesById = {
+    ...state.shapesById,
+    [shape.id]: shape,
+    [shape1.id]: shape1,
+  };
   redrawCanvas();
 }
 
 function redrawCanvas() {
   clearCanvas();
+  // if (!state.imageData)
+  // else ctx.putImageData(state.imageData, 0, 0);
   for (let shape of Object.values(state.shapesById)) {
     drawShape(shape);
-    // if (shape.isSelected) shapeHandlesPath = drawShapeHandles(ctx, shape);
   }
   state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  redrawHandles();
+}
+
+function redrawHandles() {
+  if (state.imageData) ctx.putImageData(state.imageData, 0, 0);
+  for (let shape of Object.values(state.shapesById)) {
+    if (
+      shape.id === state.selectedShapeId &&
+      state.interaction.mode !== "dragging"
+    )
+      drawShapeHandles(shape, state.handlePaths);
+    else if (
+      shape.id === state.selectedShapeId &&
+      state.interaction.mode === "dragging"
+    )
+      drawHoverOutline(shape);
+  }
 }
 
 function drawShape(shape) {
@@ -36,6 +64,7 @@ function drawHoverOutline(shape) {
   ctx.save();
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
+  ctx.lineWidth = 2;
   ctx.strokeStyle = "#00aaff";
   ctx.stroke(shape.path);
   ctx.restore();
@@ -87,4 +116,5 @@ export {
   drawHoverOutline,
   resetCanvas,
   drawShapeHandles,
+  redrawHandles,
 };

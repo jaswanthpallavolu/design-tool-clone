@@ -4,6 +4,7 @@ import {
   drawHoverOutline,
   resetCanvas,
   drawShapeHandles,
+  redrawCanvas,
 } from "../canvas/renderer.js";
 import { getCanvasMouseInput } from "../utils/mouse.js";
 import { getRectangleHandlesPath } from "./definitions.js";
@@ -59,18 +60,36 @@ function detectShapeHandle(ctx, mouseInput, shape) {
     true
   );
 
-  if (hit1) console.log("checkCornerHit ", hit1);
-  else if (hit2) console.log("checkRotationHit ", hit2);
-  else if (hit3) console.log("checkEdgeHit ", hit3);
+  // if (hit1) console.log("checkCornerHit ", hit1);
+  // else if (hit2) console.log("checkRotationHit ", hit2);
+  // else if (hit3) console.log("checkEdgeHit ", hit3);
   ctx.restore();
-  return { rotate: hit2, resize: hit1 || hit3 };
+  return (hit2 && "rot") || hit1 || hit3;
 }
 
 function handleShapeHandles(e) {
-  if (!state.selectedShapeId) return;
+  if (!state.selectedShapeId || state.interaction.mode !== "none") return;
   const shape = state.shapesById[state.selectedShapeId];
-  const mouseInput = getCanvasMouseInput(e);
-  detectShapeHandle(ctx, mouseInput, shape);
+  const { mouseX, mouseY } = getCanvasMouseInput(e);
+  const currentHandle = detectShapeHandle(ctx, { mouseX, mouseY }, shape);
+  if (currentHandle === "rot") {
+    state.interaction.mode = "rotating";
+
+    // This is where the mouse is right now
+    state.transform.startAngle = Math.atan2(
+      mouseY - shape.center.y,
+      mouseX - shape.center.x
+    );
+
+    // Save the shape's current rotation
+    state.transform.initialRotation = shape.rotation;
+  } else if (currentHandle !== null) {
+    state.interaction.mode = "resizing";
+  } else {
+    state.interaction.mode = "dragging";
+    state.interaction.offset.x = mouseX - shape.p1.x;
+    state.interaction.offset.y = mouseY - shape.p1.y;
+  }
 }
 
 function handleShapeDetection(e) {
@@ -92,10 +111,14 @@ function handleShapeSelection(e) {
   const mouseInput = getCanvasMouseInput(e);
   let shapeDetected = false;
   for (let shape of Object.values(state.shapesById)) {
-    if (detectShape(ctx, mouseInput, shape)) {
+    if (
+      detectShapeHandle(ctx, mouseInput, shape) ||
+      detectShape(ctx, mouseInput, shape)
+    ) {
       state.selectedShapeId = shape.id;
       state.handlePaths = getRectangleHandlesPath(ctx, shape);
-      drawShapeHandles(shape, state.handlePaths);
+      // drawShapeHandles(shape, state.handlePaths);
+      redrawCanvas();
       shapeDetected = true;
       break;
     }

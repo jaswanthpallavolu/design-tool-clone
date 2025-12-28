@@ -7,11 +7,20 @@ import {
   handleShapeSelection,
   handleShapeHandles,
 } from "./shape/hit-test.js";
+import {
+  handleRotation,
+  handleDrag,
+  resetInteraction,
+} from "./shape/transform.js";
 
 initUI();
 initCanvas();
 initViewport(canvas, redrawCanvas);
 
 canvas.addEventListener("mousemove", handleShapeDetection);
-canvas.addEventListener("mouseup", handleShapeSelection);
+canvas.addEventListener("mousedown", handleShapeSelection);
 canvas.addEventListener("mousedown", handleShapeHandles);
+canvas.addEventListener("mouseup", resetInteraction);
+
+canvas.addEventListener("mousemove", handleRotation);
+canvas.addEventListener("mousemove", handleDrag);

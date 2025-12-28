@@ -11,6 +11,11 @@ const getRectangleObject = ({ x, y, width, height }) => {
     rotation: 0,
     fillStyle: state.selectedTool.color,
   };
+
+  return getRectanglePath(shape);
+};
+
+function getRectanglePath(shape) {
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
   shape.center = { x: shape.p1.x + halfW, y: shape.p1.y + halfH };
@@ -19,7 +24,7 @@ const getRectangleObject = ({ x, y, width, height }) => {
   path.rect(-halfW, -halfH, shape.width, shape.height);
   shape.path = path;
   return shape;
-};
+}
 
 const getRectangleHandlesPath = (ctx, shape) => {
   const edgePaths = getEdgePaths(shape);
@@ -157,4 +162,4 @@ function getRotatePaths(shape) {
   return rotatePaths;
 }
 
-export { getRectangleObject, getRectangleHandlesPath };
+export { getRectangleObject, getRectangleHandlesPath, getRectanglePath };
