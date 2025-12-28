@@ -1,15 +1,19 @@
-import { clearCanvas } from "./canvas.js";
-const clearButton = document.getElementById("clear");
-
-// SELECT TOOL
+import { clearCanvas } from "../canvas/renderer.js";
+import { state } from "../state.js";
 const selectTool = document.querySelector(".selectTool");
+const fillColorInput = document.querySelector(".fillColorInput");
+const clearButton = document.getElementById("clear");
 const tools = [
   { id: "rectangle", name: "rectangle" },
   { id: "ellipse", name: "ellipse" },
   { id: "line", name: "line" },
   { id: "freehand", name: "freehand" },
 ];
-let selectedTool = tools[0].id;
+
+const init = () => {
+  selectTool.value = state.selectedTool.id;
+  fillColorInput.value = state.selectedTool.color;
+};
 
 tools.forEach((tool) => {
   const option = document.createElement("option");
@@ -18,18 +22,17 @@ tools.forEach((tool) => {
   selectTool.appendChild(option);
 });
 
+// SELECT TOOL
 selectTool.addEventListener("change", (e) => {
-  selectedTool = e.target.value;
+  state.selectedTool.id = e.target.value;
 });
 
 // FILL COLOR INPUT
-const fillColorInput = document.querySelector(".fillColorInput");
-fillColorInput.value = "#FF4A2E";
-let color = fillColorInput.value;
-
 fillColorInput.addEventListener("input", (e) => {
-  color = e.target.value;
+  state.selectedTool.color = e.target.value;
 });
 
 // clearButton
 clearButton.addEventListener("click", clearCanvas);
+
+export { init };
