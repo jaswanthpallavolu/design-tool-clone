@@ -11,6 +11,8 @@ import {
   handleRotation,
   handleDrag,
   resetInteraction,
+  handleCornerResize,
+  handleEdgeResize,
 } from "./shape/transform.js";
 
 initUI();
@@ -24,3 +26,5 @@ canvas.addEventListener("mouseup", resetInteraction);
 
 canvas.addEventListener("mousemove", handleRotation);
 canvas.addEventListener("mousemove", handleDrag);
+canvas.addEventListener("mousemove", handleCornerResize);
+canvas.addEventListener("mousemove", handleEdgeResize);

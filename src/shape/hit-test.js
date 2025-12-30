@@ -72,6 +72,7 @@ function handleShapeHandles(e) {
   const shape = state.shapesById[state.selectedShapeId];
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   const currentHandle = detectShapeHandle(ctx, { mouseX, mouseY }, shape);
+  state.interaction.currentHandle = currentHandle;
   if (currentHandle === "rot") {
     state.interaction.mode = "rotating";
 
