@@ -2,6 +2,7 @@ export const state = {
   shapesById: {},
   selectedShapeId: null,
   hoveredShapeId: null,
+  currentShape: null,
   handlePaths: {},
   selectedTool: { id: "rectangle", color: "#FF4A2E" },
   canvas: {
@@ -10,7 +11,7 @@ export const state = {
   imageData: null,
   interaction: {
     mode: "none", // "none", "drawing", "dragging", "resizing", "rotating"
-    currentHandle: null, // "tl", "tr", "rot", etc.
+    currentHandle: { category: "", value: "" },
     origin: { x: 0, y: 0 }, // Mouse position when action started
     offset: { x: 0, y: 0 }, // Offset from shape center to mouse
   },

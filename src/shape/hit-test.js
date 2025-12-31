@@ -3,18 +3,22 @@ import {
   ctx,
   drawHoverOutline,
   resetCanvas,
-  drawShapeHandles,
   redrawCanvas,
 } from "../canvas/renderer.js";
 import { getCanvasMouseInput } from "../utils/mouse.js";
-import { getRectangleHandlesPath } from "./definitions.js";
+import { getShapeHandlesPath } from "./definitions.js";
 
 const detectShape = (ctx, { mouseX, mouseY }, shape) => {
   ctx.save();
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
-  const hitfound = ctx.isPointInPath(shape.path, mouseX, mouseY);
+  ctx.lineWidth = 10;
+  const hitfound =
+    shape.type === "line"
+      ? ctx.isPointInStroke(shape.path, mouseX, mouseY)
+      : ctx.isPointInPath(shape.path, mouseX, mouseY);
   ctx.restore();
+
   return hitfound;
 };
 
@@ -43,28 +47,35 @@ function detectShapeHandle(ctx, mouseInput, shape) {
   ctx.save();
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
-  const hit1 = checkHandlesPathHit(
+  const cornerHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.cornerPaths,
     mouseInput
   );
-  const hit2 = checkHandlesPathHit(
+  const rotateHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.rotatePaths,
     mouseInput
   );
-  const hit3 = checkHandlesPathHit(
+  const edgeHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.edgePaths,
     mouseInput,
     true
   );
-
-  // if (hit1) console.log("checkCornerHit ", hit1);
-  // else if (hit2) console.log("checkRotationHit ", hit2);
-  // else if (hit3) console.log("checkEdgeHit ", hit3);
+  const result = {};
+  if (cornerHit) {
+    result.category = "corner";
+    result.value = cornerHit;
+  } else if (rotateHit) {
+    result.category = "rotate";
+    result.value = rotateHit;
+  } else if (edgeHit) {
+    result.category = "edge";
+    result.value = edgeHit;
+  }
   ctx.restore();
-  return (hit2 && "rot") || hit1 || hit3;
+  return result;
 }
 
 function handleShapeHandles(e) {
@@ -73,7 +84,7 @@ function handleShapeHandles(e) {
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   const currentHandle = detectShapeHandle(ctx, { mouseX, mouseY }, shape);
   state.interaction.currentHandle = currentHandle;
-  if (currentHandle === "rot") {
+  if (currentHandle.category === "rotate") {
     state.interaction.mode = "rotating";
 
     // This is where the mouse is right now
@@ -84,7 +95,7 @@ function handleShapeHandles(e) {
 
     // Save the shape's current rotation
     state.transform.initialRotation = shape.rotation;
-  } else if (currentHandle !== null) {
+  } else if (["edge", "corner"].includes(currentHandle.category)) {
     state.interaction.mode = "resizing";
   } else {
     state.interaction.mode = "dragging";
@@ -97,6 +108,7 @@ function handleShapeDetection(e) {
   if (state.selectedShapeId) return;
   const mouseInput = getCanvasMouseInput(e);
   let shapeDetected = false;
+  resetCanvas();
   for (let shape of Object.values(state.shapesById)) {
     if (detectShape(ctx, mouseInput, shape)) {
       drawHoverOutline(shape);
@@ -105,7 +117,6 @@ function handleShapeDetection(e) {
       break;
     }
   }
-  if (!shapeDetected) resetCanvas();
 }
 
 function handleShapeSelection(e) {
@@ -113,12 +124,11 @@ function handleShapeSelection(e) {
   let shapeDetected = false;
   for (let shape of Object.values(state.shapesById)) {
     if (
-      detectShapeHandle(ctx, mouseInput, shape) ||
+      detectShapeHandle(ctx, mouseInput, shape)?.value ||
       detectShape(ctx, mouseInput, shape)
     ) {
       state.selectedShapeId = shape.id;
-      state.handlePaths = getRectangleHandlesPath(ctx, shape);
-      // drawShapeHandles(shape, state.handlePaths);
+      state.handlePaths = getShapeHandlesPath(shape);
       redrawCanvas();
       shapeDetected = true;
       break;

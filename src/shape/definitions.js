@@ -15,6 +15,42 @@ const getRectangleObject = ({ x, y, width, height }) => {
   return getRectanglePath(shape);
 };
 
+function getEllipseObject({ x, y, width, height }) {
+  let shape = {
+    id: crypto.randomUUID(),
+    p1: { x, y },
+    p2: {},
+    type: "ellipse",
+    width,
+    height,
+    rotation: 0,
+    fillStyle: state.selectedTool.color,
+  };
+  return getEllipsePath(shape);
+}
+
+function getLineObject(p1, p2) {
+  let shape = {
+    id: crypto.randomUUID(),
+    p1,
+    p2,
+    type: "line",
+    rotation: 0,
+    lineWidth: 4,
+    fillStyle: state.selectedTool.color,
+  };
+  return getLinePath(shape);
+}
+
+function getShapePath(shape) {
+  const getPath = {
+    rectangle: getRectanglePath,
+    ellipse: getEllipsePath,
+    line: getLinePath,
+  };
+  return getPath?.[shape.type](shape);
+}
+
 function getRectanglePath(shape) {
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
@@ -26,7 +62,30 @@ function getRectanglePath(shape) {
   return shape;
 }
 
-const getRectangleHandlesPath = (ctx, shape) => {
+function getEllipsePath(shape) {
+  const halfW = shape.width / 2;
+  const halfH = shape.height / 2;
+  shape.center = { x: shape.p1.x + halfW, y: shape.p1.y + halfH };
+
+  const path = new Path2D();
+  path.ellipse(0, 0, halfW, halfH, 0, 0, Math.PI * 2);
+  shape.path = path;
+  return shape;
+}
+
+function getLinePath(shape) {
+  const midX = (shape.p1.x + shape.p2.x) / 2;
+  const midY = (shape.p1.y + shape.p2.y) / 2;
+  shape.center = { x: midX, y: midY };
+
+  const path = new Path2D();
+  path.moveTo(shape.p1.x - midX, shape.p1.y - midY);
+  path.lineTo(shape.p2.x - midX, shape.p2.y - midY);
+  shape.path = path;
+  return shape;
+}
+
+const getShapeHandlesPath = (shape) => {
   const edgePaths = getEdgePaths(shape);
   const cornerPaths = getCornerPaths(shape);
   const rotatePaths = getRotatePaths(shape);
@@ -39,12 +98,8 @@ const getRectangleHandlesPath = (ctx, shape) => {
 };
 
 function getEdgePaths(shape) {
-  const edgePaths = {
-    top: new Path2D(),
-    bottom: new Path2D(),
-    left: new Path2D(),
-    right: new Path2D(),
-  };
+  const edgePaths = {};
+  if (shape.type === "line") return {};
   const halfW = shape.width / 2;
   const halfH = shape.height / 2;
 
@@ -70,89 +125,133 @@ function getEdgePaths(shape) {
 }
 
 function getCornerPaths(shape) {
-  const cornerPaths = {
-    tl: new Path2D(),
-    tr: new Path2D(),
-    br: new Path2D(),
-    bl: new Path2D(),
-  };
+  const cornerPaths = {};
   const size = 10; // Handle size
-  const halfW = shape.width / 2;
-  const halfH = shape.height / 2;
-
-  // 1. Draw the Border Rectangle
 
   // 2. Define and Record Handle Paths
   // We create new Path2D objects that inherit the current transformation matrix
-  cornerPaths.tl = new Path2D();
-  cornerPaths.tl.rect(-halfW - size / 2, -halfH - size / 2, size, size);
+  if (shape.type === "line") {
+    const relP1X = shape.p1.x - shape.center.x;
+    const relP1Y = shape.p1.y - shape.center.y;
 
-  cornerPaths.tr = new Path2D();
-  cornerPaths.tr.rect(halfW - size / 2, -halfH - size / 2, size, size);
+    const relP2X = shape.p2.x - shape.center.x;
+    const relP2Y = shape.p2.y - shape.center.y;
+    cornerPaths.left = new Path2D();
+    cornerPaths.left.rect(relP1X - size / 2, relP1Y - size / 2, size, size);
 
-  cornerPaths.br = new Path2D();
-  cornerPaths.br.rect(halfW - size / 2, halfH - size / 2, size, size);
+    cornerPaths.right = new Path2D();
+    cornerPaths.right.rect(relP2X - size / 2, relP2Y - size / 2, size, size);
+  } else {
+    const halfW = shape.width / 2;
+    const halfH = shape.height / 2;
 
-  cornerPaths.bl = new Path2D();
-  cornerPaths.bl.rect(-halfW - size / 2, halfH - size / 2, size, size);
+    cornerPaths.tl = new Path2D();
+    cornerPaths.tl.rect(-halfW - size / 2, -halfH - size / 2, size, size);
 
-  // 3. Fill the handles so they are visible
+    cornerPaths.tr = new Path2D();
+    cornerPaths.tr.rect(halfW - size / 2, -halfH - size / 2, size, size);
+
+    cornerPaths.br = new Path2D();
+    cornerPaths.br.rect(halfW - size / 2, halfH - size / 2, size, size);
+
+    cornerPaths.bl = new Path2D();
+    cornerPaths.bl.rect(-halfW - size / 2, halfH - size / 2, size, size);
+  }
 
   return cornerPaths;
 }
 
 function getRotatePaths(shape) {
-  const rotatePaths = {
-    tl: new Path2D(),
-    tr: new Path2D(),
-    br: new Path2D(),
-    bl: new Path2D(),
-  };
-  const halfW = shape.width / 2;
-  const halfH = shape.height / 2;
-  const padding = 15; // Distance from the corner to the center of the handle
+  const rotatePaths = {};
+  let padding = 15; // Distance from the corner to the center of the handle
   const hitRadius = 12; // The radius of the clickable area
 
   // 2. Define Rotation Paths as circles centered at the offset corners
-  // Top Left
-  rotatePaths.tl = new Path2D();
-  rotatePaths.tl.arc(
-    -halfW - padding,
-    -halfH - padding,
-    hitRadius,
-    0,
-    Math.PI * 2
-  );
 
-  // Top Right
-  rotatePaths.tr = new Path2D();
-  rotatePaths.tr.arc(
-    halfW + padding,
-    -halfH - padding,
-    hitRadius,
-    0,
-    Math.PI * 2
-  );
+  if (shape.type === "line") {
+    padding = 20;
+    // 1. Get relative positions of endpoints from the center (0,0)
+    const relP1X = shape.p1.x - shape.center.x;
+    const relP1Y = shape.p1.y - shape.center.y;
 
-  // Bottom Right
-  rotatePaths.br = new Path2D();
-  rotatePaths.br.arc(
-    halfW + padding,
-    halfH + padding,
-    hitRadius,
-    0,
-    Math.PI * 2
-  );
+    const relP2X = shape.p2.x - shape.center.x;
+    const relP2Y = shape.p2.y - shape.center.y;
 
-  // Bottom Left
-  rotatePaths.bl = new Path2D();
-  rotatePaths.bl.arc(
-    -halfW - padding,
-    halfH + padding,
-    hitRadius,
-    0,
-    Math.PI * 2
-  );
+    // 2. Calculate the direction vector to push handles "outward"
+    const length = Math.sqrt(
+      Math.pow(shape.p2.x - shape.p1.x, 2) +
+        Math.pow(shape.p2.y - shape.p1.y, 2)
+    );
+
+    // Normalized direction from center to P1 and P2
+    const dirP1X = relP1X / (length / 2);
+    const dirP1Y = relP1Y / (length / 2);
+
+    const dirP2X = relP2X / (length / 2);
+    const dirP2Y = relP2Y / (length / 2);
+
+    // 3. Create Rotation Path for P1 side
+    rotatePaths.rotP1 = new Path2D();
+    rotatePaths.rotP1.arc(
+      relP1X + dirP1X * padding,
+      relP1Y + dirP1Y * padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+
+    // 4. Create Rotation Path for P2 side
+    rotatePaths.rotP2 = new Path2D();
+    rotatePaths.rotP2.arc(
+      relP2X + dirP2X * padding,
+      relP2Y + dirP2Y * padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+  } else {
+    const halfW = shape.width / 2;
+    const halfH = shape.height / 2;
+    // Top Left
+    rotatePaths.tl = new Path2D();
+    rotatePaths.tl.arc(
+      -halfW - padding,
+      -halfH - padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+
+    // Top Right
+    rotatePaths.tr = new Path2D();
+    rotatePaths.tr.arc(
+      halfW + padding,
+      -halfH - padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+
+    // Bottom Right
+    rotatePaths.br = new Path2D();
+    rotatePaths.br.arc(
+      halfW + padding,
+      halfH + padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+
+    // Bottom Left
+    rotatePaths.bl = new Path2D();
+    rotatePaths.bl.arc(
+      -halfW - padding,
+      halfH + padding,
+      hitRadius,
+      0,
+      Math.PI * 2
+    );
+  }
 
   /**
    * OPTIONAL: Debug Drawing
@@ -162,4 +261,11 @@ function getRotatePaths(shape) {
   return rotatePaths;
 }
 
-export { getRectangleObject, getRectangleHandlesPath, getRectanglePath };
+export {
+  getRectangleObject,
+  getRectanglePath,
+  getEllipseObject,
+  getLineObject,
+  getShapeHandlesPath,
+  getShapePath,
+};

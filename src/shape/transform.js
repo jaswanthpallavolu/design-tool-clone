@@ -1,30 +1,52 @@
 import { state } from "../state.js";
 import { getCanvasMouseInput, getLocalMouse } from "../utils/mouse.js";
 import { redrawCanvas, redrawHandles } from "../canvas/renderer.js";
-import { getRectanglePath, getRectangleHandlesPath } from "./definitions.js";
+import { getShapePath, getShapeHandlesPath } from "./definitions.js";
 
 function handleRotation(e) {
-  if (state.interaction.mode !== "rotating" || !state.selectedShapeId) return;
+  if (state.interaction.mode !== "rotating") return;
   const { mouseX, mouseY } = getCanvasMouseInput(e);
-  const shape = { ...state.shapesById[state.selectedShapeId] };
+  let shape = { ...state.shapesById[state.selectedShapeId] };
 
-  // 1. Calculate current mouse angle
-  const currentAngle = Math.atan2(
-    mouseY - shape.center.y,
-    mouseX - shape.center.x
-  );
+  if (shape.type === "line") {
+    // 2. Calculate the current distance from center to endpoints (radius)
+    const dx = shape.p1.x - shape.center.x;
+    const dy = shape.p1.y - shape.center.y;
+    const radius = Math.sqrt(dx * dx + dy * dy);
 
-  // 2. The new rotation is: (Initial Rotation) + (Change in Mouse Angle)
-  let newRotation =
-    state.transform.initialRotation +
-    (currentAngle - state.transform.startAngle);
+    // 3. Calculate the new angle from mouse to center
+    // Math.atan2(y, x)
+    const angle = Math.atan2(mouseY - shape.center.y, mouseX - shape.center.x);
 
-  // 3. Optional: Figma-style snapping (Hold Shift to snap to 15-degree increments)
-  //   if (e.shiftKey) {
-  //     const snap = Math.PI / 12; // 15 degrees in radians
-  //     newRotation = Math.round(newRotation / snap) * snap;
-  //   }
-  shape.rotation = newRotation;
+    // 4. Update P1 and P2 based on the new angle
+    // P2 follows the mouse, P1 moves in the opposite direction (180 degrees away)
+    shape.p2.x = shape.center.x + radius * Math.cos(angle);
+    shape.p2.y = shape.center.y + radius * Math.sin(angle);
+
+    shape.p1.x = shape.center.x - radius * Math.cos(angle);
+    shape.p1.y = shape.center.y - radius * Math.sin(angle);
+  } else {
+    // 1. Calculate current mouse angle
+    const currentAngle = Math.atan2(
+      mouseY - shape.center.y,
+      mouseX - shape.center.x
+    );
+
+    // 2. The new rotation is: (Initial Rotation) + (Change in Mouse Angle)
+    let newRotation =
+      state.transform.initialRotation +
+      (currentAngle - state.transform.startAngle);
+
+    // 3. Optional: Figma-style snapping (Hold Shift to snap to 15-degree increments)
+    //   if (e.shiftKey) {
+    //     const snap = Math.PI / 12; // 15 degrees in radians
+    //     newRotation = Math.round(newRotation / snap) * snap;
+    //   }
+    shape.rotation = newRotation;
+  }
+
+  shape = getShapePath(shape);
+  state.handlePaths = getShapeHandlesPath(shape);
   state.shapesById = {
     ...state.shapesById,
     [shape.id]: shape,
@@ -35,15 +57,15 @@ function handleRotation(e) {
 }
 
 function handleDrag(e) {
-  if (state.interaction.mode !== "dragging" || !state.selectedShapeId) return;
+  if (state.interaction.mode !== "dragging") return;
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   let shape = { ...state.shapesById[state.selectedShapeId] };
 
   shape.p1.x = mouseX - state.interaction.offset.x;
   shape.p1.y = mouseY - state.interaction.offset.y;
 
-  shape = getRectanglePath(shape);
-  state.handlePaths = getRectangleHandlesPath({}, shape);
+  shape = getShapePath(shape);
+  state.handlePaths = getShapeHandlesPath(shape);
   state.shapesById = {
     ...state.shapesById,
     [shape.id]: shape,
@@ -55,95 +77,106 @@ function handleDrag(e) {
 function handleCornerResize(e) {
   if (
     state.interaction.mode !== "resizing" ||
-    state.interaction.currentHandle.length !== 2
+    state.interaction.currentHandle.category !== "corner"
   )
     return;
 
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   let shape = { ...state.shapesById[state.selectedShapeId] };
-  const currentHandle = state.interaction.currentHandle;
-  const cos = Math.cos(shape.rotation);
-  const sin = Math.sin(shape.rotation);
+  const currentHandle = state.interaction.currentHandle.value;
 
-  // --- STEP 1: FIND THE PINNED ANCHOR (The Diagonal Vertex) ---
-  // If we pull Top-Right (tr), the anchor is Bottom-Left (bl).
-  let anchorLocalX, anchorLocalY;
+  if (shape.type === "line") {
+    if (currentHandle === "left") {
+      shape.p1.x = mouseX;
+      shape.p1.y = mouseY;
+    } else if (currentHandle === "right") {
+      shape.p2.x = mouseX;
+      shape.p2.y = mouseY;
+    }
+  } else {
+    const cos = Math.cos(shape.rotation);
+    const sin = Math.sin(shape.rotation);
 
-  if (currentHandle === "br") {
-    anchorLocalX = -shape.width / 2;
-    anchorLocalY = -shape.height / 2;
-  } // Anchor: tl
-  if (currentHandle === "bl") {
-    anchorLocalX = shape.width / 2;
-    anchorLocalY = -shape.height / 2;
-  } // Anchor: tr
-  if (currentHandle === "tr") {
-    anchorLocalX = -shape.width / 2;
-    anchorLocalY = shape.height / 2;
-  } // Anchor: bl
-  if (currentHandle === "tl") {
-    anchorLocalX = shape.width / 2;
-    anchorLocalY = shape.height / 2;
-  } // Anchor: br
+    // --- STEP 1: FIND THE PINNED ANCHOR (The Diagonal Vertex) ---
+    // If we pull Top-Right (tr), the anchor is Bottom-Left (bl).
+    let anchorLocalX, anchorLocalY;
 
-  const centerX = shape.p1.x + shape.width / 2;
-  const centerY = shape.p1.y + shape.height / 2;
+    if (currentHandle === "br") {
+      anchorLocalX = -shape.width / 2;
+      anchorLocalY = -shape.height / 2;
+    } // Anchor: tl
+    if (currentHandle === "bl") {
+      anchorLocalX = shape.width / 2;
+      anchorLocalY = -shape.height / 2;
+    } // Anchor: tr
+    if (currentHandle === "tr") {
+      anchorLocalX = -shape.width / 2;
+      anchorLocalY = shape.height / 2;
+    } // Anchor: bl
+    if (currentHandle === "tl") {
+      anchorLocalX = shape.width / 2;
+      anchorLocalY = shape.height / 2;
+    } // Anchor: br
 
-  // Convert local anchor to world coordinates
-  const pinnedX = centerX + anchorLocalX * cos - anchorLocalY * sin;
-  const pinnedY = centerY + anchorLocalX * sin + anchorLocalY * cos;
+    const centerX = shape.p1.x + shape.width / 2;
+    const centerY = shape.p1.y + shape.height / 2;
 
-  // --- STEP 2: CALCULATE NEW DIMENSIONS ---
-  const localMouse = getLocalMouse(mouseX, mouseY, shape);
-  const oldW = shape.width;
-  const oldH = shape.height;
+    // Convert local anchor to world coordinates
+    const pinnedX = centerX + anchorLocalX * cos - anchorLocalY * sin;
+    const pinnedY = centerY + anchorLocalX * sin + anchorLocalY * cos;
 
-  if (currentHandle.includes("r")) shape.width = localMouse.x + oldW / 2;
-  else shape.width = oldW / 2 - localMouse.x;
+    // --- STEP 2: CALCULATE NEW DIMENSIONS ---
+    const localMouse = getLocalMouse(mouseX, mouseY, shape);
+    const oldW = shape.width;
+    const oldH = shape.height;
 
-  if (currentHandle.includes("b")) shape.height = localMouse.y + oldH / 2;
-  else shape.height = oldH / 2 - localMouse.y;
+    if (currentHandle.includes("r")) shape.width = localMouse.x + oldW / 2;
+    else shape.width = oldW / 2 - localMouse.x;
 
-  // Clamp minimum size
-  shape.width = Math.max(5, shape.width);
-  shape.height = Math.max(5, shape.height);
+    if (currentHandle.includes("b")) shape.height = localMouse.y + oldH / 2;
+    else shape.height = oldH / 2 - localMouse.y;
 
-  // --- STEP 3: RE-ALIGN TO THE PINNED ANCHOR ---
-  // The center has moved because width/height changed.
-  // We find where the anchor is NOW and shift p1 by the difference.
-  const newCenterX = shape.p1.x + shape.width / 2;
-  const newCenterY = shape.p1.y + shape.height / 2;
+    // Clamp minimum size
+    shape.width = Math.max(5, shape.width);
+    shape.height = Math.max(5, shape.height);
 
-  // Recalculate local anchor position with NEW dimensions
-  let newAnchorLocalX, newAnchorLocalY;
-  if (currentHandle === "br") {
-    newAnchorLocalX = -shape.width / 2;
-    newAnchorLocalY = -shape.height / 2;
+    // --- STEP 3: RE-ALIGN TO THE PINNED ANCHOR ---
+    // The center has moved because width/height changed.
+    // We find where the anchor is NOW and shift p1 by the difference.
+    const newCenterX = shape.p1.x + shape.width / 2;
+    const newCenterY = shape.p1.y + shape.height / 2;
+
+    // Recalculate local anchor position with NEW dimensions
+    let newAnchorLocalX, newAnchorLocalY;
+    if (currentHandle === "br") {
+      newAnchorLocalX = -shape.width / 2;
+      newAnchorLocalY = -shape.height / 2;
+    }
+    if (currentHandle === "bl") {
+      newAnchorLocalX = shape.width / 2;
+      newAnchorLocalY = -shape.height / 2;
+    }
+    if (currentHandle === "tr") {
+      newAnchorLocalX = -shape.width / 2;
+      newAnchorLocalY = shape.height / 2;
+    }
+    if (currentHandle === "tl") {
+      newAnchorLocalX = shape.width / 2;
+      newAnchorLocalY = shape.height / 2;
+    }
+
+    const currentAnchorX =
+      newCenterX + newAnchorLocalX * cos - newAnchorLocalY * sin;
+    const currentAnchorY =
+      newCenterY + newAnchorLocalX * sin + newAnchorLocalY * cos;
+
+    // Apply the correction shift
+    shape.p1.x += pinnedX - currentAnchorX;
+    shape.p1.y += pinnedY - currentAnchorY;
   }
-  if (currentHandle === "bl") {
-    newAnchorLocalX = shape.width / 2;
-    newAnchorLocalY = -shape.height / 2;
-  }
-  if (currentHandle === "tr") {
-    newAnchorLocalX = -shape.width / 2;
-    newAnchorLocalY = shape.height / 2;
-  }
-  if (currentHandle === "tl") {
-    newAnchorLocalX = shape.width / 2;
-    newAnchorLocalY = shape.height / 2;
-  }
 
-  const currentAnchorX =
-    newCenterX + newAnchorLocalX * cos - newAnchorLocalY * sin;
-  const currentAnchorY =
-    newCenterY + newAnchorLocalX * sin + newAnchorLocalY * cos;
-
-  // Apply the correction shift
-  shape.p1.x += pinnedX - currentAnchorX;
-  shape.p1.y += pinnedY - currentAnchorY;
-
-  shape = getRectanglePath(shape);
-  state.handlePaths = getRectangleHandlesPath({}, shape);
+  shape = getShapePath(shape);
+  state.handlePaths = getShapeHandlesPath(shape);
   state.shapesById = {
     ...state.shapesById,
     [shape.id]: shape,
@@ -155,13 +188,13 @@ function handleCornerResize(e) {
 function handleEdgeResize(e) {
   if (
     state.interaction.mode !== "resizing" ||
-    state.interaction.currentHandle.length <= 2
+    state.interaction.currentHandle.category !== "edge"
   )
     return; // Ignore if not a side/corner
 
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   let shape = { ...state.shapesById[state.selectedShapeId] };
-  const currentHandle = state.interaction.currentHandle;
+  const currentHandle = state.interaction.currentHandle.value;
 
   const cos = Math.cos(shape.rotation);
   const sin = Math.sin(shape.rotation);
@@ -221,8 +254,8 @@ function handleEdgeResize(e) {
   shape.p1.x += pinnedX - currentAnchorX;
   shape.p1.y += pinnedY - currentAnchorY;
 
-  shape = getRectanglePath(shape);
-  state.handlePaths = getRectangleHandlesPath({}, shape);
+  shape = getShapePath(shape);
+  state.handlePaths = getShapeHandlesPath(shape);
   state.shapesById = {
     ...state.shapesById,
     [shape.id]: shape,

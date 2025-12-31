@@ -4,30 +4,28 @@ const canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 function init() {
-  let shape = getRectangleObject({
-    x: 100,
-    y: 100,
-    width: 200,
-    height: 100,
-  });
-  let shape1 = getRectangleObject({
-    x: 300,
-    y: 300,
-    width: 200,
-    height: 100,
-  });
-  state.shapesById = {
-    ...state.shapesById,
-    [shape.id]: shape,
-    [shape1.id]: shape1,
-  };
+  // let shape = getRectangleObject({
+  //   x: 100,
+  //   y: 100,
+  //   width: 200,
+  //   height: 100,
+  // });
+  // let shape1 = getRectangleObject({
+  //   x: 300,
+  //   y: 300,
+  //   width: 200,
+  //   height: 100,
+  // });
+  // state.shapesById = {
+  //   ...state.shapesById,
+  //   [shape.id]: shape,
+  //   [shape1.id]: shape1,
+  // };
   redrawCanvas();
 }
 
 function redrawCanvas() {
   clearCanvas();
-  // if (!state.imageData)
-  // else ctx.putImageData(state.imageData, 0, 0);
   for (let shape of Object.values(state.shapesById)) {
     drawShape(shape);
   }
@@ -56,7 +54,13 @@ function drawShape(shape) {
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
   ctx.fillStyle = shape.fillStyle;
-  ctx.fill(shape.path);
+  ctx.strokeStyle = shape.fillStyle;
+  if (shape.type === "line") {
+    ctx.lineWidth = shape.lineWidth;
+    ctx.stroke(shape.path);
+  } else {
+    ctx.fill(shape.path);
+  }
   ctx.restore();
 }
 
@@ -117,4 +121,5 @@ export {
   resetCanvas,
   drawShapeHandles,
   redrawHandles,
+  drawShape,
 };
