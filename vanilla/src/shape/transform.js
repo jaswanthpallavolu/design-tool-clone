@@ -61,9 +61,24 @@ function handleDrag(e) {
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   let shape = { ...state.shapesById[state.selectedShapeId] };
 
-  shape.p1.x = mouseX - state.interaction.offset.x;
-  shape.p1.y = mouseY - state.interaction.offset.y;
+  if (shape.type === "line") {
+    // 1. Calculate new center based on mouse move
+    const newCenterX = mouseX - state.interaction.offset.x;
+    const newCenterY = mouseY - state.interaction.offset.y;
 
+    // 2. Find the movement delta (dx/dy)
+    const dx = newCenterX - shape.center.x;
+    const dy = newCenterY - shape.center.y;
+
+    // 3. Update World Coordinates
+    shape.p1.x += dx;
+    shape.p1.y += dy;
+    shape.p2.x += dx;
+    shape.p2.y += dy;
+  } else {
+    shape.p1.x = mouseX - state.interaction.offset.x;
+    shape.p1.y = mouseY - state.interaction.offset.y;
+  }
   shape = getShapePath(shape);
   state.handlePaths = getShapeHandlesPath(shape);
   state.shapesById = {

@@ -99,8 +99,16 @@ function handleShapeHandles(e) {
     state.interaction.mode = "resizing";
   } else {
     state.interaction.mode = "dragging";
-    state.interaction.offset.x = mouseX - shape.p1.x;
-    state.interaction.offset.y = mouseY - shape.p1.y;
+    if (shape.type === "line") {
+      // CRITICAL: Calculate the distance from the mouse to the center
+      state.interaction.offset = {
+        x: mouseX - shape.center.x,
+        y: mouseY - shape.center.y,
+      };
+    } else {
+      state.interaction.offset.x = mouseX - shape.p1.x;
+      state.interaction.offset.y = mouseY - shape.p1.y;
+    }
   }
 }
 
