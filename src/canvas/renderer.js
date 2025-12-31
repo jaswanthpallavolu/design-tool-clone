@@ -25,7 +25,7 @@ function init() {
 }
 
 function redrawCanvas() {
-  clearCanvas();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   for (let shape of Object.values(state.shapesById)) {
     drawShape(shape);
   }
@@ -109,6 +109,8 @@ function resetCanvas() {
 
 const clearCanvas = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  state.shapesById = {};
+  state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 };
 
 export {

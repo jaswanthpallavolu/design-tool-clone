@@ -14,6 +14,7 @@ import {
   handleEdgeResize,
 } from "./shape/transform.js";
 import { startDrawing, updateDrawing, stopDrawing } from "./tool/draw-tool.js";
+import { deleteShape } from "./shape/actions.js";
 
 initUI();
 initCanvas();
@@ -32,3 +33,5 @@ canvas.addEventListener("mouseup", resetInteraction);
 canvas.addEventListener("mousedown", startDrawing);
 canvas.addEventListener("mousemove", updateDrawing);
 canvas.addEventListener("mouseup", stopDrawing);
+
+window.addEventListener("keydown", deleteShape);
