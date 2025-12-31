@@ -7,7 +7,7 @@ const tools = [
   { id: "rectangle", name: "rectangle" },
   { id: "ellipse", name: "ellipse" },
   { id: "line", name: "line" },
-  { id: "freehand", name: "freehand" },
+  // { id: "freehand", name: "freehand" },
 ];
 
 const init = () => {
