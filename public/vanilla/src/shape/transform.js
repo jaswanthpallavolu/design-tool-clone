@@ -29,7 +29,7 @@ function handleRotation(e) {
     // 1. Calculate current mouse angle
     const currentAngle = Math.atan2(
       mouseY - shape.center.y,
-      mouseX - shape.center.x
+      mouseX - shape.center.x,
     );
 
     // 2. The new rotation is: (Initial Rotation) + (Change in Mouse Angle)
@@ -152,8 +152,8 @@ function handleCornerResize(e) {
     else shape.height = oldH / 2 - localMouse.y;
 
     // Clamp minimum size
-    shape.width = Math.max(5, shape.width);
-    shape.height = Math.max(5, shape.height);
+    // shape.width = Math.max(5, shape.width);
+    // shape.height = Math.max(5, shape.height);
 
     // --- STEP 3: RE-ALIGN TO THE PINNED ANCHOR ---
     // The center has moved because width/height changed.
@@ -244,8 +244,8 @@ function handleEdgeResize(e) {
   if (currentHandle === "top") shape.height = oldH / 2 - localMouse.y;
 
   // Clamp minimum size for 2025 stability
-  shape.width = Math.max(5, shape.width);
-  shape.height = Math.max(5, shape.height);
+  // shape.width = Math.max(5, shape.width);
+  // shape.height = Math.max(5, shape.height);
 
   // --- STEP 3: REALIGN TO THE PINNED ANCHOR ---
   const newCenterX = shape.p1.x + shape.width / 2;

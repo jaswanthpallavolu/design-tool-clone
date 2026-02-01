@@ -63,9 +63,16 @@ function getRectanglePath(shape) {
 }
 
 function getEllipsePath(shape) {
-  const halfW = shape.width / 2;
-  const halfH = shape.height / 2;
-  shape.center = { x: shape.p1.x + halfW, y: shape.p1.y + halfH };
+  const absW = Math.abs(shape.width);
+  const absH = Math.abs(shape.height);
+
+  const halfW = absW / 2;
+  const halfH = absH / 2;
+
+  shape.center = {
+    x: shape.p1.x + shape.width / 2,
+    y: shape.p1.y + shape.height / 2,
+  };
 
   const path = new Path2D();
   path.ellipse(0, 0, halfW, halfH, 0, 0, Math.PI * 2);
@@ -180,7 +187,7 @@ function getRotatePaths(shape) {
     // 2. Calculate the direction vector to push handles "outward"
     const length = Math.sqrt(
       Math.pow(shape.p2.x - shape.p1.x, 2) +
-        Math.pow(shape.p2.y - shape.p1.y, 2)
+        Math.pow(shape.p2.y - shape.p1.y, 2),
     );
 
     // Normalized direction from center to P1 and P2
@@ -197,7 +204,7 @@ function getRotatePaths(shape) {
       relP1Y + dirP1Y * padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
 
     // 4. Create Rotation Path for P2 side
@@ -207,11 +214,11 @@ function getRotatePaths(shape) {
       relP2Y + dirP2Y * padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
   } else {
-    const halfW = shape.width / 2;
-    const halfH = shape.height / 2;
+    const halfW = Math.abs(shape.width) / 2;
+    const halfH = Math.abs(shape.height) / 2;
     // Top Left
     rotatePaths.tl = new Path2D();
     rotatePaths.tl.arc(
@@ -219,7 +226,7 @@ function getRotatePaths(shape) {
       -halfH - padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
 
     // Top Right
@@ -229,7 +236,7 @@ function getRotatePaths(shape) {
       -halfH - padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
 
     // Bottom Right
@@ -239,7 +246,7 @@ function getRotatePaths(shape) {
       halfH + padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
 
     // Bottom Left
@@ -249,7 +256,7 @@ function getRotatePaths(shape) {
       halfH + padding,
       hitRadius,
       0,
-      Math.PI * 2
+      Math.PI * 2,
     );
   }
 
