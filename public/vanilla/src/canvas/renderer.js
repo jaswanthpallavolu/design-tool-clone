@@ -54,11 +54,12 @@ function drawShape(shape) {
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
   ctx.fillStyle = shape.fillStyle;
-  ctx.strokeStyle = shape.fillStyle;
+  ctx.strokeStyle = shape.strokeStyle;
   if (shape.type === "line") {
     ctx.lineWidth = shape.lineWidth;
     ctx.stroke(shape.path);
   } else {
+    ctx.stroke(shape.path);
     ctx.fill(shape.path);
   }
   ctx.restore();

@@ -1,43 +1,49 @@
 import { state } from "../state.js";
 
-const getRectangleObject = ({ x, y, width, height }) => {
-  let shape = {
+const getShapeObject = (type) => {
+  return {
     id: crypto.randomUUID(),
+    fillStyle: state.selectedTool.fillColor,
+    strokeStyle: state.selectedTool.strokeColor,
+    type,
+  };
+};
+
+const getRectangleObject = ({ x, y, width, height }) => {
+  let shape = getShapeObject("rectangle");
+  shape = {
+    ...shape,
     p1: { x, y },
     p2: {},
-    type: "rectangle",
     width,
     height,
     rotation: 0,
-    fillStyle: state.selectedTool.color,
   };
 
   return getRectanglePath(shape);
 };
 
 function getEllipseObject({ x, y, width, height }) {
-  let shape = {
-    id: crypto.randomUUID(),
+  let shape = getShapeObject("ellipse");
+  shape = {
+    ...shape,
     p1: { x, y },
     p2: {},
-    type: "ellipse",
     width,
     height,
     rotation: 0,
-    fillStyle: state.selectedTool.color,
   };
   return getEllipsePath(shape);
 }
 
 function getLineObject(p1, p2) {
-  let shape = {
-    id: crypto.randomUUID(),
+  let shape = getShapeObject("line");
+  shape = {
+    ...shape,
     p1,
     p2,
-    type: "line",
     rotation: 0,
     lineWidth: 4,
-    fillStyle: state.selectedTool.color,
   };
   return getLinePath(shape);
 }

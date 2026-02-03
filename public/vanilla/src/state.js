@@ -4,7 +4,11 @@ export const state = {
   hoveredShapeId: null,
   currentShape: null,
   handlePaths: {},
-  selectedTool: { id: "rectangle", color: "#FF4A2E" },
+  selectedTool: {
+    id: "rectangle",
+    fillColor: "#FF4A2E",
+    strokeColor: "#FF4A2E",
+  },
   canvas: {
     boundRect: null,
   },

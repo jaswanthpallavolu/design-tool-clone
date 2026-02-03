@@ -1,4 +1,4 @@
-import { init as initUI } from "./ui/toolbar.js";
+import { init as initUI, handleToolSelection } from "./ui/toolbar.js";
 import { init as initCanvas, canvas, redrawCanvas } from "./canvas/renderer.js";
 import { initViewport } from "./canvas/viewport.js";
 import {
@@ -35,3 +35,4 @@ canvas.addEventListener("mousemove", updateDrawing);
 canvas.addEventListener("mouseup", stopDrawing);
 
 window.addEventListener("keydown", deleteShape);
+window.addEventListener("keydown", handleToolSelection);
