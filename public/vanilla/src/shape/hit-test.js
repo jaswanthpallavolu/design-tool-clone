@@ -135,19 +135,15 @@ function isShapeSelected(e) {
   if (state.selectedTool.id !== "move") return false;
   const mouseInput = getCanvasMouseInput(e);
   let shapeDetected = false;
-  state.selectedShapes.clear();
-  for (let shape of Object.values(state.shapesById)) {
-    // detectShapeHandle(ctx, mouseInput, shape)?.value
-    if (detectShape(ctx, mouseInput, shape)) {
-      if (!state.selectedShapes.has(shape.id)) {
-        state.selectedShapes.add(shape.id);
-        state.handlePaths = getShapeHandlesPath(shape);
-        redrawCanvas();
-      }
-      shapeDetected = true;
-      break;
-    }
+  const hoveredShape = state.shapesById?.[state.hoveredShapeId];
+  if (hoveredShape && detectShape(ctx, mouseInput, hoveredShape)) {
+    if (!state.multiSelect) state.selectedShapes.clear();
+    state.selectedShapes.add(hoveredShape.id);
+    state.handlePaths = getShapeHandlesPath(hoveredShape);
+    redrawCanvas();
+    shapeDetected = true;
   }
+  // detectShapeHandle(ctx, mouseInput, shape)?.value
   if (!shapeDetected) {
     state.selectedShapes.clear();
   }
@@ -155,9 +151,4 @@ function isShapeSelected(e) {
   return shapeDetected;
 }
 
-function handleCanvasMouseDown(e) {
-  if (isShapeSelected(e)) return;
-  startDrawing(e);
-}
-
-export { handleShapeDetection, handleShapeHandles, handleCanvasMouseDown };
+export { handleShapeDetection, handleShapeHandles, isShapeSelected };

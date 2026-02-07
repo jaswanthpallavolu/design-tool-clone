@@ -11,7 +11,6 @@ function deleteShape(e) {
     });
     state.shapesById = shapes;
     state.selectedShapes.clear();
-    resetInteraction();
     redrawCanvas();
   }
 }

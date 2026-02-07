@@ -1,19 +1,19 @@
-import { init as initUI, handleToolSelection } from "./ui/toolbar.js";
+import { init as initUI } from "./ui/toolbar.js";
 import { init as initCanvas, canvas, redrawCanvas } from "./canvas/renderer.js";
 import { initViewport } from "./canvas/viewport.js";
+import { handleShapeDetection } from "./shape/hit-test.js";
 import {
-  handleShapeDetection,
+  handleCanvasMouseUp,
   handleCanvasMouseDown,
-} from "./shape/hit-test.js";
+  handleCanvasKeyDown,
+} from "./canvas/events.js";
 import {
   handleRotation,
   handleDrag,
-  resetInteraction,
   handleCornerResize,
   handleEdgeResize,
 } from "./shape/transform.js";
-import { updateDrawing, stopDrawing } from "./tool/draw-tool.js";
-import { deleteShape } from "./shape/actions.js";
+import { updateDrawing } from "./tool/draw-tool.js";
 
 initUI();
 initCanvas();
@@ -30,10 +30,11 @@ canvas.addEventListener("mousemove", handleRotation);
 canvas.addEventListener("mousemove", handleDrag);
 canvas.addEventListener("mousemove", handleCornerResize);
 canvas.addEventListener("mousemove", handleEdgeResize);
-canvas.addEventListener("mouseup", resetInteraction);
 
 canvas.addEventListener("mousemove", updateDrawing);
-canvas.addEventListener("mouseup", stopDrawing);
 
-window.addEventListener("keydown", deleteShape);
-window.addEventListener("keydown", handleToolSelection);
+canvas.addEventListener("mouseup", handleCanvasMouseUp);
+
+window.addEventListener("keydown", handleCanvasKeyDown);
+// window.addEventListener("keydown", deleteShape);
+// window.addEventListener("keydown", handleToolSelection);

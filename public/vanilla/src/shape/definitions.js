@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { getRectAABB, getLineAABB } from "../utils/boundingBox.js";
 
 const getShapeObject = (type) => {
   return {
@@ -274,6 +275,33 @@ function getRotatePaths(shape) {
   return rotatePaths;
 }
 
+function getBoundingBox(shape) {
+  let boundingBox;
+  if (shape.type === "line") {
+    boundingBox = getLineAABB(
+      shape.p1.x,
+      shape.p1.y,
+      shape.p2.x,
+      shape.p2.y,
+      shape.lineWidth,
+    );
+  } else {
+    boundingBox = getRectAABB(
+      shape.center.x,
+      shape.center.y,
+      shape.width,
+      shape.height,
+      shape.rotation,
+    );
+  }
+  const { minX, minY, maxX, maxY } = boundingBox;
+  const width = maxX - minX;
+  const height = maxY - minY;
+  let boxShape = getRectangleObject({ x: minX, y: minY, width, height });
+  boxShape.boundingBox = boundingBox;
+  return boxShape;
+}
+
 export {
   getRectangleObject,
   getRectanglePath,
@@ -281,4 +309,5 @@ export {
   getLineObject,
   getShapeHandlesPath,
   getShapePath,
+  getBoundingBox,
 };

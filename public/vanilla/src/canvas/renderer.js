@@ -1,6 +1,9 @@
 import { state } from "../state.js";
 const canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d", { willReadFrequently: true });
+import { getBoundingBox } from "../shape/definitions.js";
+import { unionAABBs } from "../utils/boundingBox.js";
+import { getRectangleObject } from "../shape/definitions.js";
 
 function init() {
   // state.shapesById = shapes;
@@ -18,11 +21,25 @@ function redrawCanvas() {
 
 function redrawHandles() {
   if (state.canvas.imageData) ctx.putImageData(state.canvas.imageData, 0, 0);
+  const boxes = [];
   Array.from(state.selectedShapes).forEach((shapeId) => {
-    drawShapeHandles(state.shapesById[shapeId], state.handlePaths);
+    // drawShapeHandles(state.shapesById[shapeId], state.handlePaths);
+    let boundingBoxShape = getBoundingBox(state.shapesById[shapeId]);
+    boxes.push(boundingBoxShape.boundingBox);
+    drawAABBOutline(boundingBoxShape);
   });
+
+  if (boxes.length > 1) {
+    const { minX, minY, maxX, maxY } = unionAABBs(boxes);
+    const width = maxX - minX;
+    const height = maxY - minY;
+    let shape = getRectangleObject({ x: minX, y: minY, width, height });
+    drawAABBOutline(shape, "#ff2121");
+  }
+
   if (state.hoveredShapeId)
     drawHoverOutline(state.shapesById[state.hoveredShapeId]);
+
   // for (let shape of Object.values(state.shapesById)) {
   //   if (
   //     state.selectedShapes.has(shape.id) &&
@@ -59,6 +76,16 @@ function drawHoverOutline(shape) {
   ctx.rotate(shape.rotation);
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#00aaff";
+  ctx.stroke(shape.path);
+  ctx.restore();
+}
+
+function drawAABBOutline(shape, strokeStyle = "#000000") {
+  ctx.save();
+  ctx.translate(shape.center.x, shape.center.y);
+  ctx.rotate(shape.rotation);
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = strokeStyle;
   ctx.stroke(shape.path);
   ctx.restore();
 }
