@@ -1,5 +1,7 @@
 export const state = {
   shapesById: {},
+  selectedShapes: new Set(),
+  hoveredShapes: new Set(),
   selectedShapeId: null,
   hoveredShapeId: null,
   currentShape: null,
@@ -11,8 +13,8 @@ export const state = {
   },
   canvas: {
     boundRect: null,
+    imageData: null,
   },
-  imageData: null,
   interaction: {
     mode: "none", // "none", "drawing", "dragging", "resizing", "rotating"
     currentHandle: { category: "", value: "" },

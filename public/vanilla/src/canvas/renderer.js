@@ -1,26 +1,9 @@
 import { state } from "../state.js";
-import { getRectangleObject } from "../shape/definitions.js";
 const canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 function init() {
-  // let shape = getRectangleObject({
-  //   x: 100,
-  //   y: 100,
-  //   width: 200,
-  //   height: 100,
-  // });
-  // let shape1 = getRectangleObject({
-  //   x: 300,
-  //   y: 300,
-  //   width: 200,
-  //   height: 100,
-  // });
-  // state.shapesById = {
-  //   ...state.shapesById,
-  //   [shape.id]: shape,
-  //   [shape1.id]: shape1,
-  // };
+  // state.shapesById = shapes;
   redrawCanvas();
 }
 
@@ -29,24 +12,29 @@ function redrawCanvas() {
   for (let shape of Object.values(state.shapesById)) {
     drawShape(shape);
   }
-  state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.canvas.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   redrawHandles();
 }
 
 function redrawHandles() {
-  if (state.imageData) ctx.putImageData(state.imageData, 0, 0);
-  for (let shape of Object.values(state.shapesById)) {
-    if (
-      shape.id === state.selectedShapeId &&
-      state.interaction.mode !== "dragging"
-    )
-      drawShapeHandles(shape, state.handlePaths);
-    else if (
-      shape.id === state.selectedShapeId &&
-      state.interaction.mode === "dragging"
-    )
-      drawHoverOutline(shape);
-  }
+  if (state.canvas.imageData) ctx.putImageData(state.canvas.imageData, 0, 0);
+  Array.from(state.selectedShapes).forEach((shapeId) => {
+    drawShapeHandles(state.shapesById[shapeId], state.handlePaths);
+  });
+  if (state.hoveredShapeId)
+    drawHoverOutline(state.shapesById[state.hoveredShapeId]);
+  // for (let shape of Object.values(state.shapesById)) {
+  //   if (
+  //     state.selectedShapes.has(shape.id) &&
+  //     state.interaction.mode !== "dragging"
+  //   )
+  //     drawShapeHandles(shape, state.handlePaths);
+  //   // else if (
+  //   //   shape.id === state.selectedShapeId &&
+  //   //   state.interaction.mode === "dragging"
+  //   // )
+  //   //   drawHoverOutline(shape);
+  // }
 }
 
 function drawShape(shape) {
@@ -103,15 +91,15 @@ function drawShapeHandles(shape, handlePaths) {
 }
 
 function resetCanvas() {
-  state.hoveredShapeId = null;
-  state.selectedShapeId = null;
-  ctx.putImageData(state.imageData, 0, 0);
+  // state.hoveredShapeId = null;
+  // state.selectedShapes.clear();
+  ctx.putImageData(state.canvas.imageData, 0, 0);
 }
 
 const clearCanvas = () => {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   state.shapesById = {};
-  state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.canvas.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 };
 
 export {

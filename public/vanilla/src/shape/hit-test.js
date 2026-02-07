@@ -4,9 +4,11 @@ import {
   drawHoverOutline,
   resetCanvas,
   redrawCanvas,
+  redrawHandles,
 } from "../canvas/renderer.js";
 import { getCanvasMouseInput } from "../utils/mouse.js";
 import { getShapeHandlesPath } from "./definitions.js";
+import { startDrawing } from "../tool/draw-tool.js";
 
 const detectShape = (ctx, { mouseX, mouseY }, shape) => {
   ctx.save();
@@ -26,7 +28,7 @@ function checkHandlesPathHit(
   ctx,
   paths = {},
   { mouseX, mouseY },
-  stroke = false
+  stroke = false,
 ) {
   // Increase lineWidth temporarily for a larger 'grab' area
   ctx.lineWidth = 10;
@@ -50,18 +52,18 @@ function detectShapeHandle(ctx, mouseInput, shape) {
   const cornerHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.cornerPaths,
-    mouseInput
+    mouseInput,
   );
   const rotateHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.rotatePaths,
-    mouseInput
+    mouseInput,
   );
   const edgeHit = checkHandlesPathHit(
     ctx,
     state.handlePaths.edgePaths,
     mouseInput,
-    true
+    true,
   );
   const result = {};
   if (cornerHit) {
@@ -90,7 +92,7 @@ function handleShapeHandles(e) {
     // This is where the mouse is right now
     state.transform.startAngle = Math.atan2(
       mouseY - shape.center.y,
-      mouseX - shape.center.x
+      mouseX - shape.center.x,
     );
 
     // Save the shape's current rotation
@@ -113,36 +115,49 @@ function handleShapeHandles(e) {
 }
 
 function handleShapeDetection(e) {
-  if (state.selectedShapeId) return;
+  if (state.selectedTool.id !== "move") return;
   const mouseInput = getCanvasMouseInput(e);
-  let shapeDetected = false;
-  resetCanvas();
+  const hoveredShape = state.shapesById?.[state.hoveredShapeId];
+  if (hoveredShape && detectShape(ctx, mouseInput, hoveredShape)) return;
+  state.hoveredShapeId = null;
+  // resetCanvas();
   for (let shape of Object.values(state.shapesById)) {
     if (detectShape(ctx, mouseInput, shape)) {
-      drawHoverOutline(shape);
+      // drawHoverOutline(shape);
       state.hoveredShapeId = shape.id;
-      shapeDetected = true;
       break;
     }
   }
+  redrawHandles();
 }
 
-function handleShapeSelection(e) {
+function isShapeSelected(e) {
+  if (state.selectedTool.id !== "move") return false;
   const mouseInput = getCanvasMouseInput(e);
   let shapeDetected = false;
+  state.selectedShapes.clear();
   for (let shape of Object.values(state.shapesById)) {
-    if (
-      detectShapeHandle(ctx, mouseInput, shape)?.value ||
-      detectShape(ctx, mouseInput, shape)
-    ) {
-      state.selectedShapeId = shape.id;
-      state.handlePaths = getShapeHandlesPath(shape);
-      redrawCanvas();
+    // detectShapeHandle(ctx, mouseInput, shape)?.value
+    if (detectShape(ctx, mouseInput, shape)) {
+      if (!state.selectedShapes.has(shape.id)) {
+        state.selectedShapes.add(shape.id);
+        state.handlePaths = getShapeHandlesPath(shape);
+        redrawCanvas();
+      }
       shapeDetected = true;
       break;
     }
   }
-  if (!shapeDetected) resetCanvas();
+  if (!shapeDetected) {
+    state.selectedShapes.clear();
+  }
+  redrawHandles();
+  return shapeDetected;
 }
 
-export { handleShapeDetection, handleShapeSelection, handleShapeHandles };
+function handleCanvasMouseDown(e) {
+  if (isShapeSelected(e)) return;
+  startDrawing(e);
+}
+
+export { handleShapeDetection, handleShapeHandles, handleCanvasMouseDown };

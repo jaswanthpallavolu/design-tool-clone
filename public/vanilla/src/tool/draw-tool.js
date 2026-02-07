@@ -5,6 +5,7 @@ import {
   drawShape,
   drawShapeHandles,
   redrawCanvas,
+  resetCanvas,
 } from "../canvas/renderer.js";
 import { getCanvasMouseInput } from "../utils/mouse.js";
 import {
@@ -17,6 +18,8 @@ import {
 function startDrawing(e) {
   if (state.interaction.mode !== "none") return;
   const { mouseX, mouseY } = getCanvasMouseInput(e);
+  state.selectedShapes.clear();
+  resetCanvas();
   state.interaction.mode = "drawing";
   state.interaction.origin = { x: mouseX, y: mouseY };
   //   ctx.lineWidth = 5;
@@ -24,12 +27,13 @@ function startDrawing(e) {
   ctx.moveTo(mouseX, mouseY);
   ctx.fillStyle = state.selectedTool.fillColor;
   ctx.strokeStyle = state.selectedTool.strokeColor;
-  state.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  state.canvas.imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
 }
 
 function updateDrawing(e) {
   if (state.interaction.mode !== "drawing") return;
-  ctx.putImageData(state.imageData, 0, 0);
+  // if (!["selection", "drawing"].includes(state.interaction.mode)) return;
+  ctx.putImageData(state.canvas.imageData, 0, 0);
   const { mouseX, mouseY } = getCanvasMouseInput(e);
   const origin = state.interaction.origin;
   const width = mouseX - origin.x;
@@ -72,7 +76,6 @@ function updateDrawing(e) {
       });
       shape.type = "marquee";
   }
-  state.selectedShapeId = shape.id;
   state.handlePaths = getShapeHandlesPath(shape);
   state.currentShape = shape;
   drawShape(shape);
@@ -83,9 +86,11 @@ function updateDrawing(e) {
 
 function stopDrawing() {
   ctx.closePath();
+  if (!state.currentShape) return;
   if (state.currentShape.type !== "marquee") {
     const shape = state.currentShape;
     state.shapesById = { ...state.shapesById, [shape.id]: shape };
+    state.selectedShapes.add(shape.id);
     redrawCanvas();
   } else if (state.currentShape.type === "marquee") {
     // TODO AABB
