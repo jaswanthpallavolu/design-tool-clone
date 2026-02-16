@@ -63,4 +63,61 @@ function unionAABBs(aabbs) {
   return { minX, minY, maxX, maxY };
 }
 
-export { getRectAABB, getLineAABB, unionAABBs };
+function aabbIntersects(a, b) {
+  return !(
+    a.maxX < b.minX ||
+    a.minX > b.maxX ||
+    a.maxY < b.minY ||
+    a.minY > b.maxY
+  );
+}
+
+// https://www.geeksforgeeks.org/computer-graphics/liang-barsky-algorithm/
+function lineIntersectsAABB(x1, y1, x2, y2, box) {
+  let t0 = 0;
+  let t1 = 1;
+
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+
+  function clip(p, q) {
+    if (p === 0) {
+      // Line is parallel to this boundary
+      return q >= 0;
+    }
+
+    const r = q / p;
+
+    if (p < 0) {
+      if (r > t1) return false;
+      if (r > t0) t0 = r;
+    } else {
+      if (r < t0) return false;
+      if (r < t1) t1 = r;
+    }
+
+    return true;
+  }
+
+  // left   : x >= minX  ->  dx * t + x1 >= minX
+  if (!clip(-dx, x1 - box.minX)) return false;
+
+  // right  : x <= maxX
+  if (!clip(dx, box.maxX - x1)) return false;
+
+  // bottom : y >= minY
+  if (!clip(-dy, y1 - box.minY)) return false;
+
+  // top    : y <= maxY
+  if (!clip(dy, box.maxY - y1)) return false;
+
+  return t0 <= t1;
+}
+
+export {
+  getRectAABB,
+  getLineAABB,
+  unionAABBs,
+  aabbIntersects,
+  lineIntersectsAABB,
+};

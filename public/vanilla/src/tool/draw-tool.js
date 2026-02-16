@@ -14,6 +14,8 @@ import {
   getEllipseObject,
   getLineObject,
 } from "../shape/definitions.js";
+import { handleMarqueeSelection } from "../shape/hit-test.js";
+import { getBoundingBox } from "../shape/definitions.js";
 
 function startDrawing(e) {
   if (state.interaction.mode !== "none") return;
@@ -76,11 +78,11 @@ function updateDrawing(e) {
       });
       shape.type = "marquee";
   }
-  state.handlePaths = getShapeHandlesPath(shape);
+  shape.handlePaths = getShapeHandlesPath(shape);
   state.currentShape = shape;
   drawShape(shape);
   if (shape.type !== "marquee") {
-    drawShapeHandles(shape, state.handlePaths);
+    drawShapeHandles(shape);
   }
 }
 
@@ -89,11 +91,12 @@ function stopDrawing() {
   if (!state.currentShape) return;
   if (state.currentShape.type !== "marquee") {
     const shape = state.currentShape;
+    shape.boundingBox = getBoundingBox(shape);
     state.shapesById = { ...state.shapesById, [shape.id]: shape };
     state.selectedShapes.add(shape.id);
     redrawCanvas();
   } else if (state.currentShape.type === "marquee") {
-    // TODO AABB
+    handleMarqueeSelection(state.currentShape);
   }
   state.currentShape = null;
 }

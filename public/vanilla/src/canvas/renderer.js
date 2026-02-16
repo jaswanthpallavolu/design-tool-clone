@@ -1,9 +1,8 @@
 import { state } from "../state.js";
-const canvas = document.getElementById("canvas");
-let ctx = canvas.getContext("2d", { willReadFrequently: true });
-import { getBoundingBox } from "../shape/definitions.js";
 import { unionAABBs } from "../utils/boundingBox.js";
 import { getRectangleObject } from "../shape/definitions.js";
+const canvas = document.getElementById("canvas");
+let ctx = canvas.getContext("2d", { willReadFrequently: true });
 
 function init() {
   // state.shapesById = shapes;
@@ -21,12 +20,15 @@ function redrawCanvas() {
 
 function redrawHandles() {
   if (state.canvas.imageData) ctx.putImageData(state.canvas.imageData, 0, 0);
+
+  if (state.hoveredShapeId)
+    drawHoverOutline(state.shapesById[state.hoveredShapeId]);
+
   const boxes = [];
   Array.from(state.selectedShapes).forEach((shapeId) => {
-    // drawShapeHandles(state.shapesById[shapeId], state.handlePaths);
-    let boundingBoxShape = getBoundingBox(state.shapesById[shapeId]);
-    boxes.push(boundingBoxShape.boundingBox);
-    drawAABBOutline(boundingBoxShape);
+    drawShapeHandles(state.shapesById[shapeId]);
+    boxes.push(state.shapesById[shapeId].boundingBox);
+    drawAABBOutline(state.shapesById[shapeId].boundingBox.shape);
   });
 
   if (boxes.length > 1) {
@@ -36,9 +38,6 @@ function redrawHandles() {
     let shape = getRectangleObject({ x: minX, y: minY, width, height });
     drawAABBOutline(shape, "#ff2121");
   }
-
-  if (state.hoveredShapeId)
-    drawHoverOutline(state.shapesById[state.hoveredShapeId]);
 
   // for (let shape of Object.values(state.shapesById)) {
   //   if (
@@ -90,12 +89,12 @@ function drawAABBOutline(shape, strokeStyle = "#000000") {
   ctx.restore();
 }
 
-function drawShapeHandles(shape, handlePaths) {
+function drawShapeHandles(shape) {
   ctx.save();
   ctx.translate(shape.center.x, shape.center.y);
   ctx.rotate(shape.rotation);
 
-  const { cornerPaths, edgePaths, rotatePaths } = handlePaths;
+  const { cornerPaths, edgePaths, rotatePaths } = shape.handlePaths;
 
   ctx.strokeStyle = "#00aaff";
   Object.values(edgePaths).forEach((path) => {

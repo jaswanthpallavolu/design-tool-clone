@@ -13,8 +13,8 @@ function handleCanvasMouseDown(e) {
 }
 
 function handleCanvasMouseUp(e) {
-  resetInteraction();
   stopDrawing();
+  resetInteraction();
 }
 
 function handleCanvasKeyDown(e) {

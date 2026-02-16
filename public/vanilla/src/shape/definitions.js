@@ -297,9 +297,8 @@ function getBoundingBox(shape) {
   const { minX, minY, maxX, maxY } = boundingBox;
   const width = maxX - minX;
   const height = maxY - minY;
-  let boxShape = getRectangleObject({ x: minX, y: minY, width, height });
-  boxShape.boundingBox = boundingBox;
-  return boxShape;
+  boundingBox.shape = getRectangleObject({ x: minX, y: minY, width, height });
+  return boundingBox;
 }
 
 export {

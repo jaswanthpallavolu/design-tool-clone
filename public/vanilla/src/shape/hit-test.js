@@ -9,6 +9,11 @@ import {
 import { getCanvasMouseInput } from "../utils/mouse.js";
 import { getShapeHandlesPath } from "./definitions.js";
 import { startDrawing } from "../tool/draw-tool.js";
+import {
+  getRectAABB,
+  aabbIntersects,
+  lineIntersectsAABB,
+} from "../utils/boundingBox.js";
 
 const detectShape = (ctx, { mouseX, mouseY }, shape) => {
   ctx.save();
@@ -151,4 +156,36 @@ function isShapeSelected(e) {
   return shapeDetected;
 }
 
-export { handleShapeDetection, handleShapeHandles, isShapeSelected };
+function handleMarqueeSelection(marqueeShape) {
+  const { center, height, width, rotation } = marqueeShape;
+  const marqueeAABB = getRectAABB(center.x, center.y, width, height, rotation);
+  Object.values(state.shapesById).forEach((shape) => {
+    const intersect =
+      shape.type === "line"
+        ? lineIntersectsAABB(
+            shape.p1.x,
+            shape.p1.y,
+            shape.p2.x,
+            shape.p2.y,
+            marqueeAABB,
+          )
+        : aabbIntersects(
+            marqueeAABB,
+            getRectAABB(
+              shape.center.x,
+              shape.center.y,
+              shape.width,
+              shape.height,
+              shape.rotation,
+            ),
+          );
+    if (intersect) state.selectedShapes.add(shape.id);
+  });
+}
+
+export {
+  handleShapeDetection,
+  handleShapeHandles,
+  isShapeSelected,
+  handleMarqueeSelection,
+};
