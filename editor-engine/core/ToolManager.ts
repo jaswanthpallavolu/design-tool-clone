@@ -16,6 +16,9 @@ export class ToolManager {
   // ---------------------------------------------
   // Registration
   // ---------------------------------------------
+  addTools(tools: Tool[]) {
+    tools.forEach((tool) => this.register(tool))
+  }
 
   register(tool: Tool): void {
     if (this.tools.has(tool.id)) {

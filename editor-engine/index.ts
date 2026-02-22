@@ -14,12 +14,14 @@ export { type Shape } from "./core/model/Shape"
 // Tools
 export { type Tool, type ToolContext } from "./core/tools/Tool"
 export { SelectTool } from "./core/tools/SelectTool"
+export { LineTool } from "./core/tools/LineTool"
+export { RectangleTool } from "./core/tools/RectangleTool"
+export { EllipseTool } from "./core/tools/EllipseTool"
 
 // Ports
 export { type RenderPort } from "./core/ports/RenderPort"
 
 // Adapters
 export { CanvasRenderer } from "./adapters/CanvasRenderer"
-export { ToolbarAdapter } from "./adapters/ToolbarAdapter"
 
 // Made with Bob
