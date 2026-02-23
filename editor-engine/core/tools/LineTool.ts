@@ -1,15 +1,16 @@
 import { Tool, ToolContext } from "./Tool"
-import { Shape } from "../model/Shape"
+import { LineShape } from "../model/Shape"
 
 export class LineTool implements Tool {
   readonly id = "line"
-  draft?: Shape
+  draft?: LineShape
 
   onPointerDown(e: PointerEvent, { editor }: ToolContext) {
     this.draft = {
       id: crypto.randomUUID(),
       kind: this.id,
       p1: { x: e.clientX, y: e.clientY },
+      p2: { x: 0, y: 0 },
       fillStyle: editor.state.toolOptions.fillColor,
       strokeStyle: editor.state.toolOptions.strokeColor,
       lineWidth: 4,

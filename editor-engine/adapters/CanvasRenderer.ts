@@ -1,12 +1,17 @@
 import { RenderPort } from "../core/ports/RenderPort"
 import { Editor } from "../core/Editor"
-import { Shape } from "../core/model/Shape"
-import { Rect } from "../core/model/Rect"
+import {
+  Shape,
+  RectangleShape,
+  EllipseShape,
+  LineShape,
+} from "../core/model/Shape"
 
 export class CanvasRenderer implements RenderPort {
   canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
   editor: Editor
+  imageData: ImageData
 
   constructor({
     canvas,
@@ -21,6 +26,12 @@ export class CanvasRenderer implements RenderPort {
       throw new Error("Failed to get 2D rendering context from canvas")
     }
     this.ctx = ctx
+    this.imageData = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+    )
     this.editor = editor
   }
 
@@ -29,6 +40,12 @@ export class CanvasRenderer implements RenderPort {
     this.editor.document.getAll().forEach((shape) => {
       this.renderShape(shape)
     })
+    this.imageData = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+    )
   }
 
   private renderShape(shape: Shape): void {
@@ -51,28 +68,18 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.restore()
   }
 
-  private renderRectangle(shape: Shape): void {
-    if (shape.width === undefined || shape.height === undefined) {
-      console.warn("Rectangle missing dimensions:", shape.id)
-      return
-    }
-
+  private renderRectangle(shape: RectangleShape): void {
     const center = this.calculateCenter(shape.p1, shape.width, shape.height)
-    this.applyTransform(center, shape.rotation ?? 0)
+    this.applyTransform(center, shape.rotation)
 
     const path = new Path2D()
     path.rect(-shape.width / 2, -shape.height / 2, shape.width, shape.height)
     this.ctx.fill(path)
   }
 
-  private renderEllipse(shape: Shape): void {
-    if (shape.width === undefined || shape.height === undefined) {
-      console.warn("Ellipse missing dimensions:", shape.id)
-      return
-    }
-
+  private renderEllipse(shape: EllipseShape): void {
     const center = this.calculateCenter(shape.p1, shape.width, shape.height)
-    this.applyTransform(center, shape.rotation ?? 0)
+    this.applyTransform(center, shape.rotation)
 
     const path = new Path2D()
     path.ellipse(
@@ -87,14 +94,8 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.fill(path)
   }
 
-  private renderLine(shape: Shape): void {
-    if (!shape.p2) {
-      console.warn("Line missing p2 point:", shape.id)
-      return
-    }
-
+  private renderLine(shape: LineShape): void {
     const center = this.calculateMidpoint(shape.p1, shape.p2)
-    this.ctx.lineWidth = shape.lineWidth ?? 1
     this.ctx.translate(center.x, center.y)
 
     const path = new Path2D()
@@ -132,7 +133,11 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.rotate(rotation)
   }
 
-  renderSelectionBox(box: Rect): void {}
+  renderSelectionBox(box: Rect): void {
+    this.ctx.putImageData(this.imageData, 0, 0)
+  }
 
-  clearSelectionBox(): void {}
+  clearSelectionBox(): void {
+    this.ctx.putImageData(this.imageData, 0, 0)
+  }
 }

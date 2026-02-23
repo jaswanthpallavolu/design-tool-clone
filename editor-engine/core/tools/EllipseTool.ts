@@ -1,15 +1,17 @@
 import { Tool, ToolContext } from "./Tool"
-import { Shape } from "../model/Shape"
+import { EllipseShape } from "../model/Shape"
 
 export class EllipseTool implements Tool {
   readonly id = "ellipse"
-  draft?: Shape
+  draft?: EllipseShape
 
   onPointerDown(e: PointerEvent, { editor }: ToolContext) {
     this.draft = {
       id: crypto.randomUUID(),
       kind: this.id,
       p1: { x: e.clientX, y: e.clientY },
+      width: 0,
+      height: 0,
       rotation: 0,
       fillStyle: editor.state.toolOptions.fillColor,
       strokeStyle: editor.state.toolOptions.strokeColor,

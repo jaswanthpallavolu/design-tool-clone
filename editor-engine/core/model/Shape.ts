@@ -1,13 +1,35 @@
-export interface Shape {
+// Base shape properties
+interface BaseShape {
   id: string
-  kind: "rectangle" | "ellipse" | "line"
-  p1: { x: number; y: number }
-  p2?: { x: number; y: number }
-  width?: number
-  height?: number
-  rotation?: number
-  center?: { x: number; y: number }
   fillStyle: string
   strokeStyle: string
-  lineWidth?: number
 }
+
+// Rectangle-specific shape
+export interface RectangleShape extends BaseShape {
+  kind: "rectangle"
+  p1: { x: number; y: number }
+  width: number
+  height: number
+  rotation: number
+}
+
+// Ellipse-specific shape
+export interface EllipseShape extends BaseShape {
+  kind: "ellipse"
+  p1: { x: number; y: number }
+  width: number
+  height: number
+  rotation: number
+}
+
+// Line-specific shape
+export interface LineShape extends BaseShape {
+  kind: "line"
+  p1: { x: number; y: number }
+  p2: { x: number; y: number }
+  lineWidth: number
+}
+
+// Discriminated union type
+export type Shape = RectangleShape | EllipseShape | LineShape

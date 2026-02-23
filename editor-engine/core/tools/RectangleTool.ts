@@ -1,16 +1,18 @@
 import { Tool, ToolContext } from "./Tool"
-import { Shape } from "../model/Shape"
+import { RectangleShape } from "../model/Shape"
 
 export class RectangleTool implements Tool {
   readonly id = "rectangle"
-  draft?: Shape
+  draft?: RectangleShape
 
   onPointerDown(e: PointerEvent, { editor }: ToolContext) {
     this.draft = {
       id: crypto.randomUUID(),
-      kind: this.id,
+      kind: "rectangle",
       p1: { x: e.clientX, y: e.clientY },
       rotation: 0,
+      width: 0,
+      height: 0,
       fillStyle: editor.state.toolOptions.fillColor,
       strokeStyle: editor.state.toolOptions.strokeColor,
     }
