@@ -27,7 +27,7 @@ export class RectangleTool implements Tool {
     this.draft.width = width
     this.draft.height = height
     editor.document.update(this.draft)
-    editor.renderShapes()
+    editor.renderer?.renderShapes()
   }
 
   onPointerUp(e: PointerEvent, { editor }: ToolContext) {

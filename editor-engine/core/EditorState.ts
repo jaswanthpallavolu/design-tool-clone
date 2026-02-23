@@ -1,6 +1,7 @@
 // core/EditorState.ts
 
 import { Rect } from "./model/Rect"
+import { EditorConfig } from "../config/EditorConfig"
 
 export interface ToolOptions {
   strokeColor: string
@@ -12,8 +13,8 @@ export class EditorState {
   hoveredShapeId?: string
 
   toolOptions: ToolOptions = {
-    strokeColor: "#ff9f22",
-    fillColor: "#ff9f22",
+    strokeColor: EditorConfig.defaultToolOptions.strokeColor,
+    fillColor: EditorConfig.defaultToolOptions.fillColor,
   }
 
   clearTransient() {

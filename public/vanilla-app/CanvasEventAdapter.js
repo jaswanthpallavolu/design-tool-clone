@@ -5,7 +5,7 @@ export default class CanvasEventAdapter {
 
   constructor(canvas, editor) {
     this.canvas = canvas
-    this.ctx = this.canvas.getContext("2d")
+    this.ctx = this.canvas.getContext("2d", { willReadFrequently: true })
     this.editor = editor
 
     this.canvas.addEventListener("pointerdown", (e) => {

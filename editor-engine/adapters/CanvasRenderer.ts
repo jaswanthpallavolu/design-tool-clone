@@ -6,12 +6,17 @@ import {
   EllipseShape,
   LineShape,
 } from "../core/model/Shape"
+import { HitTestPort } from "../core/ports/HitTestPort"
+import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
+import { CanvasPathBuilder } from "./CanvasPathBuilder"
+import { EditorConfig } from "../config/EditorConfig"
 
 export class CanvasRenderer implements RenderPort {
   canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
   editor: Editor
   imageData: ImageData
+  private hitTestAdapter: HitTestPort
 
   constructor({
     canvas,
@@ -33,6 +38,11 @@ export class CanvasRenderer implements RenderPort {
       this.canvas.height,
     )
     this.editor = editor
+    this.hitTestAdapter = new CanvasHitTestAdapter(this.ctx)
+  }
+
+  getHitTestAdapter(): HitTestPort | null {
+    return this.hitTestAdapter
   }
 
   renderShapes(): void {
@@ -52,77 +62,16 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.save()
     this.ctx.fillStyle = shape.fillStyle
     this.ctx.strokeStyle = shape.strokeStyle
-
-    switch (shape.kind) {
-      case "rectangle":
-        this.renderRectangle(shape)
-        break
-      case "ellipse":
-        this.renderEllipse(shape)
-        break
-      case "line":
-        this.renderLine(shape)
-        break
-    }
-
-    this.ctx.restore()
-  }
-
-  private renderRectangle(shape: RectangleShape): void {
-    const center = this.calculateCenter(shape.p1, shape.width, shape.height)
-    this.applyTransform(center, shape.rotation)
-
-    const path = new Path2D()
-    path.rect(-shape.width / 2, -shape.height / 2, shape.width, shape.height)
-    this.ctx.fill(path)
-  }
-
-  private renderEllipse(shape: EllipseShape): void {
-    const center = this.calculateCenter(shape.p1, shape.width, shape.height)
-    this.applyTransform(center, shape.rotation)
-
-    const path = new Path2D()
-    path.ellipse(
-      0,
-      0,
-      Math.abs(shape.width) / 2,
-      Math.abs(shape.height) / 2,
-      0,
-      0,
-      2 * Math.PI,
+    const path: Path2D = CanvasPathBuilder.getPath(shape)
+    this.applyTransform(
+      CanvasPathBuilder.getShapeCenter(shape),
+      CanvasPathBuilder.getRotation(shape),
     )
-    this.ctx.fill(path)
-  }
-
-  private renderLine(shape: LineShape): void {
-    const center = this.calculateMidpoint(shape.p1, shape.p2)
-    this.ctx.translate(center.x, center.y)
-
-    const path = new Path2D()
-    path.moveTo(shape.p1.x - center.x, shape.p1.y - center.y)
-    path.lineTo(shape.p2.x - center.x, shape.p2.y - center.y)
-    this.ctx.stroke(path)
-  }
-
-  private calculateCenter(
-    p1: { x: number; y: number },
-    width: number,
-    height: number,
-  ): { x: number; y: number } {
-    return {
-      x: p1.x + width / 2,
-      y: p1.y + height / 2,
-    }
-  }
-
-  private calculateMidpoint(
-    p1: { x: number; y: number },
-    p2: { x: number; y: number },
-  ): { x: number; y: number } {
-    return {
-      x: (p1.x + p2.x) / 2,
-      y: (p1.y + p2.y) / 2,
-    }
+    if (shape.kind === "line") {
+      this.ctx.lineWidth = shape.lineWidth
+      this.ctx.stroke(path)
+    } else this.ctx.fill(path)
+    this.ctx.restore()
   }
 
   private applyTransform(
@@ -131,6 +80,28 @@ export class CanvasRenderer implements RenderPort {
   ): void {
     this.ctx.translate(center.x, center.y)
     this.ctx.rotate(rotation)
+  }
+
+  renderHoverOutline(): void {
+    this.ctx.putImageData(this.imageData, 0, 0)
+
+    if (!this.editor.state.hoveredShapeId) return
+
+    const hoveredShape = this.editor.document.getById(
+      this.editor.state.hoveredShapeId,
+    )
+    if (!hoveredShape) return
+
+    this.ctx.save()
+    this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor
+    this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth
+    const path: Path2D = CanvasPathBuilder.getPath(hoveredShape)
+    this.applyTransform(
+      CanvasPathBuilder.getShapeCenter(hoveredShape),
+      CanvasPathBuilder.getRotation(hoveredShape),
+    )
+    this.ctx.stroke(path)
+    this.ctx.restore()
   }
 
   renderSelectionBox(box: Rect): void {

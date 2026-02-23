@@ -10,7 +10,7 @@ export class Editor {
   readonly selection = new SelectionManager()
   readonly tools = new ToolManager(this)
   readonly state = new EditorState()
-  private renderer?: RenderPort
+  renderer?: RenderPort
 
   addTools(tools: Tool[]) {
     this.tools.addTools(tools)
@@ -42,9 +42,5 @@ export class Editor {
 
   setRenderer(renderer: RenderPort) {
     this.renderer = renderer
-  }
-
-  renderShapes() {
-    this.renderer?.renderShapes()
   }
 }

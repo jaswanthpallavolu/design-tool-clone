@@ -22,7 +22,7 @@ export class LineTool implements Tool {
     if (!this.draft) return
     this.draft.p2 = { x: e.clientX, y: e.clientY }
     editor.document.update(this.draft)
-    editor.renderShapes()
+    editor.renderer?.renderShapes()
   }
 
   onPointerUp(e: PointerEvent, { editor }: ToolContext) {
