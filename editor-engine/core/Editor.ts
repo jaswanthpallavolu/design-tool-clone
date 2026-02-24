@@ -4,6 +4,7 @@ import { ToolManager } from "./ToolManager"
 import { EditorState, ToolOptions } from "./EditorState"
 import { Tool } from "./tools/Tool"
 import { RenderPort } from "./ports/RenderPort"
+import type { PointerEventData } from "./types/InputTypes"
 
 export class Editor {
   readonly document = new Document()
@@ -28,15 +29,15 @@ export class Editor {
     return this.state.getToolOption(key)
   }
 
-  onPointerDown(e: PointerEvent) {
+  onPointerDown(e: PointerEventData) {
     this.tools.pointerDown(e)
   }
 
-  onPointerMove(e: PointerEvent) {
+  onPointerMove(e: PointerEventData) {
     this.tools.pointerMove(e)
   }
 
-  onPointerUp(e: PointerEvent) {
+  onPointerUp(e: PointerEventData) {
     this.tools.pointerUp(e)
   }
 

@@ -1,7 +1,5 @@
-// core/EditorState.ts
-
-import { Rect } from "./model/Rect"
 import { EditorConfig } from "../config/EditorConfig"
+import { AABB } from "./services/BoundingBoxService"
 
 export interface ToolOptions {
   strokeColor: string
@@ -9,8 +7,9 @@ export interface ToolOptions {
 }
 
 export class EditorState {
-  marquee?: Rect
+  marquee?: AABB
   hoveredShapeId?: string
+  selectionBounds?: AABB
 
   toolOptions: ToolOptions = {
     strokeColor: EditorConfig.defaultToolOptions.strokeColor,
@@ -20,6 +19,7 @@ export class EditorState {
   clearTransient() {
     this.marquee = undefined
     this.hoveredShapeId = undefined
+    this.selectionBounds = undefined
   }
 
   updateToolOptions(options: Partial<ToolOptions>) {

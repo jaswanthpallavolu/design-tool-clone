@@ -4,6 +4,7 @@ import {
   EllipseShape,
   LineShape,
 } from "../core/model/Shape"
+import { AABB } from "../core/services/BoundingBoxService"
 
 export class CanvasPathBuilder {
   private constructor() {}
@@ -17,6 +18,14 @@ export class CanvasPathBuilder {
       case "line":
         return this.createPathForLine(shape)
     }
+  }
+
+  static getPathFromAABB(box: AABB): Path2D {
+    const path = new Path2D()
+    const width = box.maxX - box.minX
+    const height = box.maxY - box.minY
+    path.rect(box.minX, box.minY, width, height)
+    return path
   }
 
   static getShapeCenter(shape: Shape): { x: number; y: number } {

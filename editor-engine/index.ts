@@ -11,6 +11,9 @@ export { ToolManager } from "./core/ToolManager"
 // Models
 export { type Shape } from "./core/model/Shape"
 
+// Types
+export { type PointerEventData } from "./core/types/InputTypes"
+
 // Tools
 export { type Tool, type ToolContext } from "./core/tools/Tool"
 export { SelectTool } from "./core/tools/SelectTool"

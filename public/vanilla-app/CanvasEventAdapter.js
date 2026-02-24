@@ -9,26 +9,29 @@ export default class CanvasEventAdapter {
     this.editor = editor
 
     this.canvas.addEventListener("pointerdown", (e) => {
-      const coords = this.transformCoordinates(e)
-      this.editor.onPointerDown({ ...e, ...coords })
+      console.log("pointerdown", e)
+      this.editor.onPointerDown(this.createPointerEventData(e))
     })
 
     this.canvas.addEventListener("pointermove", (e) => {
-      const coords = this.transformCoordinates(e)
-      this.editor.onPointerMove({ ...e, ...coords })
+      this.editor.onPointerMove(this.createPointerEventData(e))
     })
 
     this.canvas.addEventListener("pointerup", (e) => {
-      const coords = this.transformCoordinates(e)
-      this.editor.onPointerUp({ ...e, ...coords })
+      this.editor.onPointerUp(this.createPointerEventData(e))
     })
   }
 
-  transformCoordinates(e) {
+  createPointerEventData(e) {
     const rect = this.canvas.getBoundingClientRect()
     return {
       clientX: e.clientX - rect.left,
       clientY: e.clientY - rect.top,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      altKey: e.altKey,
+      metaKey: e.metaKey,
+      button: e.button,
     }
   }
 }

@@ -83,10 +83,7 @@ export class CanvasRenderer implements RenderPort {
   }
 
   renderHoverOutline(): void {
-    this.ctx.putImageData(this.imageData, 0, 0)
-
     if (!this.editor.state.hoveredShapeId) return
-
     const hoveredShape = this.editor.document.getById(
       this.editor.state.hoveredShapeId,
     )
@@ -104,8 +101,28 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.restore()
   }
 
-  renderSelectionBox(box: Rect): void {
-    this.ctx.putImageData(this.imageData, 0, 0)
+  renderSelectionBox(): void {
+    if (!this.editor.state.marquee) return
+    this.ctx.save()
+    const path = CanvasPathBuilder.getPathFromAABB(this.editor.state.marquee)
+    this.ctx.strokeStyle = EditorConfig.renderOptions.selectionBoxStrokeColor
+    this.ctx.lineWidth = EditorConfig.renderOptions.selectionBoxStrokeSize
+    this.ctx.fillStyle = EditorConfig.renderOptions.selectionBoxFillColor
+    this.ctx.stroke(path)
+    this.ctx.fill(path)
+    this.ctx.restore()
+  }
+
+  renderSelectionBounds(): void {
+    if (!this.editor.state.selectionBounds) return
+    this.ctx.save()
+    const path = CanvasPathBuilder.getPathFromAABB(
+      this.editor.state.selectionBounds,
+    )
+    this.ctx.strokeStyle = "#000000"
+    this.ctx.lineWidth = EditorConfig.renderOptions.selectionBoxStrokeSize
+    this.ctx.stroke(path)
+    this.ctx.restore()
   }
 
   clearSelectionBox(): void {

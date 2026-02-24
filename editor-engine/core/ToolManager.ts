@@ -2,6 +2,7 @@
 
 import type { Editor } from "./Editor"
 import { Tool, ToolContext } from "./tools/Tool"
+import type { PointerEventData } from "./types/InputTypes"
 
 export class ToolManager {
   private readonly tools = new Map<string, Tool>()
@@ -56,15 +57,15 @@ export class ToolManager {
   // Input routing
   // ---------------------------------------------
 
-  pointerDown(e: PointerEvent): void {
+  pointerDown(e: PointerEventData): void {
     this.activeTool?.onPointerDown?.(e, this.ctx)
   }
 
-  pointerMove(e: PointerEvent): void {
+  pointerMove(e: PointerEventData): void {
     this.activeTool?.onPointerMove?.(e, this.ctx)
   }
 
-  pointerUp(e: PointerEvent): void {
+  pointerUp(e: PointerEventData): void {
     this.activeTool?.onPointerUp?.(e, this.ctx)
   }
 

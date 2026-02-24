@@ -5,6 +5,9 @@ export const EditorConfig = {
   },
   renderOptions: {
     hoverOutlineColor: "#00aaff",
-    hoverOutlineWidth: 2,
+    hoverOutlineWidth: 1,
+    selectionBoxStrokeColor: "#0D99FF",
+    selectionBoxStrokeSize: 1,
+    selectionBoxFillColor: "#0D99FF1A",
   },
 }

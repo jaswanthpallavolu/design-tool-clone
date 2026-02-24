@@ -1,14 +1,11 @@
-// core/ports/RenderPort.ts
-
-import { Rect } from "../services/BoundingBoxService"
 import { HitTestPort } from "./HitTestPort"
 
 export interface RenderPort {
   renderShapes(): void
 
-  renderSelectionBox(box: Rect): void
-
+  renderSelectionBox(): void
   clearSelectionBox(): void
+  renderSelectionBounds(): void
 
   renderHoverOutline(): void
 

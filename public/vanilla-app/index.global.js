@@ -189,7 +189,10 @@ var EditorEngine = (() => {
     },
     renderOptions: {
       hoverOutlineColor: "#00aaff",
-      hoverOutlineWidth: 2
+      hoverOutlineWidth: 1,
+      selectionBoxStrokeColor: "#0D99FF",
+      selectionBoxStrokeSize: 1,
+      selectionBoxFillColor: "#0D99FF1A"
     }
   };
 
@@ -204,6 +207,7 @@ var EditorEngine = (() => {
     clearTransient() {
       this.marquee = void 0;
       this.hoveredShapeId = void 0;
+      this.selectionBounds = void 0;
     }
     updateToolOptions(options) {
       Object.entries(options).forEach(([key, value]) => {
@@ -252,33 +256,206 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/services/BoundingBoxService.ts
+  var BoundingBoxService = class {
+    static getAABB(shape) {
+      return shape.kind === "line" ? this.getAABBForLine(shape) : this.getAABBForRectangle(shape);
+    }
+    /**
+     * Calculate AABB for rectangle or ellipse shapes
+     * Handles rotation by computing the bounding box of all rotated corners
+     */
+    static getAABBForRectangle(shape) {
+      const cx = shape.p1.x + shape.width / 2;
+      const cy = shape.p1.y + shape.height / 2;
+      const hw = shape.width / 2;
+      const hh = shape.height / 2;
+      const cos = Math.cos(shape.rotation);
+      const sin = Math.sin(shape.rotation);
+      const corners = [
+        { x: -hw, y: -hh },
+        // Top-left
+        { x: hw, y: -hh },
+        // Top-right
+        { x: hw, y: hh },
+        // Bottom-right
+        { x: -hw, y: hh }
+        // Bottom-left
+      ];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of corners) {
+        const x = p.x * cos - p.y * sin + cx;
+        const y = p.x * sin + p.y * cos + cy;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+      return { minX, minY, maxX, maxY };
+    }
+    /**
+     * Calculate AABB for line shapes
+     * Includes stroke width padding
+     */
+    static getAABBForLine(shape) {
+      let minX = Math.min(shape.p1.x, shape.p2.x);
+      let minY = Math.min(shape.p1.y, shape.p2.y);
+      let maxX = Math.max(shape.p1.x, shape.p2.x);
+      let maxY = Math.max(shape.p1.y, shape.p2.y);
+      if (shape.lineWidth > 0) {
+        const pad = shape.lineWidth / 2;
+        minX -= pad;
+        minY -= pad;
+        maxX += pad;
+        maxY += pad;
+      }
+      return { minX, minY, maxX, maxY };
+    }
+    /**
+     * Compute union of multiple AABBs
+     */
+    static unionAABBs(aabbs) {
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const b of aabbs) {
+        minX = Math.min(minX, b.minX);
+        minY = Math.min(minY, b.minY);
+        maxX = Math.max(maxX, b.maxX);
+        maxY = Math.max(maxY, b.maxY);
+      }
+      return { minX, minY, maxX, maxY };
+    }
+    /**
+     * Check if two AABBs intersect
+     */
+    static aabbIntersects(a, b) {
+      return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY);
+    }
+    /**
+     * Check if a line segment intersects an AABB using Liang-Barsky algorithm
+     * @see https://www.geeksforgeeks.org/computer-graphics/liang-barsky-algorithm/
+     */
+    static lineIntersectsAABB(x1, y1, x2, y2, box) {
+      let t0 = 0;
+      let t1 = 1;
+      const dx = x2 - x1;
+      const dy = y2 - y1;
+      function clip(p, q) {
+        if (p === 0) {
+          return q >= 0;
+        }
+        const r = q / p;
+        if (p < 0) {
+          if (r > t1) return false;
+          if (r > t0) t0 = r;
+        } else {
+          if (r < t0) return false;
+          if (r < t1) t1 = r;
+        }
+        return true;
+      }
+      if (!clip(-dx, x1 - box.minX)) return false;
+      if (!clip(dx, box.maxX - x1)) return false;
+      if (!clip(-dy, y1 - box.minY)) return false;
+      if (!clip(dy, box.maxY - y1)) return false;
+      return t0 <= t1;
+    }
+  };
+
   // editor-engine/core/tools/SelectTool.ts
   var SelectTool = class {
     constructor() {
       this.id = "select";
     }
     onPointerDown(e, { editor }) {
-      if (!editor.state.hoveredShapeId) {
+      if (editor.state.hoveredShapeId) {
+        console.log(e);
+        if (e.shiftKey) editor.selection.toggle(editor.state.hoveredShapeId);
+        else editor.selection.setSingle(editor.state.hoveredShapeId);
+      } else {
         editor.selection.clear();
+        editor.state.clearTransient();
+        this.draft = {
+          id: crypto.randomUUID(),
+          kind: "rectangle",
+          p1: { x: e.clientX, y: e.clientY },
+          rotation: 0,
+          width: 0,
+          height: 0,
+          fillStyle: "",
+          strokeStyle: ""
+        };
       }
     }
     onPointerMove(e, { editor }) {
-      var _a, _b, _c, _d;
-      if (editor.state.hoveredShapeId) {
+      var _a, _b, _c, _d, _e, _f, _g;
+      if (editor.selection.isEmpty() && this.draft) {
+        const width = e.clientX - this.draft.p1.x;
+        const height = e.clientY - this.draft.p1.y;
+        this.draft.width = width;
+        this.draft.height = height;
+        editor.state.marquee = BoundingBoxService.getAABB(this.draft);
+      }
+      let hoveringOnShape = false;
+      if (editor.state.hoveredShapeId && !this.draft) {
         const hoveredShape = editor.document.getById(editor.state.hoveredShapeId);
         if (hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredShape, e.clientX, e.clientY))) {
-          return;
+          hoveringOnShape = true;
         }
       }
-      editor.state.hoveredShapeId = (_c = editor.document.getAll().find(
-        (shape) => {
-          var _a2, _b2;
-          return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(shape, e.clientX, e.clientY);
-        }
-      )) == null ? void 0 : _c.id;
-      (_d = editor.renderer) == null ? void 0 : _d.renderHoverOutline();
+      if (!hoveringOnShape && !this.draft) {
+        editor.state.hoveredShapeId = (_c = editor.document.getAll().find(
+          (shape) => {
+            var _a2, _b2;
+            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(shape, e.clientX, e.clientY);
+          }
+        )) == null ? void 0 : _c.id;
+      }
+      (_d = editor.renderer) == null ? void 0 : _d.clearSelectionBox();
+      (_e = editor.renderer) == null ? void 0 : _e.renderHoverOutline();
+      (_f = editor.renderer) == null ? void 0 : _f.renderSelectionBox();
+      (_g = editor.renderer) == null ? void 0 : _g.renderSelectionBounds();
     }
     onPointerUp(e, { editor }) {
+      var _a, _b, _c, _d, _e;
+      if (editor.state.marquee) {
+        const marquee = (_a = editor.state.marquee) != null ? _a : {};
+        editor.document.getAll().forEach((shape) => {
+          const intersect = shape.kind === "line" ? BoundingBoxService.lineIntersectsAABB(
+            shape.p1.x,
+            shape.p1.y,
+            shape.p2.x,
+            shape.p2.y,
+            marquee
+          ) : BoundingBoxService.aabbIntersects(
+            marquee,
+            BoundingBoxService.getAABB(shape)
+          );
+          if (intersect) {
+            editor.selection.select(shape.id);
+          }
+        });
+      }
+      this.draft = void 0;
+      editor.state.marquee = void 0;
+      const selectedShapesAABB = [];
+      editor.state.selectionBounds = void 0;
+      editor.selection.getAll().forEach((shapeId) => {
+        const shape = editor.document.getById(shapeId);
+        if (shape) selectedShapesAABB.push(BoundingBoxService.getAABB(shape));
+      });
+      if (selectedShapesAABB.length > 0) {
+        editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
+      }
+      (_b = editor.renderer) == null ? void 0 : _b.clearSelectionBox();
+      (_c = editor.renderer) == null ? void 0 : _c.renderHoverOutline();
+      (_d = editor.renderer) == null ? void 0 : _d.renderSelectionBox();
+      (_e = editor.renderer) == null ? void 0 : _e.renderSelectionBounds();
     }
   };
 
@@ -390,6 +567,13 @@ var EditorEngine = (() => {
         case "line":
           return this.createPathForLine(shape);
       }
+    }
+    static getPathFromAABB(box) {
+      const path = new Path2D();
+      const width = box.maxX - box.minX;
+      const height = box.maxY - box.minY;
+      path.rect(box.minX, box.minY, width, height);
+      return path;
     }
     static getShapeCenter(shape) {
       if (shape.kind === "line") {
@@ -508,7 +692,6 @@ var EditorEngine = (() => {
       this.ctx.rotate(rotation);
     }
     renderHoverOutline() {
-      this.ctx.putImageData(this.imageData, 0, 0);
       if (!this.editor.state.hoveredShapeId) return;
       const hoveredShape = this.editor.document.getById(
         this.editor.state.hoveredShapeId
@@ -525,8 +708,27 @@ var EditorEngine = (() => {
       this.ctx.stroke(path);
       this.ctx.restore();
     }
-    renderSelectionBox(box) {
-      this.ctx.putImageData(this.imageData, 0, 0);
+    renderSelectionBox() {
+      if (!this.editor.state.marquee) return;
+      this.ctx.save();
+      const path = CanvasPathBuilder.getPathFromAABB(this.editor.state.marquee);
+      this.ctx.strokeStyle = EditorConfig.renderOptions.selectionBoxStrokeColor;
+      this.ctx.lineWidth = EditorConfig.renderOptions.selectionBoxStrokeSize;
+      this.ctx.fillStyle = EditorConfig.renderOptions.selectionBoxFillColor;
+      this.ctx.stroke(path);
+      this.ctx.fill(path);
+      this.ctx.restore();
+    }
+    renderSelectionBounds() {
+      if (!this.editor.state.selectionBounds) return;
+      this.ctx.save();
+      const path = CanvasPathBuilder.getPathFromAABB(
+        this.editor.state.selectionBounds
+      );
+      this.ctx.strokeStyle = "#000000";
+      this.ctx.lineWidth = EditorConfig.renderOptions.selectionBoxStrokeSize;
+      this.ctx.stroke(path);
+      this.ctx.restore();
     }
     clearSelectionBox() {
       this.ctx.putImageData(this.imageData, 0, 0);
