@@ -416,9 +416,39 @@ var EditorEngine = (() => {
 
   // editor-engine/core/tools/select/states/DragState.ts
   var DragState = class {
+    constructor() {
+      this.prevMouseX = 0;
+      this.prevMouseY = 0;
+    }
     onPointerDown(e, ctx) {
+      this.prevMouseX = e.clientX;
+      this.prevMouseY = e.clientY;
     }
     onPointerMove(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const deltaX = e.clientX - this.prevMouseX;
+      const deltaY = e.clientY - this.prevMouseY;
+      editor.selection.getAll().forEach((shapeId) => {
+        const shape = editor.document.getById(shapeId);
+        if (shape) {
+          switch (shape.kind) {
+            case "line":
+              shape.p1.x += deltaX;
+              shape.p1.y += deltaY;
+              shape.p2.x += deltaX;
+              shape.p2.y += deltaY;
+              break;
+            default:
+              shape.p1.x += deltaX;
+              shape.p1.y += deltaY;
+          }
+          editor.document.update(shape);
+        }
+      });
+      this.prevMouseX = e.clientX;
+      this.prevMouseY = e.clientY;
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
     onPointerUp(e, ctx) {
@@ -505,6 +535,14 @@ var EditorEngine = (() => {
     }
     determineNextState(e, { editor }) {
       if (editor.state.hoveredShapeId) {
+        const shape = editor.document.getById(editor.state.hoveredShapeId);
+        if (shape && editor.state.selectionBounds) {
+          if (BoundingBoxService.aabbIntersects(
+            editor.state.selectionBounds,
+            BoundingBoxService.getAABB(shape)
+          ))
+            return new DragState();
+        }
         if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId);
         else editor.selection.setSingle(editor.state.hoveredShapeId);
         SelectionBoundsHelper.updateSelectionBounds({ editor });

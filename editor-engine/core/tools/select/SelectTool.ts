@@ -5,6 +5,8 @@ import { IdleState } from "./states/IdleState"
 import { DragState } from "./states/DragState"
 import { MarqueeState } from "./states/MarqueeState"
 import { SelectionBoundsHelper } from "./helpers/SelectionBoundsHelper"
+import { BoundingBoxService } from "../../services/BoundingBoxService"
+import { Shape } from "../../model/Shape"
 
 export class SelectTool implements Tool {
   readonly id = "select"
@@ -41,6 +43,17 @@ export class SelectTool implements Tool {
     { editor }: ToolContext,
   ): InteractionState {
     if (editor.state.hoveredShapeId) {
+      // Check hoveredShapeId is in selectionBounds
+      const shape = editor.document.getById(editor.state.hoveredShapeId)
+      if (shape && editor.state.selectionBounds) {
+        if (
+          BoundingBoxService.aabbIntersects(
+            editor.state.selectionBounds,
+            BoundingBoxService.getAABB(shape),
+          )
+        )
+          return new DragState()
+      }
       if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId)
       else editor.selection.setSingle(editor.state.hoveredShapeId)
       SelectionBoundsHelper.updateSelectionBounds({ editor })
