@@ -256,6 +256,32 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/tools/select/states/IdleState.ts
+  var IdleState = class {
+    onPointerDown(e, ctx) {
+    }
+    onPointerMove(e, { editor }) {
+      var _a, _b, _c;
+      let hoveringOnShape = false;
+      if (editor.state.hoveredShapeId) {
+        const hoveredShape = editor.document.getById(editor.state.hoveredShapeId);
+        if (hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredShape, e.clientX, e.clientY))) {
+          hoveringOnShape = true;
+        }
+      }
+      if (!hoveringOnShape) {
+        editor.state.hoveredShapeId = (_c = editor.document.getAll().find(
+          (shape) => {
+            var _a2, _b2;
+            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(shape, e.clientX, e.clientY);
+          }
+        )) == null ? void 0 : _c.id;
+      }
+    }
+    onPointerUp(e, ctx) {
+    }
+  };
+
   // editor-engine/core/services/BoundingBoxService.ts
   var BoundingBoxService = class {
     static getAABB(shape) {
@@ -367,62 +393,63 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/tools/SelectTool.ts
-  var SelectTool = class {
-    constructor() {
-      this.id = "select";
-    }
-    onPointerDown(e, { editor }) {
-      if (editor.state.hoveredShapeId) {
-        console.log(e);
-        if (e.shiftKey) editor.selection.toggle(editor.state.hoveredShapeId);
-        else editor.selection.setSingle(editor.state.hoveredShapeId);
-      } else {
-        editor.selection.clear();
-        editor.state.clearTransient();
-        this.draft = {
-          id: crypto.randomUUID(),
-          kind: "rectangle",
-          p1: { x: e.clientX, y: e.clientY },
-          rotation: 0,
-          width: 0,
-          height: 0,
-          fillStyle: "",
-          strokeStyle: ""
-        };
+  // editor-engine/core/tools/select/helpers/SelectionBoundsHelper.ts
+  var SelectionBoundsHelper = class {
+    static updateSelectionBounds(ctx) {
+      const { editor } = ctx;
+      const selectedShapesAABB = [];
+      editor.state.selectionBounds = void 0;
+      editor.selection.getAll().forEach((shapeId) => {
+        const shape = editor.document.getById(shapeId);
+        if (shape) {
+          selectedShapesAABB.push(BoundingBoxService.getAABB(shape));
+        }
+      });
+      if (selectedShapesAABB.length > 0) {
+        editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
       }
     }
+    static clearSelectionBounds(ctx) {
+      ctx.editor.state.selectionBounds = void 0;
+    }
+  };
+
+  // editor-engine/core/tools/select/states/DragState.ts
+  var DragState = class {
+    onPointerDown(e, ctx) {
+    }
+    onPointerMove(e, ctx) {
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+    }
+    onPointerUp(e, ctx) {
+    }
+  };
+
+  // editor-engine/core/tools/select/states/MarqueeState.ts
+  var MarqueeState = class {
+    onPointerDown(e, ctx) {
+      this.draft = {
+        id: crypto.randomUUID(),
+        kind: "rectangle",
+        p1: { x: e.clientX, y: e.clientY },
+        rotation: 0,
+        width: 0,
+        height: 0,
+        fillStyle: "",
+        strokeStyle: ""
+      };
+    }
     onPointerMove(e, { editor }) {
-      var _a, _b, _c, _d, _e, _f, _g;
-      if (editor.selection.isEmpty() && this.draft) {
+      if (this.draft) {
         const width = e.clientX - this.draft.p1.x;
         const height = e.clientY - this.draft.p1.y;
         this.draft.width = width;
         this.draft.height = height;
         editor.state.marquee = BoundingBoxService.getAABB(this.draft);
       }
-      let hoveringOnShape = false;
-      if (editor.state.hoveredShapeId && !this.draft) {
-        const hoveredShape = editor.document.getById(editor.state.hoveredShapeId);
-        if (hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredShape, e.clientX, e.clientY))) {
-          hoveringOnShape = true;
-        }
-      }
-      if (!hoveringOnShape && !this.draft) {
-        editor.state.hoveredShapeId = (_c = editor.document.getAll().find(
-          (shape) => {
-            var _a2, _b2;
-            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(shape, e.clientX, e.clientY);
-          }
-        )) == null ? void 0 : _c.id;
-      }
-      (_d = editor.renderer) == null ? void 0 : _d.clearSelectionBox();
-      (_e = editor.renderer) == null ? void 0 : _e.renderHoverOutline();
-      (_f = editor.renderer) == null ? void 0 : _f.renderSelectionBox();
-      (_g = editor.renderer) == null ? void 0 : _g.renderSelectionBounds();
     }
     onPointerUp(e, { editor }) {
-      var _a, _b, _c, _d, _e;
+      var _a;
       if (editor.state.marquee) {
         const marquee = (_a = editor.state.marquee) != null ? _a : {};
         editor.document.getAll().forEach((shape) => {
@@ -443,19 +470,57 @@ var EditorEngine = (() => {
       }
       this.draft = void 0;
       editor.state.marquee = void 0;
-      const selectedShapesAABB = [];
-      editor.state.selectionBounds = void 0;
-      editor.selection.getAll().forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId);
-        if (shape) selectedShapesAABB.push(BoundingBoxService.getAABB(shape));
-      });
-      if (selectedShapesAABB.length > 0) {
-        editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
+      SelectionBoundsHelper.updateSelectionBounds({ editor });
+    }
+  };
+
+  // editor-engine/core/tools/select/SelectTool.ts
+  var SelectTool = class {
+    constructor() {
+      this.id = "select";
+      this.currentState = new IdleState();
+    }
+    onPointerDown(e, ctx) {
+      const nextState = this.determineNextState(e, ctx);
+      this.transitionTo(nextState, ctx);
+      this.currentState.onPointerDown(e, ctx);
+      this.renderSelection(ctx);
+    }
+    onPointerMove(e, ctx) {
+      this.currentState.onPointerMove(e, ctx);
+      this.renderSelection(ctx);
+    }
+    onPointerUp(e, ctx) {
+      this.currentState.onPointerUp(e, ctx);
+      const next = new IdleState();
+      this.transitionTo(next, ctx);
+      this.currentState.onPointerUp(e, ctx);
+      this.renderSelection(ctx);
+    }
+    transitionTo(state, ctx) {
+      var _a, _b, _c, _d;
+      (_b = (_a = this.currentState).onExit) == null ? void 0 : _b.call(_a, ctx);
+      this.currentState = state;
+      (_d = (_c = this.currentState).onEnter) == null ? void 0 : _d.call(_c, ctx);
+    }
+    determineNextState(e, { editor }) {
+      if (editor.state.hoveredShapeId) {
+        if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId);
+        else editor.selection.setSingle(editor.state.hoveredShapeId);
+        SelectionBoundsHelper.updateSelectionBounds({ editor });
+        return new DragState();
       }
-      (_b = editor.renderer) == null ? void 0 : _b.clearSelectionBox();
-      (_c = editor.renderer) == null ? void 0 : _c.renderHoverOutline();
-      (_d = editor.renderer) == null ? void 0 : _d.renderSelectionBox();
-      (_e = editor.renderer) == null ? void 0 : _e.renderSelectionBounds();
+      editor.selection.clear();
+      editor.state.clearTransient();
+      return new MarqueeState();
+    }
+    renderSelection(ctx) {
+      var _a, _b, _c, _d;
+      const { editor } = ctx;
+      (_a = editor.renderer) == null ? void 0 : _a.clearSelectionBox();
+      (_b = editor.renderer) == null ? void 0 : _b.renderHoverOutline();
+      (_c = editor.renderer) == null ? void 0 : _c.renderSelectionBox();
+      (_d = editor.renderer) == null ? void 0 : _d.renderSelectionBounds();
     }
   };
 

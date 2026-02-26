@@ -16,7 +16,7 @@ export { type PointerEventData } from "./core/types/InputTypes"
 
 // Tools
 export { type Tool, type ToolContext } from "./core/tools/Tool"
-export { SelectTool } from "./core/tools/SelectTool"
+export { SelectTool } from "./core/tools/select/SelectTool"
 export { LineTool } from "./core/tools/LineTool"
 export { RectangleTool } from "./core/tools/RectangleTool"
 export { EllipseTool } from "./core/tools/EllipseTool"
