@@ -21,15 +21,14 @@ export class BoundingBoxService {
   private static getAABBForRectangle(
     shape: RectangleShape | EllipseShape,
   ): AABB {
-    // Calculate center from top-left corner (p1)
-    const cx = shape.p1.x + shape.width / 2
-    const cy = shape.p1.y + shape.height / 2
+    const hw = shape.local.width / 2
+    const hh = shape.local.height / 2
 
-    const hw = shape.width / 2
-    const hh = shape.height / 2
+    const cx = shape.transform.x + hw
+    const cy = shape.transform.y + hh
 
-    const cos = Math.cos(shape.rotation)
-    const sin = Math.sin(shape.rotation)
+    const cos = Math.cos(shape.transform.rotation)
+    const sin = Math.sin(shape.transform.rotation)
 
     // Define corners relative to center
     const corners = [
@@ -63,10 +62,15 @@ export class BoundingBoxService {
    * Includes stroke width padding
    */
   private static getAABBForLine(shape: LineShape): AABB {
-    let minX = Math.min(shape.p1.x, shape.p2.x)
-    let minY = Math.min(shape.p1.y, shape.p2.y)
-    let maxX = Math.max(shape.p1.x, shape.p2.x)
-    let maxY = Math.max(shape.p1.y, shape.p2.y)
+    const x1 = shape.transform.x + shape.local.x1
+    const y1 = shape.transform.y + shape.local.y1
+    const x2 = shape.transform.x + shape.local.x2
+    const y2 = shape.transform.y + shape.local.y2
+
+    let minX = Math.min(x1, x2)
+    let minY = Math.min(y1, y2)
+    let maxX = Math.max(x1, x2)
+    let maxY = Math.max(y1, y2)
 
     // Add padding for stroke width
     if (shape.lineWidth > 0) {

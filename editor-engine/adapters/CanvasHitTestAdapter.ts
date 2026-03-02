@@ -9,10 +9,10 @@ export class CanvasHitTestAdapter implements HitTestPort {
   }
   testShape(shape: Shape, x: number, y: number): boolean {
     this.ctx.save()
-    const center = CanvasPathBuilder.getShapeCenter(shape)
-    const rotation = CanvasPathBuilder.getRotation(shape)
-    this.ctx.translate(center.x, center.y)
-    this.ctx.rotate(rotation)
+    // const center = CanvasPathBuilder.getShapeCenter(shape)
+    // const rotation = CanvasPathBuilder.getRotation(shape)
+    this.ctx.translate(shape.transform.x, shape.transform.y)
+    this.ctx.rotate(shape.transform.rotation)
     this.ctx.lineWidth = 10
     const path = CanvasPathBuilder.getPath(shape)
     const hitFound =

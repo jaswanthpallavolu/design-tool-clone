@@ -1,11 +1,6 @@
 import { RenderPort } from "../core/ports/RenderPort"
 import { Editor } from "../core/Editor"
-import {
-  Shape,
-  RectangleShape,
-  EllipseShape,
-  LineShape,
-} from "../core/model/Shape"
+import { Shape } from "../core/model/Shape"
 import { HitTestPort } from "../core/ports/HitTestPort"
 import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
 import { CanvasPathBuilder } from "./CanvasPathBuilder"
@@ -63,14 +58,12 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.fillStyle = shape.fillStyle
     this.ctx.strokeStyle = shape.strokeStyle
     const path: Path2D = CanvasPathBuilder.getPath(shape)
-    this.applyTransform(
-      CanvasPathBuilder.getShapeCenter(shape),
-      CanvasPathBuilder.getRotation(shape),
-    )
+    this.ctx.translate(shape.transform.x, shape.transform.y)
+    this.ctx.rotate(shape.transform.rotation)
     if (shape.kind === "line") {
       this.ctx.lineWidth = shape.lineWidth
-      this.ctx.stroke(path)
     } else this.ctx.fill(path)
+    this.ctx.stroke(path)
     this.ctx.restore()
   }
 
@@ -93,10 +86,8 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor
     this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth
     const path: Path2D = CanvasPathBuilder.getPath(hoveredShape)
-    this.applyTransform(
-      CanvasPathBuilder.getShapeCenter(hoveredShape),
-      CanvasPathBuilder.getRotation(hoveredShape),
-    )
+    this.ctx.translate(hoveredShape.transform.x, hoveredShape.transform.y)
+    this.ctx.rotate(hoveredShape.transform.rotation)
     this.ctx.stroke(path)
     this.ctx.restore()
   }

@@ -19,17 +19,8 @@ export class DragState implements InteractionState {
     editor.selection.getAll().forEach((shapeId) => {
       const shape = editor.document.getById(shapeId)
       if (shape) {
-        switch (shape.kind) {
-          case "line":
-            shape.p1.x += deltaX
-            shape.p1.y += deltaY
-            shape.p2.x += deltaX
-            shape.p2.y += deltaY
-            break
-          default:
-            shape.p1.x += deltaX
-            shape.p1.y += deltaY
-        }
+        shape.transform.x += deltaX
+        shape.transform.y += deltaY
         editor.document.update(shape)
       }
     })

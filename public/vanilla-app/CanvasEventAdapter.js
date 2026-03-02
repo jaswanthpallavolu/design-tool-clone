@@ -9,7 +9,6 @@ export default class CanvasEventAdapter {
     this.editor = editor
 
     this.canvas.addEventListener("pointerdown", (e) => {
-      console.log("pointerdown", e)
       this.editor.onPointerDown(this.createPointerEventData(e))
     })
 

@@ -5,27 +5,32 @@ import type { PointerEventData } from "../types/InputTypes"
 export class EllipseTool implements Tool {
   readonly id = "ellipse"
   draft?: EllipseShape
+  mouseStart: { x: number; y: number } = { x: 0, y: 0 }
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
+    this.mouseStart = { x: e.clientX, y: e.clientY }
     this.draft = {
       id: crypto.randomUUID(),
-      kind: this.id,
-      p1: { x: e.clientX, y: e.clientY },
-      width: 0,
-      height: 0,
-      rotation: 0,
+      kind: "ellipse",
       fillStyle: editor.state.toolOptions.fillColor,
       strokeStyle: editor.state.toolOptions.strokeColor,
+      transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+      local: { width: 0, height: 0 },
     }
     editor.document.add(this.draft)
   }
 
   onPointerMove(e: PointerEventData, { editor }: ToolContext) {
     if (!this.draft) return
-    const width = e.clientX - this.draft.p1.x
-    const height = e.clientY - this.draft.p1.y
-    this.draft.width = width
-    this.draft.height = height
+    const minX = Math.min(this.mouseStart.x, e.clientX)
+    const minY = Math.min(this.mouseStart.y, e.clientY)
+    const maxX = Math.max(this.mouseStart.x, e.clientX)
+    const maxY = Math.max(this.mouseStart.y, e.clientY)
+
+    this.draft.transform.x = minX
+    this.draft.transform.y = minY
+    this.draft.local.width = maxX - minX
+    this.draft.local.height = maxY - minY
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
   }

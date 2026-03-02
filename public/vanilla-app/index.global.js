@@ -292,12 +292,12 @@ var EditorEngine = (() => {
      * Handles rotation by computing the bounding box of all rotated corners
      */
     static getAABBForRectangle(shape) {
-      const cx = shape.p1.x + shape.width / 2;
-      const cy = shape.p1.y + shape.height / 2;
-      const hw = shape.width / 2;
-      const hh = shape.height / 2;
-      const cos = Math.cos(shape.rotation);
-      const sin = Math.sin(shape.rotation);
+      const hw = shape.local.width / 2;
+      const hh = shape.local.height / 2;
+      const cx = shape.transform.x + hw;
+      const cy = shape.transform.y + hh;
+      const cos = Math.cos(shape.transform.rotation);
+      const sin = Math.sin(shape.transform.rotation);
       const corners = [
         { x: -hw, y: -hh },
         // Top-left
@@ -327,10 +327,14 @@ var EditorEngine = (() => {
      * Includes stroke width padding
      */
     static getAABBForLine(shape) {
-      let minX = Math.min(shape.p1.x, shape.p2.x);
-      let minY = Math.min(shape.p1.y, shape.p2.y);
-      let maxX = Math.max(shape.p1.x, shape.p2.x);
-      let maxY = Math.max(shape.p1.y, shape.p2.y);
+      const x1 = shape.transform.x + shape.local.x1;
+      const y1 = shape.transform.y + shape.local.y1;
+      const x2 = shape.transform.x + shape.local.x2;
+      const y2 = shape.transform.y + shape.local.y2;
+      let minX = Math.min(x1, x2);
+      let minY = Math.min(y1, y2);
+      let maxX = Math.max(x1, x2);
+      let maxY = Math.max(y1, y2);
       if (shape.lineWidth > 0) {
         const pad = shape.lineWidth / 2;
         minX -= pad;
@@ -432,17 +436,8 @@ var EditorEngine = (() => {
       editor.selection.getAll().forEach((shapeId) => {
         const shape = editor.document.getById(shapeId);
         if (shape) {
-          switch (shape.kind) {
-            case "line":
-              shape.p1.x += deltaX;
-              shape.p1.y += deltaY;
-              shape.p2.x += deltaX;
-              shape.p2.y += deltaY;
-              break;
-            default:
-              shape.p1.x += deltaX;
-              shape.p1.y += deltaY;
-          }
+          shape.transform.x += deltaX;
+          shape.transform.y += deltaY;
           editor.document.update(shape);
         }
       });
@@ -457,24 +452,31 @@ var EditorEngine = (() => {
 
   // editor-engine/core/tools/select/states/MarqueeState.ts
   var MarqueeState = class {
+    constructor() {
+      this.mouseStart = { x: 0, y: 0 };
+    }
     onPointerDown(e, ctx) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
       this.draft = {
         id: crypto.randomUUID(),
         kind: "rectangle",
-        p1: { x: e.clientX, y: e.clientY },
-        rotation: 0,
-        width: 0,
-        height: 0,
         fillStyle: "",
-        strokeStyle: ""
+        strokeStyle: "",
+        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+        local: { width: 0, height: 0 }
       };
     }
     onPointerMove(e, { editor }) {
       if (this.draft) {
-        const width = e.clientX - this.draft.p1.x;
-        const height = e.clientY - this.draft.p1.y;
-        this.draft.width = width;
-        this.draft.height = height;
+        if (!this.draft) return;
+        const minX = Math.min(this.mouseStart.x, e.clientX);
+        const maxX = Math.max(this.mouseStart.x, e.clientX);
+        const minY = Math.min(this.mouseStart.y, e.clientY);
+        const maxY = Math.max(this.mouseStart.y, e.clientY);
+        this.draft.transform.x = minX;
+        this.draft.transform.y = minY;
+        this.draft.local.width = maxX - minX;
+        this.draft.local.height = maxY - minY;
         editor.state.marquee = BoundingBoxService.getAABB(this.draft);
       }
     }
@@ -484,10 +486,10 @@ var EditorEngine = (() => {
         const marquee = (_a = editor.state.marquee) != null ? _a : {};
         editor.document.getAll().forEach((shape) => {
           const intersect = shape.kind === "line" ? BoundingBoxService.lineIntersectsAABB(
-            shape.p1.x,
-            shape.p1.y,
-            shape.p2.x,
-            shape.p2.y,
+            shape.transform.x + shape.local.x1,
+            shape.transform.y + shape.local.y1,
+            shape.transform.x + shape.local.x2,
+            shape.transform.y + shape.local.y2,
             marquee
           ) : BoundingBoxService.aabbIntersects(
             marquee,
@@ -571,10 +573,15 @@ var EditorEngine = (() => {
       this.draft = {
         id: crypto.randomUUID(),
         kind: this.id,
-        p1: { x: e.clientX, y: e.clientY },
-        p2: { x: 0, y: 0 },
         fillStyle: editor.state.toolOptions.fillColor,
         strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: e.clientX, y: e.clientY, rotation: 0 },
+        local: {
+          x1: 0,
+          y1: 0,
+          x2: 0,
+          y2: 0
+        },
         lineWidth: 4
       };
       editor.document.add(this.draft);
@@ -582,7 +589,8 @@ var EditorEngine = (() => {
     onPointerMove(e, { editor }) {
       var _a;
       if (!this.draft) return;
-      this.draft.p2 = { x: e.clientX, y: e.clientY };
+      this.draft.local.x2 = e.clientX - this.draft.transform.x;
+      this.draft.local.y2 = e.clientY - this.draft.transform.y;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
     }
@@ -595,27 +603,31 @@ var EditorEngine = (() => {
   var RectangleTool = class {
     constructor() {
       this.id = "rectangle";
+      this.mouseStart = { x: 0, y: 0 };
     }
     onPointerDown(e, { editor }) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
       this.draft = {
         id: crypto.randomUUID(),
         kind: "rectangle",
-        p1: { x: e.clientX, y: e.clientY },
-        rotation: 0,
-        width: 0,
-        height: 0,
         fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor
+        strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+        local: { width: 0, height: 0 }
       };
       editor.document.add(this.draft);
     }
     onPointerMove(e, { editor }) {
       var _a;
       if (!this.draft) return;
-      const width = e.clientX - this.draft.p1.x;
-      const height = e.clientY - this.draft.p1.y;
-      this.draft.width = width;
-      this.draft.height = height;
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.draft.transform.x = minX;
+      this.draft.transform.y = minY;
+      this.draft.local.width = maxX - minX;
+      this.draft.local.height = maxY - minY;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
     }
@@ -628,27 +640,31 @@ var EditorEngine = (() => {
   var EllipseTool = class {
     constructor() {
       this.id = "ellipse";
+      this.mouseStart = { x: 0, y: 0 };
     }
     onPointerDown(e, { editor }) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
       this.draft = {
         id: crypto.randomUUID(),
-        kind: this.id,
-        p1: { x: e.clientX, y: e.clientY },
-        width: 0,
-        height: 0,
-        rotation: 0,
+        kind: "ellipse",
         fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor
+        strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+        local: { width: 0, height: 0 }
       };
       editor.document.add(this.draft);
     }
     onPointerMove(e, { editor }) {
       var _a;
       if (!this.draft) return;
-      const width = e.clientX - this.draft.p1.x;
-      const height = e.clientY - this.draft.p1.y;
-      this.draft.width = width;
-      this.draft.height = height;
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.draft.transform.x = minX;
+      this.draft.transform.y = minY;
+      this.draft.local.width = maxX - minX;
+      this.draft.local.height = maxY - minY;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
     }
@@ -695,16 +711,16 @@ var EditorEngine = (() => {
     }
     static createPathForRectangle(shape) {
       const path = new Path2D();
-      path.rect(-shape.width / 2, -shape.height / 2, shape.width, shape.height);
+      path.rect(0, 0, shape.local.width, shape.local.height);
       return path;
     }
     static createPathForEllipse(shape) {
       const path = new Path2D();
       path.ellipse(
-        0,
-        0,
-        Math.abs(shape.width) / 2,
-        Math.abs(shape.height) / 2,
+        shape.local.width / 2,
+        shape.local.height / 2,
+        Math.abs(shape.local.width) / 2,
+        Math.abs(shape.local.height) / 2,
         0,
         0,
         2 * Math.PI
@@ -713,9 +729,8 @@ var EditorEngine = (() => {
     }
     static createPathForLine(shape) {
       const path = new Path2D();
-      const center = this.getShapeCenter(shape);
-      path.moveTo(shape.p1.x - center.x, shape.p1.y - center.y);
-      path.lineTo(shape.p2.x - center.x, shape.p2.y - center.y);
+      path.moveTo(shape.local.x1, shape.local.y1);
+      path.lineTo(shape.local.x2, shape.local.y2);
       return path;
     }
   };
@@ -727,10 +742,8 @@ var EditorEngine = (() => {
     }
     testShape(shape, x, y) {
       this.ctx.save();
-      const center = CanvasPathBuilder.getShapeCenter(shape);
-      const rotation = CanvasPathBuilder.getRotation(shape);
-      this.ctx.translate(center.x, center.y);
-      this.ctx.rotate(rotation);
+      this.ctx.translate(shape.transform.x, shape.transform.y);
+      this.ctx.rotate(shape.transform.rotation);
       this.ctx.lineWidth = 10;
       const path = CanvasPathBuilder.getPath(shape);
       const hitFound = shape.kind === "line" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
@@ -780,14 +793,12 @@ var EditorEngine = (() => {
       this.ctx.fillStyle = shape.fillStyle;
       this.ctx.strokeStyle = shape.strokeStyle;
       const path = CanvasPathBuilder.getPath(shape);
-      this.applyTransform(
-        CanvasPathBuilder.getShapeCenter(shape),
-        CanvasPathBuilder.getRotation(shape)
-      );
+      this.ctx.translate(shape.transform.x, shape.transform.y);
+      this.ctx.rotate(shape.transform.rotation);
       if (shape.kind === "line") {
         this.ctx.lineWidth = shape.lineWidth;
-        this.ctx.stroke(path);
       } else this.ctx.fill(path);
+      this.ctx.stroke(path);
       this.ctx.restore();
     }
     applyTransform(center, rotation) {
@@ -804,10 +815,8 @@ var EditorEngine = (() => {
       this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor;
       this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth;
       const path = CanvasPathBuilder.getPath(hoveredShape);
-      this.applyTransform(
-        CanvasPathBuilder.getShapeCenter(hoveredShape),
-        CanvasPathBuilder.getRotation(hoveredShape)
-      );
+      this.ctx.translate(hoveredShape.transform.x, hoveredShape.transform.y);
+      this.ctx.rotate(hoveredShape.transform.rotation);
       this.ctx.stroke(path);
       this.ctx.restore();
     }

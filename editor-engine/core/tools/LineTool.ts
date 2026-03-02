@@ -10,10 +10,15 @@ export class LineTool implements Tool {
     this.draft = {
       id: crypto.randomUUID(),
       kind: this.id,
-      p1: { x: e.clientX, y: e.clientY },
-      p2: { x: 0, y: 0 },
       fillStyle: editor.state.toolOptions.fillColor,
       strokeStyle: editor.state.toolOptions.strokeColor,
+      transform: { x: e.clientX, y: e.clientY, rotation: 0 },
+      local: {
+        x1: 0,
+        y1: 0,
+        x2: 0,
+        y2: 0,
+      },
       lineWidth: 4,
     }
     editor.document.add(this.draft)
@@ -21,7 +26,8 @@ export class LineTool implements Tool {
 
   onPointerMove(e: PointerEventData, { editor }: ToolContext) {
     if (!this.draft) return
-    this.draft.p2 = { x: e.clientX, y: e.clientY }
+    this.draft.local.x2 = e.clientX - this.draft.transform.x
+    this.draft.local.y2 = e.clientY - this.draft.transform.y
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
   }
