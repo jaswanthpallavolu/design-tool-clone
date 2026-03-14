@@ -1,6 +1,7 @@
 import { Tool, ToolContext } from "./Tool"
 import { RectangleShape } from "../model/Shape"
 import type { PointerEventData } from "../types/InputTypes"
+import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
 
 export class RectangleTool implements Tool {
   readonly id = "rectangle"
@@ -17,10 +18,11 @@ export class RectangleTool implements Tool {
       transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
       local: { width: 0, height: 0 },
     }
+    editor.selection.setSingle(this.draft.id)
     editor.document.add(this.draft)
   }
 
-  onPointerMove(e: PointerEventData, { editor }: ToolContext) {
+  onPointerMove(e: PointerEventData, { editor, renderOverlays }: ToolContext) {
     if (!this.draft) return
     const minX = Math.min(this.mouseStart.x, e.clientX)
     const maxX = Math.max(this.mouseStart.x, e.clientX)
@@ -33,6 +35,9 @@ export class RectangleTool implements Tool {
     this.draft.local.height = maxY - minY
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
+
+    SelectionBoundsHelper.updateSelectionBounds({ editor })
+    renderOverlays()
   }
 
   onPointerUp(e: PointerEventData, { editor }: ToolContext) {

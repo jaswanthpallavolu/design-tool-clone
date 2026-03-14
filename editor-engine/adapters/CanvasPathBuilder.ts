@@ -5,6 +5,13 @@ import {
   LineShape,
 } from "../core/model/Shape"
 import { AABB } from "../core/services/BoundingBoxService"
+import { HandleGeometry } from "../core/services/HandleGeometryService"
+
+export interface HandlePaths {
+  corners: Record<string, Path2D>
+  edges: Record<string, Path2D>
+  rotation: Record<string, Path2D>
+}
 
 export class CanvasPathBuilder {
   private constructor() {}
@@ -53,5 +60,44 @@ export class CanvasPathBuilder {
     path.moveTo(shape.local.x1, shape.local.y1)
     path.lineTo(shape.local.x2, shape.local.y2)
     return path
+  }
+
+  static getHandlePaths(geometry: HandleGeometry): HandlePaths {
+    const cornerPaths: Record<string, Path2D> = {}
+    const edgePaths: Record<string, Path2D> = {}
+    const rotationPaths: Record<string, Path2D> = {}
+
+    // Create corner handle paths (rectangles)
+    for (const [key, corner] of Object.entries(geometry.corners)) {
+      const path = new Path2D()
+      path.rect(
+        corner.x - corner.size / 2,
+        corner.y - corner.size / 2,
+        corner.size,
+        corner.size,
+      )
+      cornerPaths[key] = path
+    }
+
+    // Create edge handle paths (lines)
+    for (const [key, edge] of Object.entries(geometry.edges)) {
+      const path = new Path2D()
+      path.moveTo(edge.x1, edge.y1)
+      path.lineTo(edge.x2, edge.y2)
+      edgePaths[key] = path
+    }
+
+    // Create rotation handle paths (circles)
+    for (const [key, rotation] of Object.entries(geometry.rotation)) {
+      const path = new Path2D()
+      path.arc(rotation.x, rotation.y, rotation.radius, 0, Math.PI * 2)
+      rotationPaths[key] = path
+    }
+
+    return {
+      corners: cornerPaths,
+      edges: edgePaths,
+      rotation: rotationPaths,
+    }
   }
 }

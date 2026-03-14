@@ -6,7 +6,6 @@ import { DragState } from "./states/DragState"
 import { MarqueeState } from "./states/MarqueeState"
 import { SelectionBoundsHelper } from "./helpers/SelectionBoundsHelper"
 import { BoundingBoxService } from "../../services/BoundingBoxService"
-import { Shape } from "../../model/Shape"
 
 export class SelectTool implements Tool {
   readonly id = "select"
@@ -16,12 +15,12 @@ export class SelectTool implements Tool {
     const nextState = this.determineNextState(e, ctx)
     this.transitionTo(nextState, ctx)
     this.currentState.onPointerDown(e, ctx)
-    this.renderSelection(ctx)
+    ctx.renderOverlays()
   }
 
   onPointerMove(e: PointerEventData, ctx: ToolContext): void {
     this.currentState.onPointerMove(e, ctx)
-    this.renderSelection(ctx)
+    ctx.renderOverlays()
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {
@@ -29,7 +28,7 @@ export class SelectTool implements Tool {
     const next = new IdleState()
     this.transitionTo(next, ctx)
     this.currentState.onPointerUp(e, ctx)
-    this.renderSelection(ctx)
+    ctx.renderOverlays()
   }
 
   private transitionTo(state: InteractionState, ctx: ToolContext): void {
@@ -62,13 +61,5 @@ export class SelectTool implements Tool {
     editor.selection.clear()
     editor.state.clearTransient()
     return new MarqueeState()
-  }
-
-  private renderSelection(ctx: ToolContext): void {
-    const { editor } = ctx
-    editor.renderer?.clearSelectionBox()
-    editor.renderer?.renderHoverOutline()
-    editor.renderer?.renderSelectionBox()
-    editor.renderer?.renderSelectionBounds()
   }
 }

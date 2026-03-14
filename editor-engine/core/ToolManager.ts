@@ -11,7 +11,16 @@ export class ToolManager {
   private readonly ctx: ToolContext
 
   constructor(editor: Editor) {
-    this.ctx = { editor }
+    this.ctx = {
+      editor,
+      renderOverlays: () => {
+        editor.renderer?.clearSelectionBox()
+        editor.renderer?.renderHoverOutline()
+        editor.renderer?.renderSelectionBox()
+        // editor.renderer?.renderSelectionBounds() // debug
+        editor.renderer?.renderSelectionHandles()
+      },
+    }
   }
 
   // ---------------------------------------------

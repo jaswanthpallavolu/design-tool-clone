@@ -6,6 +6,7 @@ export interface RenderPort {
   renderSelectionBox(): void
   clearSelectionBox(): void
   renderSelectionBounds(): void
+  renderSelectionHandles(): void
 
   renderHoverOutline(): void
 

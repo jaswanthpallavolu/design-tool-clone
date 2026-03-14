@@ -5,6 +5,7 @@ import type { PointerEventData } from "../types/InputTypes"
 
 export interface ToolContext {
   readonly editor: Editor
+  renderOverlays(): void
 }
 
 export interface Tool {
