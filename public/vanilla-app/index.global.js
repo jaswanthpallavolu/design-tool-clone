@@ -312,6 +312,7 @@ var EditorEngine = (() => {
     /**
      * Calculate AABB for rectangle or ellipse shapes
      * Handles rotation by computing the bounding box of all rotated corners
+     * Top-left based: calculate center from transform.x/y + dimensions
      */
     static getAABBForRectangle(shape) {
       const hw = shape.local.width / 2;
@@ -347,6 +348,7 @@ var EditorEngine = (() => {
     /**
      * Calculate AABB for line shapes
      * Includes stroke width padding
+     * Top-left based: transform.x/y + local coords
      */
     static getAABBForLine(shape) {
       const x1 = shape.transform.x + shape.local.x1;
@@ -528,260 +530,356 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/tools/select/SelectTool.ts
-  var SelectTool = class {
-    constructor() {
-      this.id = "select";
-      this.currentState = new IdleState();
+  // editor-engine/core/tools/select/states/ResizeState.ts
+  var ResizeState = class {
+    constructor(handleType) {
+      this.handleType = handleType;
+      this.startMouse = { x: 0, y: 0 };
+      this.originalShapes = /* @__PURE__ */ new Map();
+    }
+    onEnter(ctx) {
+      const { editor } = ctx;
+      editor.selection.getAll().forEach((shapeId) => {
+        const shape = editor.document.getById(shapeId);
+        if (shape) {
+          this.originalShapes.set(shapeId, JSON.parse(JSON.stringify(shape)));
+        }
+      });
     }
     onPointerDown(e, ctx) {
-      const nextState = this.determineNextState(e, ctx);
-      this.transitionTo(nextState, ctx);
-      this.currentState.onPointerDown(e, ctx);
-      ctx.renderOverlays();
+      this.startMouse = { x: e.clientX, y: e.clientY };
     }
     onPointerMove(e, ctx) {
-      this.currentState.onPointerMove(e, ctx);
+      var _a;
+      const { editor } = ctx;
+      const dx = e.clientX - this.startMouse.x;
+      const dy = e.clientY - this.startMouse.y;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const shape = editor.document.getById(selection[0]);
+        const original = this.originalShapes.get(selection[0]);
+        if (!shape || !original) return;
+        this.resizeSingleShape(shape, original, dx, dy, this.handleType);
+        editor.document.update(shape);
+      } else if (selection.length > 1 && editor.state.selectionBounds) {
+        this.resizeMultipleShapes(editor, dx, dy, this.handleType);
+      }
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
       ctx.renderOverlays();
     }
     onPointerUp(e, ctx) {
-      this.currentState.onPointerUp(e, ctx);
-      const next = new IdleState();
-      this.transitionTo(next, ctx);
-      this.currentState.onPointerUp(e, ctx);
+    }
+    resizeSingleShape(shape, original, dx, dy, handle) {
+      if (shape.kind === "line" && original.kind === "line") {
+        this.resizeLine(shape, original, dx, dy, handle);
+      } else if ((shape.kind === "rectangle" || shape.kind === "ellipse") && (original.kind === "rectangle" || original.kind === "ellipse")) {
+        this.resizeRectangular(shape, original, dx, dy, handle);
+      }
+    }
+    resizeLine(shape, original, dx, dy, handle) {
+      if (handle === "p1") {
+        shape.local.x1 = original.local.x1 + dx;
+        shape.local.y1 = original.local.y1 + dy;
+      } else if (handle === "p2") {
+        shape.local.x2 = original.local.x2 + dx;
+        shape.local.y2 = original.local.y2 + dy;
+      }
+    }
+    resizeRectangular(shape, original, dx, dy, handle) {
+      const cos = Math.cos(-shape.transform.rotation);
+      const sin = Math.sin(-shape.transform.rotation);
+      const localDx = dx * cos - dy * sin;
+      const localDy = dx * sin + dy * cos;
+      switch (handle) {
+        case "nw":
+          shape.local.width = original.local.width - localDx;
+          shape.local.height = original.local.height - localDy;
+          shape.transform.x = original.transform.x + dx;
+          shape.transform.y = original.transform.y + dy;
+          break;
+        case "ne":
+          shape.local.width = original.local.width + localDx;
+          shape.local.height = original.local.height - localDy;
+          shape.transform.y = original.transform.y + dy;
+          break;
+        case "se":
+          shape.local.width = original.local.width + localDx;
+          shape.local.height = original.local.height + localDy;
+          break;
+        case "sw":
+          shape.local.width = original.local.width - localDx;
+          shape.local.height = original.local.height + localDy;
+          shape.transform.x = original.transform.x + dx;
+          break;
+        case "n":
+          shape.local.height = original.local.height - localDy;
+          shape.transform.y = original.transform.y + dy;
+          break;
+        case "e":
+          shape.local.width = original.local.width + localDx;
+          break;
+        case "s":
+          shape.local.height = original.local.height + localDy;
+          break;
+        case "w":
+          shape.local.width = original.local.width - localDx;
+          shape.transform.x = original.transform.x + dx;
+          break;
+      }
+      if (shape.local.width < 1) shape.local.width = 1;
+      if (shape.local.height < 1) shape.local.height = 1;
+    }
+    resizeMultipleShapes(editor, dx, dy, handle) {
+      console.log("Multi-shape resize not yet implemented");
+    }
+  };
+
+  // editor-engine/core/tools/select/states/RotateState.ts
+  var RotateState = class {
+    constructor(handleType) {
+      this.handleType = handleType;
+      this.startMouse = { x: 0, y: 0 };
+      this.centerPoint = { x: 0, y: 0 };
+      this.startAngle = 0;
+      this.originalTransforms = /* @__PURE__ */ new Map();
+    }
+    onEnter(ctx) {
+      const { editor } = ctx;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const shape = editor.document.getById(selection[0]);
+        if (shape) {
+          this.centerPoint = this.getShapeCenter(shape);
+          this.originalTransforms.set(shape.id, {
+            x: shape.transform.x,
+            y: shape.transform.y,
+            rotation: shape.transform.rotation
+          });
+        }
+      } else if (editor.state.selectionBounds) {
+        const bounds = editor.state.selectionBounds;
+        this.centerPoint = {
+          x: bounds.minX + (bounds.maxX - bounds.minX) / 2,
+          y: bounds.minY + (bounds.maxY - bounds.minY) / 2
+        };
+        selection.forEach((shapeId) => {
+          const shape = editor.document.getById(shapeId);
+          if (shape) {
+            this.originalTransforms.set(shape.id, {
+              x: shape.transform.x,
+              y: shape.transform.y,
+              rotation: shape.transform.rotation
+            });
+          }
+        });
+      }
+    }
+    onPointerDown(e, ctx) {
+      this.startMouse = { x: e.clientX, y: e.clientY };
+      this.startAngle = this.calculateAngle(
+        this.startMouse.x,
+        this.startMouse.y,
+        this.centerPoint.x,
+        this.centerPoint.y
+      );
+    }
+    onPointerMove(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const currentAngle = this.calculateAngle(
+        e.clientX,
+        e.clientY,
+        this.centerPoint.x,
+        this.centerPoint.y
+      );
+      const deltaAngle = currentAngle - this.startAngle;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const shape = editor.document.getById(selection[0]);
+        if (shape) {
+          const original = this.originalTransforms.get(shape.id);
+          if (original) {
+            if (shape.kind === "rectangle" || shape.kind === "ellipse") {
+              shape.transform.rotation = original.rotation + deltaAngle;
+            } else if (shape.kind === "line") {
+              const centerWorldX = shape.transform.x + (shape.local.x1 + shape.local.x2) / 2;
+              const centerWorldY = shape.transform.y + (shape.local.y1 + shape.local.y2) / 2;
+              const dx = shape.local.x1 - (shape.local.x1 + shape.local.x2) / 2;
+              const dy = shape.local.y1 - (shape.local.y1 + shape.local.y2) / 2;
+              const radius = Math.sqrt(dx * dx + dy * dy);
+              const angle = Math.atan2(
+                e.clientY - centerWorldY,
+                e.clientX - centerWorldX
+              );
+              const centerLocalX = (shape.local.x1 + shape.local.x2) / 2;
+              const centerLocalY = (shape.local.y1 + shape.local.y2) / 2;
+              shape.local.x2 = centerLocalX + radius * Math.cos(angle);
+              shape.local.y2 = centerLocalY + radius * Math.sin(angle);
+              shape.local.x1 = centerLocalX - radius * Math.cos(angle);
+              shape.local.y1 = centerLocalY - radius * Math.sin(angle);
+            }
+            editor.document.update(shape);
+          }
+        }
+      } else {
+        selection.forEach((shapeId) => {
+          const shape = editor.document.getById(shapeId);
+          if (shape) {
+            const original = this.originalTransforms.get(shape.id);
+            if (original) {
+              const rotatedPos = this.rotatePoint(
+                original.x,
+                original.y,
+                this.centerPoint.x,
+                this.centerPoint.y,
+                deltaAngle
+              );
+              shape.transform.x = rotatedPos.x;
+              shape.transform.y = rotatedPos.y;
+              shape.transform.rotation = original.rotation + deltaAngle;
+              editor.document.update(shape);
+            }
+          }
+        });
+      }
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
       ctx.renderOverlays();
     }
-    transitionTo(state, ctx) {
-      var _a, _b, _c, _d;
-      (_b = (_a = this.currentState).onExit) == null ? void 0 : _b.call(_a, ctx);
-      this.currentState = state;
-      (_d = (_c = this.currentState).onEnter) == null ? void 0 : _d.call(_c, ctx);
+    onPointerUp(e, ctx) {
     }
-    determineNextState(e, { editor }) {
-      if (editor.state.hoveredShapeId) {
-        const shape = editor.document.getById(editor.state.hoveredShapeId);
-        if (shape && editor.state.selectionBounds) {
-          if (BoundingBoxService.aabbIntersects(
-            editor.state.selectionBounds,
-            BoundingBoxService.getAABB(shape)
-          ))
-            return new DragState();
-        }
-        if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId);
-        else editor.selection.setSingle(editor.state.hoveredShapeId);
-        SelectionBoundsHelper.updateSelectionBounds({ editor });
-        return new DragState();
-      }
-      editor.selection.clear();
-      editor.state.clearTransient();
-      return new MarqueeState();
+    calculateAngle(x, y, centerX, centerY) {
+      return Math.atan2(y - centerY, x - centerX);
     }
-  };
-
-  // editor-engine/core/tools/LineTool.ts
-  var LineTool = class {
-    constructor() {
-      this.id = "line";
-    }
-    onPointerDown(e, { editor }) {
-      this.draft = {
-        id: crypto.randomUUID(),
-        kind: this.id,
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: e.clientX, y: e.clientY, rotation: 0 },
-        local: {
-          x1: 0,
-          y1: 0,
-          x2: 0,
-          y2: 0
-        },
-        lineWidth: 4
+    rotatePoint(x, y, centerX, centerY, angle) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const dx = x - centerX;
+      const dy = y - centerY;
+      return {
+        x: centerX + dx * cos - dy * sin,
+        y: centerY + dx * sin + dy * cos
       };
-      editor.document.add(this.draft);
     }
-    onPointerMove(e, { editor }) {
-      var _a;
-      if (!this.draft) return;
-      this.draft.local.x2 = e.clientX - this.draft.transform.x;
-      this.draft.local.y2 = e.clientY - this.draft.transform.y;
-      editor.document.update(this.draft);
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-    }
-    onPointerUp(e, { editor }) {
-      this.draft = void 0;
-    }
-  };
-
-  // editor-engine/core/tools/RectangleTool.ts
-  var RectangleTool = class {
-    constructor() {
-      this.id = "rectangle";
-      this.mouseStart = { x: 0, y: 0 };
-    }
-    onPointerDown(e, { editor }) {
-      this.mouseStart = { x: e.clientX, y: e.clientY };
-      this.draft = {
-        id: crypto.randomUUID(),
-        kind: "rectangle",
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-        local: { width: 0, height: 0 }
-      };
-      editor.selection.setSingle(this.draft.id);
-      editor.document.add(this.draft);
-    }
-    onPointerMove(e, { editor, renderOverlays }) {
-      var _a;
-      if (!this.draft) return;
-      const minX = Math.min(this.mouseStart.x, e.clientX);
-      const maxX = Math.max(this.mouseStart.x, e.clientX);
-      const minY = Math.min(this.mouseStart.y, e.clientY);
-      const maxY = Math.max(this.mouseStart.y, e.clientY);
-      this.draft.transform.x = minX;
-      this.draft.transform.y = minY;
-      this.draft.local.width = maxX - minX;
-      this.draft.local.height = maxY - minY;
-      editor.document.update(this.draft);
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-      SelectionBoundsHelper.updateSelectionBounds({ editor });
-      renderOverlays();
-    }
-    onPointerUp(e, { editor }) {
-      this.draft = void 0;
-    }
-  };
-
-  // editor-engine/core/tools/EllipseTool.ts
-  var EllipseTool = class {
-    constructor() {
-      this.id = "ellipse";
-      this.mouseStart = { x: 0, y: 0 };
-    }
-    onPointerDown(e, { editor }) {
-      this.mouseStart = { x: e.clientX, y: e.clientY };
-      this.draft = {
-        id: crypto.randomUUID(),
-        kind: "ellipse",
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-        local: { width: 0, height: 0 }
-      };
-      editor.document.add(this.draft);
-    }
-    onPointerMove(e, { editor }) {
-      var _a;
-      if (!this.draft) return;
-      const minX = Math.min(this.mouseStart.x, e.clientX);
-      const minY = Math.min(this.mouseStart.y, e.clientY);
-      const maxX = Math.max(this.mouseStart.x, e.clientX);
-      const maxY = Math.max(this.mouseStart.y, e.clientY);
-      this.draft.transform.x = minX;
-      this.draft.transform.y = minY;
-      this.draft.local.width = maxX - minX;
-      this.draft.local.height = maxY - minY;
-      editor.document.update(this.draft);
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-    }
-    onPointerUp(e, { editor }) {
-      this.draft = void 0;
-    }
-  };
-
-  // editor-engine/adapters/CanvasPathBuilder.ts
-  var CanvasPathBuilder = class {
-    constructor() {
-    }
-    static getPath(shape) {
-      switch (shape.kind) {
-        case "rectangle":
-          return this.createPathForRectangle(shape);
-        case "ellipse":
-          return this.createPathForEllipse(shape);
-        case "line":
-          return this.createPathForLine(shape);
+    getShapeCenter(shape) {
+      if (shape.kind === "line") {
+        const midX = (shape.local.x1 + shape.local.x2) / 2;
+        const midY = (shape.local.y1 + shape.local.y2) / 2;
+        return {
+          x: shape.transform.x + midX,
+          y: shape.transform.y + midY
+        };
+      } else {
+        return {
+          x: shape.transform.x + shape.local.width / 2,
+          y: shape.transform.y + shape.local.height / 2
+        };
       }
     }
-    static getPathFromAABB(box) {
-      const path = new Path2D();
-      const width = box.maxX - box.minX;
-      const height = box.maxY - box.minY;
-      path.rect(box.minX, box.minY, width, height);
-      return path;
-    }
-    static createPathForRectangle(shape) {
-      const path = new Path2D();
-      path.rect(0, 0, shape.local.width, shape.local.height);
-      return path;
-    }
-    static createPathForEllipse(shape) {
-      const path = new Path2D();
-      path.ellipse(
-        shape.local.width / 2,
-        shape.local.height / 2,
-        Math.abs(shape.local.width) / 2,
-        Math.abs(shape.local.height) / 2,
-        0,
-        0,
-        2 * Math.PI
+  };
+
+  // editor-engine/core/services/HandleHitTestService.ts
+  var HandleHitTestService = class {
+    /**
+     * Test if mouse position hits any handle
+     * Mouse coordinates should be in world space
+     */
+    static testHandles(mouseX, mouseY, geometry, centerX, centerY, rotation = 0) {
+      const localMouse = this.worldToLocal(
+        mouseX,
+        mouseY,
+        centerX,
+        centerY,
+        rotation
       );
-      return path;
-    }
-    static createPathForLine(shape) {
-      const path = new Path2D();
-      path.moveTo(shape.local.x1, shape.local.y1);
-      path.lineTo(shape.local.x2, shape.local.y2);
-      return path;
-    }
-    static getHandlePaths(geometry) {
-      const cornerPaths = {};
-      const edgePaths = {};
-      const rotationPaths = {};
-      for (const [key, corner] of Object.entries(geometry.corners)) {
-        const path = new Path2D();
-        path.rect(
-          corner.x - corner.size / 2,
-          corner.y - corner.size / 2,
-          corner.size,
-          corner.size
-        );
-        cornerPaths[key] = path;
+      for (const [key, handle] of Object.entries(geometry.rotation)) {
+        if (this.isPointInCircle(localMouse.x, localMouse.y, handle)) {
+          return { type: "rotation", handle: key };
+        }
+      }
+      for (const [key, handle] of Object.entries(geometry.corners)) {
+        if (this.isPointInRect(localMouse.x, localMouse.y, handle)) {
+          return { type: "corner", handle: key };
+        }
       }
       for (const [key, edge] of Object.entries(geometry.edges)) {
-        const path = new Path2D();
-        path.moveTo(edge.x1, edge.y1);
-        path.lineTo(edge.x2, edge.y2);
-        edgePaths[key] = path;
+        if (this.isPointNearLine(localMouse.x, localMouse.y, edge)) {
+          return { type: "edge", handle: key };
+        }
       }
-      for (const [key, rotation] of Object.entries(geometry.rotation)) {
-        const path = new Path2D();
-        path.arc(rotation.x, rotation.y, rotation.radius, 0, Math.PI * 2);
-        rotationPaths[key] = path;
-      }
+      return { type: null, handle: null };
+    }
+    /**
+     * Transform world coordinates to local space
+     */
+    static worldToLocal(worldX, worldY, centerX, centerY, rotation) {
+      const tx = worldX - centerX;
+      const ty = worldY - centerY;
+      const cos = Math.cos(-rotation);
+      const sin = Math.sin(-rotation);
       return {
-        corners: cornerPaths,
-        edges: edgePaths,
-        rotation: rotationPaths
+        x: tx * cos - ty * sin,
+        y: tx * sin + ty * cos
       };
     }
-  };
-
-  // editor-engine/adapters/CanvasHitTestAdapter.ts
-  var CanvasHitTestAdapter = class {
-    constructor(ctx) {
-      this.ctx = ctx;
+    /**
+     * Check if point is inside a circle
+     */
+    static isPointInCircle(x, y, circle) {
+      const dx = x - circle.x;
+      const dy = y - circle.y;
+      return dx * dx + dy * dy <= circle.radius * circle.radius;
     }
-    testShape(shape, x, y) {
-      this.ctx.save();
-      this.ctx.translate(shape.transform.x, shape.transform.y);
-      this.ctx.rotate(shape.transform.rotation);
-      this.ctx.lineWidth = 10;
-      const path = CanvasPathBuilder.getPath(shape);
-      const hitFound = shape.kind === "line" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
-      this.ctx.restore();
-      return hitFound;
+    /**
+     * Check if point is inside a rectangle (corner handle)
+     */
+    static isPointInRect(x, y, rect) {
+      const halfSize = rect.size / 2;
+      return x >= rect.x - halfSize && x <= rect.x + halfSize && y >= rect.y - halfSize && y <= rect.y + halfSize;
+    }
+    /**
+     * Check if point is near a line (edge handle)
+     */
+    static isPointNearLine(x, y, line, threshold = 5) {
+      const dx = line.x2 - line.x1;
+      const dy = line.y2 - line.y1;
+      const lengthSquared = dx * dx + dy * dy;
+      if (lengthSquared === 0) {
+        const dist = Math.sqrt((x - line.x1) ** 2 + (y - line.y1) ** 2);
+        return dist <= threshold;
+      }
+      let t = ((x - line.x1) * dx + (y - line.y1) * dy) / lengthSquared;
+      t = Math.max(0, Math.min(1, t));
+      const closestX = line.x1 + t * dx;
+      const closestY = line.y1 + t * dy;
+      const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
+      return distance <= threshold;
+    }
+    /**
+     * Get center position for a shape
+     * Top-left based: calculate center from transform.x/y + dimensions
+     */
+    static getShapeCenter(shape) {
+      if (shape.kind === "line") {
+        return {
+          x: shape.transform.x + (shape.local.x1 + shape.local.x2) / 2,
+          y: shape.transform.y + (shape.local.y1 + shape.local.y2) / 2
+        };
+      }
+      return {
+        x: shape.transform.x + shape.local.width / 2,
+        y: shape.transform.y + shape.local.height / 2
+      };
+    }
+    /**
+     * Get center position for an AABB
+     */
+    static getAABBCenter(aabb) {
+      return {
+        x: aabb.minX + (aabb.maxX - aabb.minX) / 2,
+        y: aabb.minY + (aabb.maxY - aabb.minY) / 2
+      };
     }
   };
 
@@ -946,6 +1044,318 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/tools/select/SelectTool.ts
+  var SelectTool = class {
+    constructor() {
+      this.id = "select";
+      this.currentState = new IdleState();
+    }
+    onPointerDown(e, ctx) {
+      const nextState = this.determineNextState(e, ctx);
+      this.transitionTo(nextState, ctx);
+      this.currentState.onPointerDown(e, ctx);
+      ctx.renderOverlays();
+    }
+    onPointerMove(e, ctx) {
+      this.currentState.onPointerMove(e, ctx);
+      ctx.renderOverlays();
+    }
+    onPointerUp(e, ctx) {
+      this.currentState.onPointerUp(e, ctx);
+      const next = new IdleState();
+      this.transitionTo(next, ctx);
+      this.currentState.onPointerUp(e, ctx);
+      ctx.renderOverlays();
+    }
+    transitionTo(state, ctx) {
+      var _a, _b, _c, _d;
+      (_b = (_a = this.currentState).onExit) == null ? void 0 : _b.call(_a, ctx);
+      this.currentState = state;
+      (_d = (_c = this.currentState).onEnter) == null ? void 0 : _d.call(_c, ctx);
+    }
+    determineNextState(e, ctx) {
+      const { editor } = ctx;
+      const handleHit = this.testHandleHit(e, editor);
+      if (handleHit.type === "rotation" && handleHit.handle) {
+        return new RotateState(handleHit.handle);
+      }
+      if ((handleHit.type === "corner" || handleHit.type === "edge") && handleHit.handle) {
+        return new ResizeState(handleHit.handle);
+      }
+      if (editor.state.hoveredShapeId) {
+        const shape = editor.document.getById(editor.state.hoveredShapeId);
+        if (shape && editor.state.selectionBounds) {
+          if (BoundingBoxService.aabbIntersects(
+            editor.state.selectionBounds,
+            BoundingBoxService.getAABB(shape)
+          ))
+            return new DragState();
+        }
+        if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId);
+        else editor.selection.setSingle(editor.state.hoveredShapeId);
+        SelectionBoundsHelper.updateSelectionBounds(ctx);
+        return new DragState();
+      }
+      editor.selection.clear();
+      editor.state.clearTransient();
+      return new MarqueeState();
+    }
+    testHandleHit(e, editor) {
+      const selection = editor.selection.getAll();
+      if (editor.state.selectionBounds && selection.length > 1) {
+        const geometry = HandleGeometryService.getAABBHandleGeometry(
+          editor.state.selectionBounds
+        );
+        const center = HandleHitTestService.getAABBCenter(
+          editor.state.selectionBounds
+        );
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          0
+          // AABB has no rotation
+        );
+      }
+      if (selection.length === 1) {
+        const shape = editor.document.getById(selection[0]);
+        if (shape) {
+          const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
+          const center = HandleHitTestService.getShapeCenter(shape);
+          return HandleHitTestService.testHandles(
+            e.clientX,
+            e.clientY,
+            geometry,
+            center.x,
+            center.y,
+            shape.transform.rotation
+          );
+        }
+      }
+      return { type: null, handle: null };
+    }
+  };
+
+  // editor-engine/core/tools/LineTool.ts
+  var LineTool = class {
+    constructor() {
+      this.id = "line";
+    }
+    onPointerDown(e, { editor }) {
+      this.draft = {
+        id: crypto.randomUUID(),
+        kind: this.id,
+        fillStyle: editor.state.toolOptions.fillColor,
+        strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: e.clientX, y: e.clientY, rotation: 0 },
+        local: {
+          x1: 0,
+          y1: 0,
+          x2: 0,
+          y2: 0
+        },
+        lineWidth: 4
+      };
+      editor.selection.setSingle(this.draft.id);
+      editor.document.add(this.draft);
+    }
+    onPointerMove(e, { editor, renderOverlays }) {
+      var _a;
+      if (!this.draft) return;
+      this.draft.local.x2 = e.clientX - this.draft.transform.x;
+      this.draft.local.y2 = e.clientY - this.draft.transform.y;
+      editor.document.update(this.draft);
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
+      renderOverlays();
+    }
+    onPointerUp(e, { editor }) {
+      this.draft = void 0;
+    }
+  };
+
+  // editor-engine/core/tools/RectangleTool.ts
+  var RectangleTool = class {
+    constructor() {
+      this.id = "rectangle";
+      this.mouseStart = { x: 0, y: 0 };
+    }
+    onPointerDown(e, { editor }) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
+      this.draft = {
+        id: crypto.randomUUID(),
+        kind: "rectangle",
+        fillStyle: editor.state.toolOptions.fillColor,
+        strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+        local: { width: 0, height: 0 }
+      };
+      editor.selection.setSingle(this.draft.id);
+      editor.document.add(this.draft);
+    }
+    onPointerMove(e, { editor, renderOverlays }) {
+      var _a;
+      if (!this.draft) return;
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.draft.transform.x = minX;
+      this.draft.transform.y = minY;
+      this.draft.local.width = maxX - minX;
+      this.draft.local.height = maxY - minY;
+      editor.document.update(this.draft);
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
+      renderOverlays();
+    }
+    onPointerUp(e, { editor }) {
+      this.draft = void 0;
+    }
+  };
+
+  // editor-engine/core/tools/EllipseTool.ts
+  var EllipseTool = class {
+    constructor() {
+      this.id = "ellipse";
+      this.mouseStart = { x: 0, y: 0 };
+    }
+    onPointerDown(e, { editor }) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
+      this.draft = {
+        id: crypto.randomUUID(),
+        kind: "ellipse",
+        fillStyle: editor.state.toolOptions.fillColor,
+        strokeStyle: editor.state.toolOptions.strokeColor,
+        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
+        local: { width: 0, height: 0 }
+      };
+      editor.selection.setSingle(this.draft.id);
+      editor.document.add(this.draft);
+    }
+    onPointerMove(e, { editor, renderOverlays }) {
+      var _a;
+      if (!this.draft) return;
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.draft.transform.x = minX;
+      this.draft.transform.y = minY;
+      this.draft.local.width = maxX - minX;
+      this.draft.local.height = maxY - minY;
+      editor.document.update(this.draft);
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
+      renderOverlays();
+    }
+    onPointerUp(e, { editor }) {
+      this.draft = void 0;
+    }
+  };
+
+  // editor-engine/adapters/CanvasPathBuilder.ts
+  var CanvasPathBuilder = class {
+    constructor() {
+    }
+    static getPath(shape) {
+      switch (shape.kind) {
+        case "rectangle":
+          return this.createPathForRectangle(shape);
+        case "ellipse":
+          return this.createPathForEllipse(shape);
+        case "line":
+          return this.createPathForLine(shape);
+      }
+    }
+    static getPathFromAABB(box) {
+      const path = new Path2D();
+      const width = box.maxX - box.minX;
+      const height = box.maxY - box.minY;
+      path.rect(box.minX, box.minY, width, height);
+      return path;
+    }
+    static createPathForRectangle(shape) {
+      const path = new Path2D();
+      const halfW = shape.local.width / 2;
+      const halfH = shape.local.height / 2;
+      path.rect(-halfW, -halfH, shape.local.width, shape.local.height);
+      return path;
+    }
+    static createPathForEllipse(shape) {
+      const path = new Path2D();
+      path.ellipse(
+        0,
+        0,
+        Math.abs(shape.local.width) / 2,
+        Math.abs(shape.local.height) / 2,
+        0,
+        0,
+        2 * Math.PI
+      );
+      return path;
+    }
+    static createPathForLine(shape) {
+      const path = new Path2D();
+      const centerX = (shape.local.x1 + shape.local.x2) / 2;
+      const centerY = (shape.local.y1 + shape.local.y2) / 2;
+      path.moveTo(shape.local.x1 - centerX, shape.local.y1 - centerY);
+      path.lineTo(shape.local.x2 - centerX, shape.local.y2 - centerY);
+      return path;
+    }
+    static getHandlePaths(geometry) {
+      const cornerPaths = {};
+      const edgePaths = {};
+      const rotationPaths = {};
+      for (const [key, corner] of Object.entries(geometry.corners)) {
+        const path = new Path2D();
+        path.rect(
+          corner.x - corner.size / 2,
+          corner.y - corner.size / 2,
+          corner.size,
+          corner.size
+        );
+        cornerPaths[key] = path;
+      }
+      for (const [key, edge] of Object.entries(geometry.edges)) {
+        const path = new Path2D();
+        path.moveTo(edge.x1, edge.y1);
+        path.lineTo(edge.x2, edge.y2);
+        edgePaths[key] = path;
+      }
+      for (const [key, rotation] of Object.entries(geometry.rotation)) {
+        const path = new Path2D();
+        path.arc(rotation.x, rotation.y, rotation.radius, 0, Math.PI * 2);
+        rotationPaths[key] = path;
+      }
+      return {
+        corners: cornerPaths,
+        edges: edgePaths,
+        rotation: rotationPaths
+      };
+    }
+  };
+
+  // editor-engine/adapters/CanvasHitTestAdapter.ts
+  var CanvasHitTestAdapter = class {
+    constructor(ctx) {
+      this.ctx = ctx;
+    }
+    testShape(shape, x, y) {
+      this.ctx.save();
+      const center = HandleHitTestService.getShapeCenter(shape);
+      this.ctx.translate(center.x, center.y);
+      this.ctx.rotate(shape.transform.rotation);
+      this.ctx.lineWidth = 10;
+      const path = CanvasPathBuilder.getPath(shape);
+      const hitFound = shape.kind === "line" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
+      this.ctx.restore();
+      return hitFound;
+    }
+  };
+
   // editor-engine/adapters/CanvasRenderer.ts
   var CanvasRenderer = class {
     constructor({
@@ -987,7 +1397,16 @@ var EditorEngine = (() => {
       this.ctx.fillStyle = shape.fillStyle;
       this.ctx.strokeStyle = shape.strokeStyle;
       const path = CanvasPathBuilder.getPath(shape);
-      this.ctx.translate(shape.transform.x, shape.transform.y);
+      let centerX = shape.transform.x;
+      let centerY = shape.transform.y;
+      if (shape.kind === "line") {
+        centerX += (shape.local.x1 + shape.local.x2) / 2;
+        centerY += (shape.local.y1 + shape.local.y2) / 2;
+      } else {
+        centerX += shape.local.width / 2;
+        centerY += shape.local.height / 2;
+      }
+      this.ctx.translate(centerX, centerY);
       this.ctx.rotate(shape.transform.rotation);
       if (shape.kind === "line") {
         this.ctx.lineWidth = shape.lineWidth;
@@ -1009,7 +1428,16 @@ var EditorEngine = (() => {
       this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor;
       this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth;
       const path = CanvasPathBuilder.getPath(hoveredShape);
-      this.ctx.translate(hoveredShape.transform.x, hoveredShape.transform.y);
+      let centerX = hoveredShape.transform.x;
+      let centerY = hoveredShape.transform.y;
+      if (hoveredShape.kind === "line") {
+        centerX += (hoveredShape.local.x1 + hoveredShape.local.x2) / 2;
+        centerY += (hoveredShape.local.y1 + hoveredShape.local.y2) / 2;
+      } else {
+        centerX += hoveredShape.local.width / 2;
+        centerY += hoveredShape.local.height / 2;
+      }
+      this.ctx.translate(centerX, centerY);
       this.ctx.rotate(hoveredShape.transform.rotation);
       this.ctx.stroke(path);
       this.ctx.restore();

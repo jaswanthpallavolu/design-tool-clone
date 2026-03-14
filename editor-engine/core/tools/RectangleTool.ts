@@ -29,6 +29,7 @@ export class RectangleTool implements Tool {
     const minY = Math.min(this.mouseStart.y, e.clientY)
     const maxY = Math.max(this.mouseStart.y, e.clientY)
 
+    // Top-left based: transform.x/y is the top-left corner
     this.draft.transform.x = minX
     this.draft.transform.y = minY
     this.draft.local.width = maxX - minX
@@ -36,7 +37,7 @@ export class RectangleTool implements Tool {
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
 
-    SelectionBoundsHelper.updateSelectionBounds({ editor })
+    SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays })
     renderOverlays()
   }
 

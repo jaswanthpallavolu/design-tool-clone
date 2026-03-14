@@ -37,15 +37,19 @@ export class CanvasPathBuilder {
 
   private static createPathForRectangle(shape: RectangleShape): Path2D {
     const path = new Path2D()
-    path.rect(0, 0, shape.local.width, shape.local.height)
+    // Center-based: draw rectangle centered at origin
+    const halfW = shape.local.width / 2
+    const halfH = shape.local.height / 2
+    path.rect(-halfW, -halfH, shape.local.width, shape.local.height)
     return path
   }
 
   private static createPathForEllipse(shape: EllipseShape): Path2D {
     const path = new Path2D()
+    // Center-based: draw ellipse centered at origin
     path.ellipse(
-      shape.local.width / 2,
-      shape.local.height / 2,
+      0,
+      0,
       Math.abs(shape.local.width) / 2,
       Math.abs(shape.local.height) / 2,
       0,
@@ -57,8 +61,11 @@ export class CanvasPathBuilder {
 
   private static createPathForLine(shape: LineShape): Path2D {
     const path = new Path2D()
-    path.moveTo(shape.local.x1, shape.local.y1)
-    path.lineTo(shape.local.x2, shape.local.y2)
+    // Center-based: draw line centered at origin
+    const centerX = (shape.local.x1 + shape.local.x2) / 2
+    const centerY = (shape.local.y1 + shape.local.y2) / 2
+    path.moveTo(shape.local.x1 - centerX, shape.local.y1 - centerY)
+    path.lineTo(shape.local.x2 - centerX, shape.local.y2 - centerY)
     return path
   }
 

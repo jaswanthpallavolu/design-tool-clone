@@ -4,8 +4,15 @@ import type { InteractionState } from "./states/InteractionState"
 import { IdleState } from "./states/IdleState"
 import { DragState } from "./states/DragState"
 import { MarqueeState } from "./states/MarqueeState"
+import { ResizeState } from "./states/ResizeState"
+import { RotateState } from "./states/RotateState"
 import { SelectionBoundsHelper } from "./helpers/SelectionBoundsHelper"
 import { BoundingBoxService } from "../../services/BoundingBoxService"
+import {
+  HandleHitTestService,
+  HandleHitResult,
+} from "../../services/HandleHitTestService"
+import { HandleGeometryService } from "../../services/HandleGeometryService"
 
 export class SelectTool implements Tool {
   readonly id = "select"
@@ -39,8 +46,23 @@ export class SelectTool implements Tool {
 
   private determineNextState(
     e: PointerEventData,
-    { editor }: ToolContext,
+    ctx: ToolContext,
   ): InteractionState {
+    const { editor } = ctx
+
+    // 1. Check handle hit first (highest priority)
+    const handleHit = this.testHandleHit(e, editor)
+    if (handleHit.type === "rotation" && handleHit.handle) {
+      return new RotateState(handleHit.handle)
+    }
+    if (
+      (handleHit.type === "corner" || handleHit.type === "edge") &&
+      handleHit.handle
+    ) {
+      return new ResizeState(handleHit.handle)
+    }
+
+    // 2. Check shape hit (existing logic)
     if (editor.state.hoveredShapeId) {
       // Check hoveredShapeId is in selectionBounds
       const shape = editor.document.getById(editor.state.hoveredShapeId)
@@ -55,11 +77,57 @@ export class SelectTool implements Tool {
       }
       if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId)
       else editor.selection.setSingle(editor.state.hoveredShapeId)
-      SelectionBoundsHelper.updateSelectionBounds({ editor })
+      SelectionBoundsHelper.updateSelectionBounds(ctx)
       return new DragState()
     }
+
+    // 3. Start marquee selection
     editor.selection.clear()
     editor.state.clearTransient()
     return new MarqueeState()
+  }
+
+  private testHandleHit(
+    e: PointerEventData,
+    editor: ToolContext["editor"],
+  ): HandleHitResult {
+    const selection = editor.selection.getAll()
+
+    // Test for multi-select AABB handles
+    if (editor.state.selectionBounds && selection.length > 1) {
+      const geometry = HandleGeometryService.getAABBHandleGeometry(
+        editor.state.selectionBounds,
+      )
+      const center = HandleHitTestService.getAABBCenter(
+        editor.state.selectionBounds,
+      )
+      return HandleHitTestService.testHandles(
+        e.clientX,
+        e.clientY,
+        geometry,
+        center.x,
+        center.y,
+        0, // AABB has no rotation
+      )
+    }
+
+    // Test for single shape handles
+    if (selection.length === 1) {
+      const shape = editor.document.getById(selection[0])
+      if (shape) {
+        const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
+        const center = HandleHitTestService.getShapeCenter(shape)
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          shape.transform.rotation,
+        )
+      }
+    }
+
+    return { type: null, handle: null }
   }
 }

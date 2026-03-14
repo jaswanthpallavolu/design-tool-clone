@@ -60,8 +60,22 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.fillStyle = shape.fillStyle
     this.ctx.strokeStyle = shape.strokeStyle
     const path: Path2D = CanvasPathBuilder.getPath(shape)
-    this.ctx.translate(shape.transform.x, shape.transform.y)
+
+    // Calculate center from top-left position
+    let centerX = shape.transform.x
+    let centerY = shape.transform.y
+    if (shape.kind === "line") {
+      centerX += (shape.local.x1 + shape.local.x2) / 2
+      centerY += (shape.local.y1 + shape.local.y2) / 2
+    } else {
+      centerX += shape.local.width / 2
+      centerY += shape.local.height / 2
+    }
+
+    // Translate to center and rotate
+    this.ctx.translate(centerX, centerY)
     this.ctx.rotate(shape.transform.rotation)
+
     if (shape.kind === "line") {
       this.ctx.lineWidth = shape.lineWidth
     } else this.ctx.fill(path)
@@ -88,7 +102,19 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor
     this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth
     const path: Path2D = CanvasPathBuilder.getPath(hoveredShape)
-    this.ctx.translate(hoveredShape.transform.x, hoveredShape.transform.y)
+
+    // Calculate center from top-left position
+    let centerX = hoveredShape.transform.x
+    let centerY = hoveredShape.transform.y
+    if (hoveredShape.kind === "line") {
+      centerX += (hoveredShape.local.x1 + hoveredShape.local.x2) / 2
+      centerY += (hoveredShape.local.y1 + hoveredShape.local.y2) / 2
+    } else {
+      centerX += hoveredShape.local.width / 2
+      centerY += hoveredShape.local.height / 2
+    }
+
+    this.ctx.translate(centerX, centerY)
     this.ctx.rotate(hoveredShape.transform.rotation)
     this.ctx.stroke(path)
     this.ctx.restore()

@@ -17,6 +17,7 @@ export class BoundingBoxService {
   /**
    * Calculate AABB for rectangle or ellipse shapes
    * Handles rotation by computing the bounding box of all rotated corners
+   * Top-left based: calculate center from transform.x/y + dimensions
    */
   private static getAABBForRectangle(
     shape: RectangleShape | EllipseShape,
@@ -24,6 +25,7 @@ export class BoundingBoxService {
     const hw = shape.local.width / 2
     const hh = shape.local.height / 2
 
+    // Top-left based: calculate center
     const cx = shape.transform.x + hw
     const cy = shape.transform.y + hh
 
@@ -60,8 +62,10 @@ export class BoundingBoxService {
   /**
    * Calculate AABB for line shapes
    * Includes stroke width padding
+   * Top-left based: transform.x/y + local coords
    */
   private static getAABBForLine(shape: LineShape): AABB {
+    // Top-left based: add local coords to transform position
     const x1 = shape.transform.x + shape.local.x1
     const y1 = shape.transform.y + shape.local.y1
     const x2 = shape.transform.x + shape.local.x2
