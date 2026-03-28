@@ -504,8 +504,9 @@ var EditorEngine = (() => {
         editor.state.marquee = BoundingBoxService.getAABB(this.draft);
       }
     }
-    onPointerUp(e, { editor }) {
+    onPointerUp(e, ctx) {
       var _a;
+      const { editor } = ctx;
       if (editor.state.marquee) {
         const marquee = (_a = editor.state.marquee) != null ? _a : {};
         editor.document.getAll().forEach((shape) => {
@@ -526,7 +527,7 @@ var EditorEngine = (() => {
       }
       this.draft = void 0;
       editor.state.marquee = void 0;
-      SelectionBoundsHelper.updateSelectionBounds({ editor });
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
   };
 

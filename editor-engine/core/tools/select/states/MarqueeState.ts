@@ -34,7 +34,8 @@ export class MarqueeState implements InteractionState {
       editor.state.marquee = BoundingBoxService.getAABB(this.draft)
     }
   }
-  onPointerUp(e: PointerEventData, { editor }: ToolContext): void {
+  onPointerUp(e: PointerEventData, ctx: ToolContext): void {
+    const { editor } = ctx
     if (editor.state.marquee) {
       const marquee = editor.state.marquee ?? {}
       editor.document.getAll().forEach((shape) => {
@@ -58,6 +59,6 @@ export class MarqueeState implements InteractionState {
     }
     this.draft = undefined
     editor.state.marquee = undefined
-    SelectionBoundsHelper.updateSelectionBounds({ editor })
+    SelectionBoundsHelper.updateSelectionBounds(ctx)
   }
 }
