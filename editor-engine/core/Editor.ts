@@ -12,6 +12,7 @@ export class Editor {
   readonly tools = new ToolManager(this)
   readonly state = new EditorState()
   renderer?: RenderPort
+  onToolChanged?: (toolId: string) => void
 
   addTools(tools: Tool[]) {
     this.tools.addTools(tools)
@@ -19,6 +20,7 @@ export class Editor {
 
   setActiveTool(tool: string) {
     this.tools.setActive(tool)
+    this.onToolChanged?.(tool)
   }
 
   updateToolOptions(options: Partial<ToolOptions>) {

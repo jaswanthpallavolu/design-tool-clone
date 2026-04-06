@@ -256,7 +256,9 @@ var EditorEngine = (() => {
       this.tools.addTools(tools);
     }
     setActiveTool(tool) {
+      var _a;
       this.tools.setActive(tool);
+      (_a = this.onToolChanged) == null ? void 0 : _a.call(this, tool);
     }
     updateToolOptions(options) {
       this.state.updateToolOptions(options);
@@ -1174,6 +1176,7 @@ var EditorEngine = (() => {
     }
     onPointerUp(e, { editor }) {
       this.draft = void 0;
+      editor.setActiveTool("select");
     }
   };
 
@@ -1214,6 +1217,7 @@ var EditorEngine = (() => {
     }
     onPointerUp(e, { editor }) {
       this.draft = void 0;
+      editor.setActiveTool("select");
     }
   };
 
@@ -1254,6 +1258,7 @@ var EditorEngine = (() => {
     }
     onPointerUp(e, { editor }) {
       this.draft = void 0;
+      editor.setActiveTool("select");
     }
   };
 

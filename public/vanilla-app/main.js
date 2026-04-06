@@ -1,11 +1,7 @@
 import CanvasEventAdapter from "./CanvasEventAdapter.js"
 const {
   Editor,
-  Document,
-  SelectionManager,
-  ToolManager,
   CanvasRenderer,
-  DrawTool,
   SelectTool,
   RectangleTool,
   EllipseTool,
@@ -35,6 +31,10 @@ toolDropdown.value = "rectangle"
 editor.addTools(tools.map((tool) => new tool.component()))
 editor.setActiveTool(toolDropdown.value)
 
+editor.onToolChanged = (toolId) => {
+  toolDropdown.value = toolId
+}
+
 toolDropdown.addEventListener("change", (e) => {
   editor.setActiveTool(e.target.value)
 })
@@ -54,3 +54,33 @@ new CanvasEventAdapter(canvas, editor)
 const renderer = new CanvasRenderer({ canvas, editor })
 
 editor.setRenderer(renderer)
+
+// Viewport initialization
+const initViewport = (canvas, onResize) => {
+  const resizeCanvas = () => {
+    const displayWidth = canvas.clientWidth
+    const displayHeight = canvas.clientHeight
+
+    if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+      canvas.width = displayWidth
+      canvas.height = displayHeight
+      onResize()
+    }
+  }
+
+  const ro = new ResizeObserver(() => {
+    // Use requestAnimationFrame to prevent "ResizeObserver loop limit" errors
+    window.requestAnimationFrame(resizeCanvas)
+  })
+
+  ro.observe(canvas)
+  resizeCanvas()
+}
+
+// Initialize with redraw callback
+initViewport(canvas, () => {
+  renderer.renderShapes()
+  renderer.renderHoverOutline()
+  renderer.renderSelectionBox()
+  renderer.renderSelectionHandles()
+})

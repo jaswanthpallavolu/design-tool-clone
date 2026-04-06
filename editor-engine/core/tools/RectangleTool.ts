@@ -43,5 +43,6 @@ export class RectangleTool implements Tool {
 
   onPointerUp(e: PointerEventData, { editor }: ToolContext) {
     this.draft = undefined
+    editor.setActiveTool("select")
   }
 }
