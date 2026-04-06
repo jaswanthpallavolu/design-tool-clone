@@ -275,6 +275,39 @@ var EditorEngine = (() => {
     onPointerUp(e) {
       this.tools.pointerUp(e);
     }
+    onKeyDown(e) {
+      var _a;
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const handled = this.handleToolSelection(e);
+        if (handled) {
+          e.preventDefault();
+          this.selection.clear();
+          this.state.clearTransient();
+          (_a = this.renderer) == null ? void 0 : _a.clearSelectionBox();
+          return;
+        }
+      }
+      this.tools.keyDown(e);
+    }
+    handleToolSelection(e) {
+      var _a;
+      const key = e.key.toLowerCase();
+      const toolMap = {
+        v: "select",
+        r: "rectangle",
+        o: "ellipse",
+        l: "line"
+      };
+      const toolId = toolMap[key];
+      if (toolId && ((_a = this.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
+        this.setActiveTool(toolId);
+        return true;
+      }
+      return false;
+    }
+    onKeyUp(e) {
+      this.tools.keyUp(e);
+    }
     setRenderer(renderer) {
       this.renderer = renderer;
     }
@@ -1068,6 +1101,24 @@ var EditorEngine = (() => {
       const next = new IdleState();
       this.transitionTo(next, ctx);
       this.currentState.onPointerUp(e, ctx);
+      ctx.renderOverlays();
+    }
+    onKeyDown(e, ctx) {
+      if (e.key === "Delete" || e.key === "Backspace") {
+        this.handleDelete(ctx);
+        e.preventDefault();
+      }
+    }
+    handleDelete(ctx) {
+      var _a;
+      const selectedIds = ctx.editor.selection.getAll();
+      if (selectedIds.length === 0) return;
+      selectedIds.forEach((id) => {
+        ctx.editor.document.remove(id);
+      });
+      ctx.editor.selection.clear();
+      ctx.editor.state.clearTransient();
+      (_a = ctx.editor.renderer) == null ? void 0 : _a.renderShapes();
       ctx.renderOverlays();
     }
     transitionTo(state, ctx) {

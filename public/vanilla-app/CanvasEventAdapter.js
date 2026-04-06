@@ -19,6 +19,15 @@ export default class CanvasEventAdapter {
     this.canvas.addEventListener("pointerup", (e) => {
       this.editor.onPointerUp(this.createPointerEventData(e))
     })
+
+    // Keyboard events - listen on window for global keyboard shortcuts
+    window.addEventListener("keydown", (e) => {
+      this.editor.onKeyDown(e)
+    })
+
+    window.addEventListener("keyup", (e) => {
+      this.editor.onKeyUp(e)
+    })
   }
 
   createPointerEventData(e) {

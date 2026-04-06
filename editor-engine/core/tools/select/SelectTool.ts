@@ -38,6 +38,33 @@ export class SelectTool implements Tool {
     ctx.renderOverlays()
   }
 
+  onKeyDown(e: KeyboardEvent, ctx: ToolContext): void {
+    // Delete selected shapes
+    if (e.key === "Delete" || e.key === "Backspace") {
+      this.handleDelete(ctx)
+      e.preventDefault()
+    }
+  }
+
+  private handleDelete(ctx: ToolContext): void {
+    const selectedIds = ctx.editor.selection.getAll()
+
+    if (selectedIds.length === 0) return
+
+    // Remove all selected shapes from document
+    selectedIds.forEach((id) => {
+      ctx.editor.document.remove(id)
+    })
+
+    // Clear selection and transient state
+    ctx.editor.selection.clear()
+    ctx.editor.state.clearTransient()
+
+    // Re-render
+    ctx.editor.renderer?.renderShapes()
+    ctx.renderOverlays()
+  }
+
   private transitionTo(state: InteractionState, ctx: ToolContext): void {
     this.currentState.onExit?.(ctx)
     this.currentState = state
