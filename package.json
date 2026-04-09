@@ -3,22 +3,28 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "build:engine": "tsup --config tsup.editor-engine.config.ts"
+    "build:engine": "tsup --config tsup.editor-engine.config.ts",
+    "dev:ui": "next dev",
+    "dev:server": "node server/index.ts",
+    "dev": "concurrently \"npm run dev:ui\" \"npm run dev:server\""
   },
   "dependencies": {
+    "nanoid": "^5.1.7",
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "socket.io": "^4.8.3",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
