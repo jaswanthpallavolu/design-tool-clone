@@ -2,6 +2,7 @@ import { HitTestPort } from "./HitTestPort"
 
 export interface RenderPort {
   renderShapes(): void
+  clear(): void
 
   renderSelectionBox(): void
   clearSelectionBox(): void

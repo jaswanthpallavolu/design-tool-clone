@@ -88,4 +88,11 @@ export class Editor {
   setRenderer(renderer: RenderPort) {
     this.renderer = renderer
   }
+
+  clear() {
+    this.document.clear()
+    this.selection.clear()
+    this.state.clearTransient()
+    this.renderer?.clear()
+  }
 }

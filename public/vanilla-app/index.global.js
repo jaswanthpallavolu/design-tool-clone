@@ -311,6 +311,13 @@ var EditorEngine = (() => {
     setRenderer(renderer) {
       this.renderer = renderer;
     }
+    clear() {
+      var _a;
+      this.document.clear();
+      this.selection.clear();
+      this.state.clearTransient();
+      (_a = this.renderer) == null ? void 0 : _a.clear();
+    }
   };
 
   // editor-engine/core/tools/select/states/IdleState.ts
@@ -1438,10 +1445,19 @@ var EditorEngine = (() => {
       return this.hitTestAdapter;
     }
     renderShapes() {
-      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      this.clear();
       this.editor.document.getAll().forEach((shape) => {
         this.renderShape(shape);
       });
+      this.imageData = this.ctx.getImageData(
+        0,
+        0,
+        this.canvas.width,
+        this.canvas.height
+      );
+    }
+    clear() {
+      this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
       this.imageData = this.ctx.getImageData(
         0,
         0,

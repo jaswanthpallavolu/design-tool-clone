@@ -43,10 +43,20 @@ export class CanvasRenderer implements RenderPort {
   }
 
   renderShapes(): void {
-    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
+    this.clear()
     this.editor.document.getAll().forEach((shape) => {
       this.renderShape(shape)
     })
+    this.imageData = this.ctx.getImageData(
+      0,
+      0,
+      this.canvas.width,
+      this.canvas.height,
+    )
+  }
+
+  clear(): void {
+    this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height)
     this.imageData = this.ctx.getImageData(
       0,
       0,

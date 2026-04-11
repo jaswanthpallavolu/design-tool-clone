@@ -9,6 +9,7 @@ const {
 } = EditorEngine
 const toolDropdown = document.getElementById("tool-dropdown")
 const colorInput = document.getElementById("color-input")
+const clearButton = document.getElementById("clear-button")
 const canvas = document.getElementById("canvas")
 
 const editor = new Editor()
@@ -83,4 +84,8 @@ initViewport(canvas, () => {
   renderer.renderHoverOutline()
   renderer.renderSelectionBox()
   renderer.renderSelectionHandles()
+})
+
+clearButton.addEventListener("click", () => {
+  editor.clear()
 })
