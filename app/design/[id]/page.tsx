@@ -1,4 +1,4 @@
-import DesignCanvas from "./DesignCanvas"
+import DesignCanvas from "../../components/DesignCanvas"
 
 export default async function Design({
   params,

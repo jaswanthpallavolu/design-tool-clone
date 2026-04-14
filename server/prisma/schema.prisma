@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// User (No Auth)
+// ============================================
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+  
+  designs         Design[]
+  shapes          Shape[]
+  collaborations  Collaborator[]
+  
+  @@map("users")
+}
+
+// ============================================
+// Design (Board)
+// ============================================
+
+model Design {
+  id        String   @id @default(cuid())
+  title     String   @default("Untitled")
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  shapes        Shape[]
+  collaborators Collaborator[]
+  
+  @@index([ownerId])
+  @@map("designs")
+}
+
+// ============================================
+// Shape (Drawing Elements)
+// ============================================
+
+model Shape {
+  id        String    @id @default(cuid())
+  designId  String
+  design    Design    @relation(fields: [designId], references: [id], onDelete: Cascade)
+  
+  type      ShapeType
+  geometry  Json      // { x, y, width, height, rotation }
+  style     Json      // { strokeColor, fillColor }
+  zIndex    Int       @default(0)
+  
+  createdBy String
+  creator   User      @relation(fields: [createdBy], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
+  @@index([designId, zIndex])
+  @@map("shapes")
+}
+
+enum ShapeType {
+  RECTANGLE
+  ELLIPSE
+  LINE
+}
+
+// ============================================
+// Collaborator (Real-time Sharing)
+// ============================================
+
+model Collaborator {
+  id        String            @id @default(cuid())
+  designId  String
+  design    Design            @relation(fields: [designId], references: [id], onDelete: Cascade)
+  
+  userId    String
+  user      User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  role      CollaboratorRole  @default(EDITOR)
+  joinedAt  DateTime          @default(now())
+  
+  @@unique([designId, userId])
+  @@index([userId])
+  @@index([designId])
+  @@map("collaborators")
+}
+
+enum CollaboratorRole {
+  OWNER
+  EDITOR
+  VIEWER
+}

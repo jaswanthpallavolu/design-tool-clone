@@ -8,7 +8,7 @@
     "lint": "eslint",
     "build:engine": "tsup --config tsup.editor-engine.config.ts",
     "dev:ui": "next dev",
-    "dev:server": "node server/index.ts",
+    "dev:server": "tsx --watch server/index.ts",
     "dev": "concurrently \"npm run dev:ui\" \"npm run dev:server\""
   },
   "dependencies": {
@@ -22,6 +22,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "concurrently": "^9.2.1",
@@ -29,6 +30,7 @@
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
     "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }

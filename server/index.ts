@@ -1,7 +1,8 @@
+import cors from "cors"
 import express from "express"
 import http from "http"
-import { Server } from "socket.io"
-import cors from "cors"
+import apiRoutes from "./routes"
+import { initSockets } from "./sockets"
 
 const app = express()
 // Enable CORS so your Next.js app (on port 3000) can talk to this server
@@ -14,33 +15,14 @@ app.use(
 
 const server = http.createServer(app)
 
-const io = new Server(server, {
-  cors: {
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST"],
-  },
-})
+initSockets(server)
 
-io.on("connection", (socket) => {
-  const { roomId } = socket.handshake.query
+app.use(express.json())
 
-  if (roomId) {
-    socket.join(roomId)
-    console.log(`User connected to room: ${roomId}`)
-  }
-
-  // Handle drawing events
-  socket.on("draw-shape", (data) => {
-    // Broadcast to everyone else in the room
-    if (roomId) socket.to(roomId).emit("draw-shape", data)
-  })
-
-  socket.on("disconnect", () => {
-    console.log("User disconnected")
-  })
-})
+// Mount all API routes
+app.use("/api", apiRoutes)
 
 const PORT = 4000
 server.listen(PORT, () => {
-  console.log(`Socket BFF running on http://localhost:${PORT}`)
+  console.log(`Server is running on ${PORT}`)
 })
