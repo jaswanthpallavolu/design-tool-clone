@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>SketchPad - Minimalist Board Manager</title>
+    <title>Design Board - Board Manager</title>
     <!-- Google Fonts: Inter -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
@@ -108,51 +108,82 @@
       }
     </style>
   </head>
-  <body class="bg-surface text-on-surface antialiased font-body">
-    <!-- TopNavBar: Unified Design -->
+  <body
+    class="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 text-on-surface antialiased font-body min-h-screen"
+  >
+    <!-- TopNavBar: Enhanced Design -->
     <header
-      class="fixed top-0 left-0 right-0 h-14 w-full flex justify-between items-center px-6 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl z-50"
+      class="fixed top-0 left-0 right-0 h-16 w-full flex justify-between items-center px-8 border-b border-zinc-200/50 dark:border-zinc-800/50 bg-white/70 dark:bg-zinc-950/70 backdrop-blur-2xl z-50 shadow-sm"
     >
       <div class="flex items-center gap-4">
+        <div
+          class="w-8 h-8 bg-gradient-to-br from-secondary to-secondary-dim rounded-lg flex items-center justify-center"
+        >
+          <span
+            class="material-symbols-outlined text-white text-lg"
+            data-icon="dashboard"
+            >dashboard</span
+          >
+        </div>
         <span
-          class="text-lg font-bold tracking-tight text-zinc-800 dark:text-zinc-100"
-          >Boards</span
+          class="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50"
+          >Design Board</span
         >
       </div>
       <div class="flex items-center gap-3">
         <button
-          class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-200 px-3 py-1.5 rounded active:opacity-80"
+          class="flex items-center gap-2.5 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-all duration-200 px-3 py-2 rounded-lg active:scale-95 group"
         >
-          <span class="material-symbols-outlined" data-icon="person"
-            >person</span
+          <div
+            class="w-7 h-7 flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-sm"
           >
-          <span class="text-sm">Switch User</span>
+            <span
+              class="material-symbols-outlined text-white text-sm"
+              data-icon="person"
+              >person</span
+            >
+          </div>
+          <div class="flex flex-col items-start">
+            <span class="text-xs font-semibold text-zinc-900 dark:text-zinc-100"
+              >Alexander Wright</span
+            >
+            <span class="text-[10px] text-zinc-500 dark:text-zinc-400"
+              >Switch User</span
+            >
+          </div>
+          <span
+            class="material-symbols-outlined text-base text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors"
+            data-icon="expand_more"
+            >expand_more</span
+          >
         </button>
         <button
-          class="bg-zinc-900 dark:bg-zinc-100 text-zinc-50 dark:text-zinc-900 px-4 py-1.5 rounded text-sm font-medium hover:opacity-90 active:opacity-80 transition-opacity"
+          class="bg-gradient-to-r from-zinc-900 to-zinc-800 dark:from-zinc-100 dark:to-zinc-200 text-zinc-50 dark:text-zinc-900 px-5 py-2 rounded-lg text-sm font-semibold hover:shadow-lg hover:scale-105 active:scale-95 transition-all duration-200"
         >
           Create Board
         </button>
       </div>
     </header>
     <!-- Main Content Canvas -->
-    <main class="pt-24 pb-12 px-6 max-w-5xl mx-auto">
-      <!-- Dashboard Header: Simplified -->
-      <div class="mb-6">
-        <h1 class="text-2xl font-extrabold tracking-tight text-on-surface">
+    <main class="pt-28 pb-16 px-8 max-w-6xl mx-auto">
+      <!-- Dashboard Header: Enhanced -->
+      <div class="mb-10">
+        <h1
+          class="text-4xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 mb-2"
+        >
           SketchPad
         </h1>
-        <p class="text-on-surface-variant text-sm mt-1">
+        <p class="text-zinc-600 dark:text-zinc-400 text-base">
           Your active workspace boards
         </p>
       </div>
       <!-- Board List Container -->
       <div
-        class="space-y-px bg-outline-variant/20 border border-outline-variant/30 overflow-hidden"
+        class="rounded-xl overflow-hidden bg-white/80 dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200/50 dark:border-zinc-800/50 shadow-xl"
       >
-        <!-- List Header: Added Created At and Collaborators -->
+        <!-- List Header -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-2 bg-surface-container-low border-b border-outline-variant/30 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-zinc-50/50 dark:bg-zinc-800/30 border-b border-zinc-200/50 dark:border-zinc-800/50 text-[10px] uppercase tracking-wider font-bold text-zinc-500 dark:text-zinc-400"
         >
           <div class="col-span-4 md:col-span-5">Board Name</div>
           <div class="col-span-2 text-left">Created At</div>
@@ -162,39 +193,40 @@
         </div>
         <!-- List Item: 01 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Mobile App Wireframes</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Oct 12, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
             <div
-              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               AS
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 2h ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -202,34 +234,35 @@
         </div>
         <!-- List Item: 02 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Client Brand Concepts</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Oct 10, 2023
           </div>
           <div class="col-span-2 flex -space-x-2">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-green-400 to-green-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               MK
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 5h ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -237,42 +270,45 @@
         </div>
         <!-- List Item: 03 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate">Quick Sketch Ideas</span>
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
+              >Quick Sketch Ideas</span
+            >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Oct 05, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
             <div
-              class="w-6 h-6 rounded-full bg-zinc-400 dark:bg-zinc-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               TL
             </div>
             <div
-              class="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-zinc-400 to-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               +2
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 1d ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -280,32 +316,35 @@
         </div>
         <!-- List Item: 04 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate">User Flow Diagram</span>
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
+              >User Flow Diagram</span
+            >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Sep 28, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-pink-400 to-pink-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               BW
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 3d ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -313,39 +352,40 @@
         </div>
         <!-- List Item: 05 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Meeting Notes (July 24)</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Jul 24, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
             <div
-              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-teal-400 to-teal-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               PR
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 4d ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -353,34 +393,35 @@
         </div>
         <!-- List Item: 06 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Calligraphy Practice</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Jul 20, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 1w ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -388,39 +429,40 @@
         </div>
         <!-- List Item: 07 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Geometric Pattern Studies</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Jul 15, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
             <div
-              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-purple-400 to-purple-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               AS
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 2w ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -428,34 +470,35 @@
         </div>
         <!-- List Item: 08 -->
         <div
-          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+          class="grid grid-cols-12 gap-4 px-5 py-3 bg-white/50 dark:bg-zinc-900/30 hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition-all duration-200 items-center group border-b border-zinc-100/50 dark:border-zinc-800/50 last:border-0 cursor-pointer"
         >
           <div class="col-span-4 md:col-span-5">
-            <span class="font-medium text-sm truncate"
+            <span
+              class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 truncate"
               >Landscape Backgrounds</span
             >
           </div>
-          <div class="col-span-2 text-xs text-on-surface-variant">
+          <div class="col-span-2 text-xs text-zinc-500 dark:text-zinc-400">
             Jul 10, 2023
           </div>
-          <div class="col-span-2 flex -space-x-2">
+          <div class="col-span-2 flex -space-x-1.5">
             <div
-              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+              class="w-6 h-6 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[9px] font-bold text-white shadow-sm"
             >
               JD
             </div>
           </div>
           <div
-            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+            class="col-span-3 md:col-span-2 text-right text-xs text-zinc-500 dark:text-zinc-400"
           >
             Updated 3w ago
           </div>
           <div class="col-span-1 text-right">
             <button
-              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              class="text-zinc-400 hover:text-error hover:bg-red-50 dark:hover:bg-red-900/20 transition-all p-1.5 rounded-lg opacity-0 group-hover:opacity-100"
               title="Delete"
             >
-              <span class="material-symbols-outlined" data-icon="delete"
+              <span class="material-symbols-outlined text-lg" data-icon="delete"
                 >delete</span
               >
             </button>
@@ -463,21 +506,5 @@
         </div>
       </div>
     </main>
-    <!-- Empty State / Tip Floating Message -->
-    <div class="fixed bottom-6 right-6 hidden md:block">
-      <div
-        class="bg-inverse-surface text-inverse-on-surface px-4 py-2 rounded shadow-lg text-xs flex items-center gap-2"
-      >
-        <span
-          class="material-symbols-outlined text-primary-fixed"
-          data-icon="lightbulb"
-          >lightbulb</span
-        >
-        <span class="text-white"
-          >Press <kbd class="bg-primary px-1 rounded text-[10px]">C</kbd> to
-          create a new board quickly.</span
-        >
-      </div>
-    </div>
   </body>
 </html>

@@ -4,7 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta content="width=device-width, initial-scale=1.0" name="viewport" />
-    <title>Switch User - SketchFlow</title>
+    <title>Switch User - Design Board</title>
     <!-- Google Fonts: Inter -->
     <link
       href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
@@ -106,168 +106,182 @@
           "opsz" 24;
         font-size: 20px;
       }
-
-      /* Graph Paper Texture Utility */
-      .graph-paper {
-        background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuB7aAE7QRMm1yf1THUUkciCaCLQIz9VqHJDjoKpTx5zIMkh8-ej2uuA_hPgkDG83fzib-f73UEmjb_ojF46wZLmDqTXYDlLJpIQ-ITOF4eTCArRtoq5FNsWvZjsxx-Qn9WIlbfGACsSrrpT3llkk-jsTDgXy6XCyyh3cD6XbqN1KFzo8zMxTu03h-t4Mjc6kA1Gl4tW6OWt1YqhojbnogETR2qEgGw8bhzTEixsAEc0lJ1mzMSRzeXQkA4XD-o00qsDv19e2fkeMo8I");
-      }
     </style>
   </head>
   <body
-    class="bg-white dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 min-h-screen"
+    class="bg-gradient-to-br from-zinc-50 to-zinc-100 dark:from-zinc-950 dark:to-zinc-900 text-zinc-900 dark:text-zinc-100 min-h-screen overflow-hidden"
   >
-    <!-- TopNavBar: Unified Design -->
-    <nav
-      class="bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl text-zinc-700 dark:text-zinc-300 font-['Inter'] antialiased tracking-tight fixed top-0 w-full border-b border-zinc-200 dark:border-zinc-800 flex justify-between items-center px-6 py-3 h-14 z-50"
+    <!-- Modal Backdrop -->
+    <div
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200"
     >
-      <div class="flex items-center gap-4">
-        <button
-          class="hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors active:opacity-80 transition-opacity duration-150 p-1 flex items-center justify-center"
-        >
-          <span class="material-symbols-outlined" data-icon="arrow_back"
-            >arrow_back</span
-          >
-        </button>
-        <span class="text-lg font-bold text-zinc-800 dark:text-zinc-100"
-          >SketchFlow</span
-        >
-      </div>
-      <div class="flex items-center gap-6">
-        <button
-          class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors active:opacity-80 transition-opacity duration-150 p-1 flex items-center justify-center"
-        >
-          <span class="material-symbols-outlined" data-icon="help">help</span>
-        </button>
-        <button
-          class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors active:opacity-80 transition-opacity duration-150 p-1 flex items-center justify-center"
-        >
-          <span class="material-symbols-outlined" data-icon="settings"
-            >settings</span
-          >
-        </button>
-      </div>
-    </nav>
-    <main class="max-w-xl mx-auto px-6 py-12 md:py-24 pt-24">
-      <header class="mb-12">
-        <h1
-          class="text-3xl font-extrabold tracking-tighter text-zinc-900 dark:text-zinc-50"
-        >
-          Switch User
-        </h1>
-      </header>
-      <!-- Vertical User List -->
-      <section class="space-y-1 mb-16">
+      <!-- Modal Container -->
+      <div
+        class="bg-white dark:bg-zinc-900 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-hidden border border-zinc-200/50 dark:border-zinc-800/50 animate-in zoom-in-95 duration-200"
+      >
+        <!-- Modal Header -->
         <div
-          class="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900 px-2 transition-colors cursor-pointer group"
+          class="bg-gradient-to-r from-white to-zinc-50 dark:from-zinc-900 dark:to-zinc-800 border-b border-zinc-200/50 dark:border-zinc-800/50 px-6 py-4 flex items-center justify-between"
         >
-          <div class="flex items-center gap-4">
+          <div class="flex items-center gap-3">
             <div
-              class="w-10 h-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 rounded"
+              class="w-9 h-9 bg-gradient-to-br from-secondary to-secondary-dim rounded-xl flex items-center justify-center shadow-lg"
             >
               <span
-                class="material-symbols-outlined text-zinc-400"
-                data-icon="person"
-                >person</span
+                class="material-symbols-outlined text-white text-lg"
+                data-icon="people"
+                >people</span
               >
             </div>
-            <span class="font-medium text-zinc-900 dark:text-zinc-100"
-              >Alexander Wright</span
-            >
-          </div>
-          <span
-            class="text-xs font-bold text-zinc-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
-            >Active</span
-          >
-        </div>
-        <div
-          class="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900 px-2 transition-colors cursor-pointer group"
-        >
-          <div class="flex items-center gap-4">
-            <div
-              class="w-10 h-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 rounded"
-            >
-              <span
-                class="material-symbols-outlined text-zinc-400"
-                data-icon="person"
-                >person</span
-              >
+            <div>
+              <h1 class="text-lg font-bold text-zinc-900 dark:text-zinc-50">
+                Switch User
+              </h1>
+              <p class="text-xs text-zinc-500 dark:text-zinc-400">
+                Select or create a user
+              </p>
             </div>
-            <span class="font-medium text-zinc-900 dark:text-zinc-100"
-              >Elena Rossi</span
-            >
-          </div>
-          <span
-            class="text-xs font-bold text-zinc-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
-            >Select</span
-          >
-        </div>
-        <div
-          class="flex items-center justify-between py-3 border-b border-zinc-100 dark:border-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-900 px-2 transition-colors cursor-pointer group"
-        >
-          <div class="flex items-center gap-4">
-            <div
-              class="w-10 h-10 flex items-center justify-center bg-zinc-100 dark:bg-zinc-800 rounded"
-            >
-              <span
-                class="material-symbols-outlined text-zinc-400"
-                data-icon="person"
-                >person</span
-              >
-            </div>
-            <span class="font-medium text-zinc-900 dark:text-zinc-100"
-              >Marcus Thorne</span
-            >
-          </div>
-          <span
-            class="text-xs font-bold text-zinc-400 uppercase tracking-widest opacity-0 group-hover:opacity-100 transition-opacity"
-            >Select</span
-          >
-        </div>
-      </section>
-      <!-- Create New User Section -->
-      <section class="pt-8 border-t-2 border-zinc-900 dark:border-zinc-100">
-        <h2
-          class="text-sm font-black uppercase tracking-[0.2em] mb-8 text-zinc-500 dark:text-zinc-400"
-        >
-          Create New User
-        </h2>
-        <form class="space-y-6">
-          <div class="space-y-2">
-            <label
-              class="block text-xs font-bold uppercase tracking-wider text-zinc-600 dark:text-zinc-400"
-              for="username"
-              >User Name</label
-            >
-            <input
-              class="w-full bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-none focus:ring-0 focus:border-zinc-900 dark:focus:border-zinc-100 text-sm py-3 px-4 placeholder:text-zinc-400"
-              id="username"
-              name="username"
-              placeholder="Enter name..."
-              type="text"
-            />
           </div>
           <button
-            class="w-full bg-zinc-900 dark:bg-zinc-100 text-zinc-50 dark:text-zinc-900 font-bold py-4 rounded-none hover:opacity-90 transition-opacity active:scale-[0.98] duration-100"
-            type="submit"
+            class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 p-2 rounded-lg transition-all active:scale-95"
           >
-            Create User
+            <span class="material-symbols-outlined" data-icon="close"
+              >close</span
+            >
           </button>
-        </form>
-      </section>
-      <!-- Subtle Background Motif -->
-      <div
-        class="fixed bottom-0 right-0 p-8 pointer-events-none opacity-5 select-none"
-      >
-        <span
-          class="material-symbols-outlined text-[12rem]"
-          data-icon="sketchflow"
-          >architecture</span
-        >
+        </div>
+
+        <!-- Modal Content -->
+        <div class="p-6 overflow-y-auto max-h-[calc(90vh-80px)]">
+          <!-- User List -->
+          <section class="space-y-2 mb-6">
+            <div
+              class="flex items-center justify-between py-3 px-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:shadow-md transition-all duration-200 cursor-pointer group"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-blue-400 to-blue-600 rounded-lg shadow-md"
+                >
+                  <span
+                    class="material-symbols-outlined text-white text-lg"
+                    data-icon="person"
+                    >person</span
+                  >
+                </div>
+                <div>
+                  <span
+                    class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 block"
+                    >Alexander Wright</span
+                  >
+                  <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                    >Last active 2h ago</span
+                  >
+                </div>
+              </div>
+              <div class="flex items-center gap-2">
+                <span
+                  class="text-xs font-bold text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 px-2.5 py-0.5 rounded-full uppercase tracking-wider"
+                  >Active</span
+                >
+                <span
+                  class="material-symbols-outlined text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors"
+                  >chevron_right</span
+                >
+              </div>
+            </div>
+
+            <div
+              class="flex items-center justify-between py-3 px-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:shadow-md transition-all duration-200 cursor-pointer group"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-purple-400 to-purple-600 rounded-lg shadow-md"
+                >
+                  <span
+                    class="material-symbols-outlined text-white text-lg"
+                    data-icon="person"
+                    >person</span
+                  >
+                </div>
+                <div>
+                  <span
+                    class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 block"
+                    >Elena Rossi</span
+                  >
+                  <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                    >Last active 1d ago</span
+                  >
+                </div>
+              </div>
+              <span
+                class="material-symbols-outlined text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors"
+                >chevron_right</span
+              >
+            </div>
+
+            <div
+              class="flex items-center justify-between py-3 px-4 bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-200/50 dark:border-zinc-700/50 rounded-lg hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:shadow-md transition-all duration-200 cursor-pointer group"
+            >
+              <div class="flex items-center gap-3">
+                <div
+                  class="w-10 h-10 flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 rounded-lg shadow-md"
+                >
+                  <span
+                    class="material-symbols-outlined text-white text-lg"
+                    data-icon="person"
+                    >person</span
+                  >
+                </div>
+                <div>
+                  <span
+                    class="font-semibold text-sm text-zinc-900 dark:text-zinc-100 block"
+                    >Marcus Thorne</span
+                  >
+                  <span class="text-xs text-zinc-500 dark:text-zinc-400"
+                    >Last active 3d ago</span
+                  >
+                </div>
+              </div>
+              <span
+                class="material-symbols-outlined text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-300 transition-colors"
+                >chevron_right</span
+              >
+            </div>
+          </section>
+
+          <!-- Create New User Section -->
+          <section class="pt-6 border-t border-zinc-200 dark:border-zinc-700">
+            <h2
+              class="text-xs font-black uppercase tracking-[0.2em] mb-4 text-zinc-600 dark:text-zinc-400"
+            >
+              Create New User
+            </h2>
+            <form class="space-y-3">
+              <div class="space-y-2">
+                <label
+                  class="block text-sm font-semibold text-zinc-700 dark:text-zinc-300"
+                  for="username"
+                >
+                  User Name
+                </label>
+                <input
+                  class="w-full bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-lg focus:ring-2 focus:ring-secondary/50 focus:border-secondary dark:focus:border-secondary text-sm py-2.5 px-4 placeholder:text-zinc-400 transition-all"
+                  id="username"
+                  name="username"
+                  placeholder="Enter name..."
+                  type="text"
+                />
+              </div>
+              <button
+                class="w-full bg-gradient-to-r from-zinc-900 to-zinc-800 dark:from-zinc-100 dark:to-zinc-200 text-zinc-50 dark:text-zinc-900 font-bold py-2.5 rounded-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                type="submit"
+              >
+                Create User
+              </button>
+            </form>
+          </section>
+        </div>
       </div>
-    </main>
-    <!-- Decorative Canvas Texture -->
-    <div
-      class="fixed inset-0 pointer-events-none z-[-1] opacity-[0.03] graph-paper"
-    ></div>
+    </div>
   </body>
 </html>
