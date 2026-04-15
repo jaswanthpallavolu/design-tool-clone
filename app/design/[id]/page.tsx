@@ -1,4 +1,4 @@
-import DesignCanvas from "../../components/DesignCanvas"
+import DesignEditorPage from "../../components/DesignEditorPage"
 
 export default async function Design({
   params,
@@ -7,5 +7,7 @@ export default async function Design({
 }) {
   const { id } = await params
 
-  return <DesignCanvas id={id} />
+  return <DesignEditorPage id={id} />
 }
+
+// Made with Bob
