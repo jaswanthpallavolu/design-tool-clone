@@ -1,0 +1,286 @@
+<!doctype html>
+
+<html class="light" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>Project Untitled - Infinite Atelier</title>
+    <!-- Google Fonts: Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Material Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Unified Tailwind Configuration -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#5f5f5f",
+              "primary-dim": "#535353",
+              "primary-container": "#e4e2e2",
+              "primary-fixed": "#e4e2e2",
+              "primary-fixed-dim": "#d6d4d4",
+              "on-primary": "#fbf8f8",
+              "on-primary-container": "#525252",
+              "on-primary-fixed": "#3f3f3f",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "inverse-primary": "#ffffff",
+              secondary: "#3b4ce0",
+              "secondary-dim": "#2c3dd4",
+              "secondary-container": "#dfe0ff",
+              "secondary-fixed": "#dfe0ff",
+              "secondary-fixed-dim": "#ced1ff",
+              "on-secondary": "#fbf8ff",
+              "on-secondary-container": "#2a3cd3",
+              "on-secondary-fixed": "#0921c1",
+              "on-secondary-fixed-variant": "#3647dc",
+              tertiary: "#754c9e",
+              "tertiary-dim": "#684091",
+              "tertiary-container": "#d3a6ff",
+              "tertiary-fixed": "#d3a6ff",
+              "tertiary-fixed-dim": "#c598f1",
+              "on-tertiary": "#fff6ff",
+              "on-tertiary-container": "#4a2172",
+              "on-tertiary-fixed": "#32025b",
+              "on-tertiary-fixed-variant": "#532b7c",
+              error: "#ac3434",
+              "error-dim": "#70030f",
+              "error-container": "#f56965",
+              "on-error": "#fff7f6",
+              "on-error-container": "#65000b",
+              background: "#f9f9ff",
+              "on-background": "#253349",
+              surface: "#f9f9ff",
+              "surface-dim": "#cadbfa",
+              "surface-bright": "#f9f9ff",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f0f3ff",
+              "surface-container": "#e7eeff",
+              "surface-container-high": "#dee9ff",
+              "surface-container-highest": "#d4e3ff",
+              "surface-variant": "#d4e3ff",
+              "on-surface": "#253349",
+              "on-surface-variant": "#516077",
+              "surface-tint": "#5f5f5f",
+              outline: "#6d7b94",
+              "outline-variant": "#a4b3cd",
+              "inverse-surface": "#070e19",
+              "inverse-on-surface": "#969dac",
+            },
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              "2xl": "1rem",
+              full: "0.75rem",
+            },
+            fontFamily: {
+              headline: ["Inter"],
+              body: ["Inter"],
+              label: ["Inter"],
+              display: ["Inter"],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        font-size: 20px;
+      }
+
+      /* Dot Grid Background Utility */
+      .dot-grid {
+        background-image: radial-gradient(#d1d5db 0.8px, transparent 0.8px);
+        background-size: 24px 24px;
+      }
+    </style>
+  </head>
+  <body
+    class="bg-surface text-on-surface overflow-hidden h-screen w-screen selection:bg-secondary/20"
+  >
+    <!-- TopAppBar: Unified Design -->
+    <header
+      class="fixed top-0 w-full h-14 bg-zinc-50/80 dark:bg-zinc-900/80 backdrop-blur-xl border-b border-zinc-200/20 dark:border-zinc-800/20 flex justify-between items-center px-6 z-50"
+    >
+      <div
+        class="text-sm font-bold tracking-widest text-zinc-900 dark:text-zinc-100 uppercase"
+      >
+        Project Untitled
+      </div>
+      <div class="flex items-center gap-4">
+        <button
+          class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors p-1.5 rounded-lg active:opacity-70 duration-200"
+        >
+          <span class="material-symbols-outlined" data-icon="share">share</span>
+        </button>
+        <button
+          class="text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100/50 dark:hover:bg-zinc-800/50 transition-colors p-1.5 rounded-lg active:opacity-70 duration-200"
+        >
+          <span class="material-symbols-outlined" data-icon="settings"
+            >settings</span
+          >
+        </button>
+      </div>
+    </header>
+    <!-- Canvas Area -->
+    <main
+      class="relative w-full h-full pt-14 flex items-center justify-center bg-surface"
+    >
+      <div
+        class="w-full h-full bg-surface-container-lowest dot-grid relative shadow-inner"
+      >
+        <!-- Canvas Interaction Handles (Visual Representation) -->
+        <div
+          class="absolute top-1/4 left-1/3 w-64 h-40 border border-secondary/40 bg-secondary/5 group"
+        >
+          <div
+            class="absolute -top-1 -left-1 w-2 h-2 bg-secondary rounded-sm hover:scale-125 transition-transform cursor-nw-resize"
+          ></div>
+          <div
+            class="absolute -top-1 -right-1 w-2 h-2 bg-secondary rounded-sm hover:scale-125 transition-transform cursor-ne-resize"
+          ></div>
+          <div
+            class="absolute -bottom-1 -left-1 w-2 h-2 bg-secondary rounded-sm hover:scale-125 transition-transform cursor-sw-resize"
+          ></div>
+          <div
+            class="absolute -bottom-1 -right-1 w-2 h-2 bg-secondary rounded-sm hover:scale-125 transition-transform cursor-se-resize"
+          ></div>
+        </div>
+        <!-- Contextual Tooltip (Invisible Assistant) -->
+        <div
+          class="absolute bottom-12 left-1/2 -translate-x-1/2 bg-inverse-surface text-inverse-on-surface px-3 py-1.5 rounded text-[10px] font-medium tracking-tight uppercase opacity-0 hover:opacity-100 transition-opacity"
+        >
+          Press V for Select • R for Rectangle
+        </div>
+      </div>
+    </main>
+    <!-- SideNavBar (Floating Toolbox): Unified Design -->
+    <nav
+      class="fixed left-4 top-1/2 -translate-y-1/2 w-14 rounded-2xl bg-zinc-50/90 dark:bg-zinc-900/90 backdrop-blur-2xl shadow-2xl shadow-zinc-200/50 dark:shadow-none flex flex-col items-center py-4 gap-6 z-50"
+    >
+      <!-- Select Tool (Active) -->
+      <button
+        class="relative flex flex-col items-center justify-center text-secondary dark:text-secondary before:absolute before:right-0 before:w-0.5 before:h-4 before:bg-secondary hover:text-zinc-900 dark:hover:text-zinc-100 transition-all hover:scale-110 active:scale-95 duration-200 group"
+      >
+        <span
+          class="material-symbols-outlined"
+          data-icon="near_me"
+          style="font-variation-settings: &quot;FILL&quot; 1"
+          >near_me</span
+        >
+        <span
+          class="font-['Inter'] text-[10px] font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >Select</span
+        >
+      </button>
+      <!-- Rectangle Tool -->
+      <button
+        class="flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all hover:scale-110 active:scale-95 duration-200 group"
+      >
+        <span class="material-symbols-outlined" data-icon="rectangle"
+          >rectangle</span
+        >
+        <span
+          class="font-['Inter'] text-[10px] font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >Rectangle</span
+        >
+      </button>
+      <!-- Circle Tool -->
+      <button
+        class="flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all hover:scale-110 active:scale-95 duration-200 group"
+      >
+        <span class="material-symbols-outlined" data-icon="circle">circle</span>
+        <span
+          class="font-['Inter'] text-[10px] font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >Circle</span
+        >
+      </button>
+      <!-- Line Tool -->
+      <button
+        class="flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-all hover:scale-110 active:scale-95 duration-200 group"
+      >
+        <span class="material-symbols-outlined" data-icon="horizontal_rule"
+          >horizontal_rule</span
+        >
+        <span
+          class="font-['Inter'] text-[10px] font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >Line</span
+        >
+      </button>
+      <!-- Color Palette -->
+      <div class="flex flex-col items-center justify-center gap-1.5 group">
+        <div
+          class="w-5 h-5 rounded-sm bg-[#5B7FFF] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#E57373] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#66BB6A] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#FFA726] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#AB47BC] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#EC407A] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#78909C] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+        <div
+          class="w-5 h-5 rounded-sm bg-[#212121] border border-zinc-200 dark:border-zinc-700 hover:scale-110 transition-transform cursor-pointer"
+        ></div>
+      </div>
+      <div class="w-6 h-[1px] bg-zinc-200 dark:bg-zinc-800 my-1"></div>
+      <!-- Delete Tool -->
+      <button
+        class="flex flex-col items-center justify-center text-zinc-400 dark:text-zinc-500 hover:text-error transition-all hover:scale-110 active:scale-95 duration-200 group"
+      >
+        <span class="material-symbols-outlined" data-icon="delete">delete</span>
+        <span
+          class="font-['Inter'] text-[10px] font-medium uppercase tracking-tighter mt-1 opacity-0 group-hover:opacity-100 transition-opacity"
+          >Delete</span
+        >
+      </button>
+    </nav>
+    <!-- Invisible Metadata Panel (Appears on Hover at Bottom Right) -->
+    <div
+      class="fixed bottom-4 right-4 flex items-center gap-6 text-[10px] font-medium tracking-widest text-on-surface-variant/40 hover:text-on-surface-variant transition-colors duration-500"
+    >
+      <div class="flex items-center gap-2">
+        <span class="uppercase">Pos:</span>
+        <span>1024, 768</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="uppercase">Zoom:</span>
+        <span>100%</span>
+      </div>
+      <div class="flex items-center gap-2">
+        <span class="uppercase">Grid:</span>
+        <span>Active</span>
+      </div>
+    </div>
+  </body>
+</html>

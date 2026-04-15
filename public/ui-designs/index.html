@@ -1,0 +1,429 @@
+<!doctype html>
+
+<html class="light" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>UI Designs - Unified Design System</title>
+    <!-- Google Fonts: Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Material Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Unified Tailwind Configuration -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#5f5f5f",
+              "primary-dim": "#535353",
+              "primary-container": "#e4e2e2",
+              secondary: "#3b4ce0",
+              tertiary: "#754c9e",
+              error: "#ac3434",
+              background: "#f9f9ff",
+              "on-background": "#253349",
+              surface: "#f9f9ff",
+              "on-surface": "#253349",
+              "on-surface-variant": "#516077",
+              outline: "#6d7b94",
+              "outline-variant": "#a4b3cd",
+            },
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              "2xl": "1rem",
+              full: "0.75rem",
+            },
+            fontFamily: {
+              headline: ["Inter"],
+              body: ["Inter"],
+              label: ["Inter"],
+              display: ["Inter"],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        font-size: 20px;
+      }
+    </style>
+  </head>
+  <body class="bg-background text-on-background min-h-screen">
+    <!-- Header -->
+    <header
+      class="fixed top-0 w-full h-14 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl border-b border-zinc-200 dark:border-zinc-800 flex items-center px-6 z-50"
+    >
+      <div class="flex items-center gap-3">
+        <span
+          class="material-symbols-outlined text-secondary"
+          data-icon="palette"
+          >palette</span
+        >
+        <h1 class="text-lg font-bold text-zinc-800 dark:text-zinc-100">
+          UI Designs
+        </h1>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="pt-24 pb-12 px-6 max-w-4xl mx-auto">
+      <!-- Introduction -->
+      <section class="mb-12">
+        <h2 class="text-3xl font-extrabold tracking-tight text-on-surface mb-4">
+          Unified Design System
+        </h2>
+        <p class="text-on-surface-variant text-base leading-relaxed">
+          Explore the collection of UI designs built with a consistent design
+          system. All interfaces share unified colors, typography, spacing, and
+          component patterns for a cohesive user experience.
+        </p>
+      </section>
+
+      <!-- Design Pages Grid -->
+      <section class="mb-12">
+        <h3
+          class="text-sm font-black uppercase tracking-[0.2em] mb-6 text-on-surface-variant"
+        >
+          Design Pages
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <!-- Card 1: Board Manager -->
+          <a
+            href="code.html"
+            class="group block bg-white dark:bg-zinc-900 border border-outline-variant/30 hover:border-secondary/50 transition-all duration-200 overflow-hidden hover:shadow-lg"
+          >
+            <div class="p-6">
+              <div class="flex items-start justify-between mb-4">
+                <div
+                  class="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center"
+                >
+                  <span
+                    class="material-symbols-outlined text-primary"
+                    data-icon="dashboard"
+                    >dashboard</span
+                  >
+                </div>
+                <span
+                  class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60"
+                  >Page 01</span
+                >
+              </div>
+              <h4
+                class="text-lg font-bold text-on-surface mb-2 group-hover:text-secondary transition-colors"
+              >
+                Board Manager
+              </h4>
+              <p class="text-sm text-on-surface-variant mb-4">
+                List view of boards with metadata, collaborators, and actions.
+                Features a clean table layout with hover states.
+              </p>
+              <div
+                class="flex items-center gap-2 text-xs text-secondary font-medium"
+              >
+                <span>View Design</span>
+                <span
+                  class="material-symbols-outlined text-base"
+                  data-icon="arrow_forward"
+                  >arrow_forward</span
+                >
+              </div>
+            </div>
+          </a>
+
+          <!-- Card 2: Canvas Editor -->
+          <a
+            href="code%20copy.html"
+            class="group block bg-white dark:bg-zinc-900 border border-outline-variant/30 hover:border-secondary/50 transition-all duration-200 overflow-hidden hover:shadow-lg"
+          >
+            <div class="p-6">
+              <div class="flex items-start justify-between mb-4">
+                <div
+                  class="w-12 h-12 rounded-lg bg-secondary/10 flex items-center justify-center"
+                >
+                  <span
+                    class="material-symbols-outlined text-secondary"
+                    data-icon="draw"
+                    >draw</span
+                  >
+                </div>
+                <span
+                  class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60"
+                  >Page 02</span
+                >
+              </div>
+              <h4
+                class="text-lg font-bold text-on-surface mb-2 group-hover:text-secondary transition-colors"
+              >
+                Canvas Editor
+              </h4>
+              <p class="text-sm text-on-surface-variant mb-4">
+                Drawing interface with floating toolbox, dot grid background,
+                and canvas interaction handles for design work.
+              </p>
+              <div
+                class="flex items-center gap-2 text-xs text-secondary font-medium"
+              >
+                <span>View Design</span>
+                <span
+                  class="material-symbols-outlined text-base"
+                  data-icon="arrow_forward"
+                  >arrow_forward</span
+                >
+              </div>
+            </div>
+          </a>
+
+          <!-- Card 3: User Switcher -->
+          <a
+            href="code%20copy%202.html"
+            class="group block bg-white dark:bg-zinc-900 border border-outline-variant/30 hover:border-secondary/50 transition-all duration-200 overflow-hidden hover:shadow-lg"
+          >
+            <div class="p-6">
+              <div class="flex items-start justify-between mb-4">
+                <div
+                  class="w-12 h-12 rounded-lg bg-tertiary/10 flex items-center justify-center"
+                >
+                  <span
+                    class="material-symbols-outlined text-tertiary"
+                    data-icon="switch_account"
+                    >switch_account</span
+                  >
+                </div>
+                <span
+                  class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60"
+                  >Page 03</span
+                >
+              </div>
+              <h4
+                class="text-lg font-bold text-on-surface mb-2 group-hover:text-secondary transition-colors"
+              >
+                User Switcher
+              </h4>
+              <p class="text-sm text-on-surface-variant mb-4">
+                User management interface with vertical list, hover states, and
+                form for creating new users with graph paper texture.
+              </p>
+              <div
+                class="flex items-center gap-2 text-xs text-secondary font-medium"
+              >
+                <span>View Design</span>
+                <span
+                  class="material-symbols-outlined text-base"
+                  data-icon="arrow_forward"
+                  >arrow_forward</span
+                >
+              </div>
+            </div>
+          </a>
+
+          <!-- Card 4: Design System Reference -->
+          <a
+            href="design-system.html"
+            class="group block bg-white dark:bg-zinc-900 border border-outline-variant/30 hover:border-secondary/50 transition-all duration-200 overflow-hidden hover:shadow-lg"
+          >
+            <div class="p-6">
+              <div class="flex items-start justify-between mb-4">
+                <div
+                  class="w-12 h-12 rounded-lg bg-outline/10 flex items-center justify-center"
+                >
+                  <span
+                    class="material-symbols-outlined text-outline"
+                    data-icon="code"
+                    >code</span
+                  >
+                </div>
+                <span
+                  class="text-xs font-bold uppercase tracking-widest text-on-surface-variant/60"
+                  >Reference</span
+                >
+              </div>
+              <h4
+                class="text-lg font-bold text-on-surface mb-2 group-hover:text-secondary transition-colors"
+              >
+                Design System Config
+              </h4>
+              <p class="text-sm text-on-surface-variant mb-4">
+                Shared configuration file with unified Tailwind config, color
+                tokens, typography, and utility classes.
+              </p>
+              <div
+                class="flex items-center gap-2 text-xs text-secondary font-medium"
+              >
+                <span>View Code</span>
+                <span
+                  class="material-symbols-outlined text-base"
+                  data-icon="arrow_forward"
+                  >arrow_forward</span
+                >
+              </div>
+            </div>
+          </a>
+        </div>
+      </section>
+
+      <!-- Documentation -->
+      <section class="mb-12">
+        <h3
+          class="text-sm font-black uppercase tracking-[0.2em] mb-6 text-on-surface-variant"
+        >
+          Documentation
+        </h3>
+        <div
+          class="bg-white dark:bg-zinc-900 border border-outline-variant/30 p-6"
+        >
+          <div class="flex items-start gap-4">
+            <div
+              class="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0"
+            >
+              <span
+                class="material-symbols-outlined text-primary"
+                data-icon="description"
+                >description</span
+              >
+            </div>
+            <div class="flex-1">
+              <h4 class="text-base font-bold text-on-surface mb-2">
+                Design System Summary
+              </h4>
+              <p class="text-sm text-on-surface-variant mb-4">
+                Complete documentation of the unified design system including
+                color tokens, typography scale, component patterns, and
+                implementation guidelines.
+              </p>
+              <a
+                href="DESIGN_SYSTEM_SUMMARY.md"
+                class="inline-flex items-center gap-2 text-sm text-secondary font-medium hover:underline"
+              >
+                <span>Read Documentation</span>
+                <span
+                  class="material-symbols-outlined text-base"
+                  data-icon="open_in_new"
+                  >open_in_new</span
+                >
+              </a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Design Tokens Overview -->
+      <section>
+        <h3
+          class="text-sm font-black uppercase tracking-[0.2em] mb-6 text-on-surface-variant"
+        >
+          Design Tokens
+        </h3>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <!-- Colors -->
+          <div
+            class="bg-white dark:bg-zinc-900 border border-outline-variant/30 p-4"
+          >
+            <h4
+              class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3"
+            >
+              Colors
+            </h4>
+            <div class="space-y-2">
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded-sm bg-primary"></div>
+                <span class="text-xs text-on-surface-variant"
+                  >Primary: #5f5f5f</span
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded-sm bg-secondary"></div>
+                <span class="text-xs text-on-surface-variant"
+                  >Secondary: #3b4ce0</span
+                >
+              </div>
+              <div class="flex items-center gap-2">
+                <div class="w-4 h-4 rounded-sm bg-tertiary"></div>
+                <span class="text-xs text-on-surface-variant"
+                  >Tertiary: #754c9e</span
+                >
+              </div>
+            </div>
+          </div>
+
+          <!-- Typography -->
+          <div
+            class="bg-white dark:bg-zinc-900 border border-outline-variant/30 p-4"
+          >
+            <h4
+              class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3"
+            >
+              Typography
+            </h4>
+            <div class="space-y-2">
+              <div class="text-xs text-on-surface-variant">
+                Font: Inter (300-900)
+              </div>
+              <div class="text-xs text-on-surface-variant">
+                Icons: Material Symbols
+              </div>
+              <div class="text-xs text-on-surface-variant">
+                Size: 20px, Weight: 400
+              </div>
+            </div>
+          </div>
+
+          <!-- Spacing -->
+          <div
+            class="bg-white dark:bg-zinc-900 border border-outline-variant/30 p-4"
+          >
+            <h4
+              class="text-xs font-bold uppercase tracking-wider text-on-surface-variant mb-3"
+            >
+              Spacing
+            </h4>
+            <div class="space-y-2">
+              <div class="text-xs text-on-surface-variant">
+                Padding: px-6, py-3/4
+              </div>
+              <div class="text-xs text-on-surface-variant">
+                Gaps: gap-4 to gap-6
+              </div>
+              <div class="text-xs text-on-surface-variant">
+                Margins: mb-6 to mb-12
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-outline-variant/30 py-8 mt-12">
+      <div class="max-w-4xl mx-auto px-6">
+        <div
+          class="flex items-center justify-between text-xs text-on-surface-variant"
+        >
+          <div>Unified Design System v1.0.0</div>
+          <div>Last Updated: 2026-04-15</div>
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

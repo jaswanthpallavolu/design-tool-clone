@@ -1,0 +1,483 @@
+<!doctype html>
+
+<html class="light" lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>SketchPad - Minimalist Board Manager</title>
+    <!-- Google Fonts: Inter -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Material Symbols -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+      rel="stylesheet"
+    />
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <!-- Unified Tailwind Configuration -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              primary: "#5f5f5f",
+              "primary-dim": "#535353",
+              "primary-container": "#e4e2e2",
+              "primary-fixed": "#e4e2e2",
+              "primary-fixed-dim": "#d6d4d4",
+              "on-primary": "#fbf8f8",
+              "on-primary-container": "#525252",
+              "on-primary-fixed": "#3f3f3f",
+              "on-primary-fixed-variant": "#5c5b5b",
+              "inverse-primary": "#ffffff",
+              secondary: "#3b4ce0",
+              "secondary-dim": "#2c3dd4",
+              "secondary-container": "#dfe0ff",
+              "secondary-fixed": "#dfe0ff",
+              "secondary-fixed-dim": "#ced1ff",
+              "on-secondary": "#fbf8ff",
+              "on-secondary-container": "#2a3cd3",
+              "on-secondary-fixed": "#0921c1",
+              "on-secondary-fixed-variant": "#3647dc",
+              tertiary: "#754c9e",
+              "tertiary-dim": "#684091",
+              "tertiary-container": "#d3a6ff",
+              "tertiary-fixed": "#d3a6ff",
+              "tertiary-fixed-dim": "#c598f1",
+              "on-tertiary": "#fff6ff",
+              "on-tertiary-container": "#4a2172",
+              "on-tertiary-fixed": "#32025b",
+              "on-tertiary-fixed-variant": "#532b7c",
+              error: "#ac3434",
+              "error-dim": "#70030f",
+              "error-container": "#f56965",
+              "on-error": "#fff7f6",
+              "on-error-container": "#65000b",
+              background: "#f9f9ff",
+              "on-background": "#253349",
+              surface: "#f9f9ff",
+              "surface-dim": "#cadbfa",
+              "surface-bright": "#f9f9ff",
+              "surface-container-lowest": "#ffffff",
+              "surface-container-low": "#f0f3ff",
+              "surface-container": "#e7eeff",
+              "surface-container-high": "#dee9ff",
+              "surface-container-highest": "#d4e3ff",
+              "surface-variant": "#d4e3ff",
+              "on-surface": "#253349",
+              "on-surface-variant": "#516077",
+              "surface-tint": "#5f5f5f",
+              outline: "#6d7b94",
+              "outline-variant": "#a4b3cd",
+              "inverse-surface": "#070e19",
+              "inverse-on-surface": "#969dac",
+            },
+            borderRadius: {
+              DEFAULT: "0.125rem",
+              lg: "0.25rem",
+              xl: "0.5rem",
+              "2xl": "1rem",
+              full: "0.75rem",
+            },
+            fontFamily: {
+              headline: ["Inter"],
+              body: ["Inter"],
+              label: ["Inter"],
+              display: ["Inter"],
+            },
+          },
+        },
+      }
+    </script>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+      }
+
+      .material-symbols-outlined {
+        font-variation-settings:
+          "FILL" 0,
+          "wght" 400,
+          "GRAD" 0,
+          "opsz" 24;
+        font-size: 20px;
+      }
+    </style>
+  </head>
+  <body class="bg-surface text-on-surface antialiased font-body">
+    <!-- TopNavBar: Unified Design -->
+    <header
+      class="fixed top-0 left-0 right-0 h-14 w-full flex justify-between items-center px-6 border-b border-zinc-200 dark:border-zinc-800 bg-white/80 dark:bg-zinc-950/80 backdrop-blur-xl z-50"
+    >
+      <div class="flex items-center gap-4">
+        <span
+          class="text-lg font-bold tracking-tight text-zinc-800 dark:text-zinc-100"
+          >Boards</span
+        >
+      </div>
+      <div class="flex items-center gap-3">
+        <button
+          class="flex items-center gap-2 text-zinc-500 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-900 transition-colors duration-200 px-3 py-1.5 rounded active:opacity-80"
+        >
+          <span class="material-symbols-outlined" data-icon="person"
+            >person</span
+          >
+          <span class="text-sm">Switch User</span>
+        </button>
+        <button
+          class="bg-zinc-900 dark:bg-zinc-100 text-zinc-50 dark:text-zinc-900 px-4 py-1.5 rounded text-sm font-medium hover:opacity-90 active:opacity-80 transition-opacity"
+        >
+          Create Board
+        </button>
+      </div>
+    </header>
+    <!-- Main Content Canvas -->
+    <main class="pt-24 pb-12 px-6 max-w-5xl mx-auto">
+      <!-- Dashboard Header: Simplified -->
+      <div class="mb-6">
+        <h1 class="text-2xl font-extrabold tracking-tight text-on-surface">
+          SketchPad
+        </h1>
+        <p class="text-on-surface-variant text-sm mt-1">
+          Your active workspace boards
+        </p>
+      </div>
+      <!-- Board List Container -->
+      <div
+        class="space-y-px bg-outline-variant/20 border border-outline-variant/30 overflow-hidden"
+      >
+        <!-- List Header: Added Created At and Collaborators -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-2 bg-surface-container-low border-b border-outline-variant/30 text-[10px] uppercase tracking-widest font-bold text-on-surface-variant"
+        >
+          <div class="col-span-4 md:col-span-5">Board Name</div>
+          <div class="col-span-2 text-left">Created At</div>
+          <div class="col-span-2 text-left">Collaborators</div>
+          <div class="col-span-3 md:col-span-2 text-right">Last Activity</div>
+          <div class="col-span-1 text-right">Actions</div>
+        </div>
+        <!-- List Item: 01 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Mobile App Wireframes</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Oct 12, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              AS
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 2h ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 02 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Client Brand Concepts</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Oct 10, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              MK
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 5h ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 03 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate">Quick Sketch Ideas</span>
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Oct 05, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-400 dark:bg-zinc-500 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              TL
+            </div>
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-100 dark:bg-zinc-800 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              +2
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 1d ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 04 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate">User Flow Diagram</span>
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Sep 28, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              BW
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 3d ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 05 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Meeting Notes (July 24)</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Jul 24, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              PR
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 4d ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 06 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Calligraphy Practice</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Jul 20, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 1w ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 07 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Geometric Pattern Studies</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Jul 15, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-300 dark:bg-zinc-600 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              AS
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 2w ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+        <!-- List Item: 08 -->
+        <div
+          class="grid grid-cols-12 gap-4 px-4 py-3 bg-white hover:bg-surface-container transition-colors items-center group"
+        >
+          <div class="col-span-4 md:col-span-5">
+            <span class="font-medium text-sm truncate"
+              >Landscape Backgrounds</span
+            >
+          </div>
+          <div class="col-span-2 text-xs text-on-surface-variant">
+            Jul 10, 2023
+          </div>
+          <div class="col-span-2 flex -space-x-2">
+            <div
+              class="w-6 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 border-2 border-white dark:border-zinc-900 flex items-center justify-center text-[10px] font-bold"
+            >
+              JD
+            </div>
+          </div>
+          <div
+            class="col-span-3 md:col-span-2 text-right text-xs text-on-surface-variant"
+          >
+            Updated 3w ago
+          </div>
+          <div class="col-span-1 text-right">
+            <button
+              class="text-on-surface-variant hover:text-error transition-colors p-1"
+              title="Delete"
+            >
+              <span class="material-symbols-outlined" data-icon="delete"
+                >delete</span
+              >
+            </button>
+          </div>
+        </div>
+      </div>
+    </main>
+    <!-- Empty State / Tip Floating Message -->
+    <div class="fixed bottom-6 right-6 hidden md:block">
+      <div
+        class="bg-inverse-surface text-inverse-on-surface px-4 py-2 rounded shadow-lg text-xs flex items-center gap-2"
+      >
+        <span
+          class="material-symbols-outlined text-primary-fixed"
+          data-icon="lightbulb"
+          >lightbulb</span
+        >
+        <span class="text-white"
+          >Press <kbd class="bg-primary px-1 rounded text-[10px]">C</kbd> to
+          create a new board quickly.</span
+        >
+      </div>
+    </div>
+  </body>
+</html>
