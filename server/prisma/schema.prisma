@@ -57,8 +57,8 @@ model Shape {
   style     Json      // { strokeColor, fillColor }
   zIndex    Int       @default(0)
   
-  createdBy String
-  creator   User      @relation(fields: [createdBy], references: [id])
+  createdBy String?
+  creator   User?      @relation(fields: [createdBy], references: [id])
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   

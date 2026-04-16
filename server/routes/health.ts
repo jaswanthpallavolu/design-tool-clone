@@ -1,25 +1,21 @@
 import { Router } from "express"
 import prisma from "../db.js"
+import { asyncHandler } from "../utils/asyncHandler"
 
 const router = Router()
 
 // GET /api/health/db
-router.get("/db", async (req, res) => {
-  try {
+router.get(
+  "/db",
+  asyncHandler(async (req, res) => {
     const result = await prisma.$queryRaw`SELECT NOW()`
     res.json({
       status: "connected",
       database: "postgresql",
       timestamp: result,
     })
-  } catch (error) {
-    console.error(error)
-    res.status(500).json({
-      status: "disconnected",
-      error: "Database connection failed",
-    })
-  }
-})
+  }),
+)
 
 // GET /api/health (general health check)
 router.get("/", (req, res) => {
