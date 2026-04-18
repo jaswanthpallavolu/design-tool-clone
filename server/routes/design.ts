@@ -15,7 +15,13 @@ router.get(
     res.json(
       await prisma.design.findMany({
         where: { ownerId },
-        include: { collaborators: true },
+        include: {
+          collaborators: {
+            include: {
+              user: true,
+            },
+          },
+        },
       }),
     )
   }),
@@ -66,6 +72,20 @@ router.delete(
     const designId = req.params.designId as string
     const ownerId = req.query.ownerId as string
     res.json(await prisma.design.delete({ where: { id: designId, ownerId } }))
+  }),
+)
+
+router.patch(
+  "/:designId",
+  asyncHandler(async (req, res) => {
+    const designId = req.params.designId as string
+    const ownerId = req.query.ownerId as string
+    res.json(
+      await prisma.design.update({
+        where: { id: designId, ownerId },
+        data: { ...req.body },
+      }),
+    )
   }),
 )
 

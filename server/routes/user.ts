@@ -12,6 +12,21 @@ router.get(
   }),
 )
 
+router.get(
+  "/:id",
+  asyncHandler(async (req, res) => {
+    const id = req.params.id as string
+    const user = await prisma.user.findUnique({ where: { id } })
+    if (!user) {
+      res.status(404).json({
+        error: "User not found",
+        message: `No user exists with id: ${id}`,
+      })
+    }
+    res.json(user)
+  }),
+)
+
 router.post(
   "/",
   asyncHandler(async (req, res) => {
