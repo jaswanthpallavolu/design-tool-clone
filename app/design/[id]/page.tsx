@@ -1,4 +1,4 @@
-import DesignEditorPage from "../../components/DesignEditorPage"
+import DesignEditorPage from "./_components/DesignEditorPage"
 
 export default async function Design({
   params,

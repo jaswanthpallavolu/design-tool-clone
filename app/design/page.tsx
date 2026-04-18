@@ -1,4 +1,4 @@
-import DesignBoardPage from "../components/DesignBoardPage"
+import DesignBoardPage from "./_components/DesignBoardPage"
 
 export default function Page() {
   return <DesignBoardPage />

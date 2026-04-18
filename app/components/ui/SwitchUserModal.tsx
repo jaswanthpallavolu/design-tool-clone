@@ -1,15 +1,17 @@
 "use client"
 
 import { useState } from "react"
-import { ChevronRight, Users, User, X } from "lucide-react"
-import type { User as UserType } from "./types"
+import { ChevronRight, Users, User as UserIcon, X } from "lucide-react"
+import { User } from "@/app/types"
+import { getUserGradientClass } from "@/app/utils/userGradient"
 
 type UserListItemProps = {
-  user: UserType
+  user: User
   onSelect: (userId: string) => void
+  isActive: boolean
 }
 
-function UserListItem({ user, onSelect }: UserListItemProps) {
+function UserListItem({ user, onSelect, isActive }: UserListItemProps) {
   return (
     <button
       type="button"
@@ -18,20 +20,20 @@ function UserListItem({ user, onSelect }: UserListItemProps) {
     >
       <div className="flex items-center gap-3">
         <div
-          className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br shadow-md ${user.gradientClassName}`}
+          className={`flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br shadow-md ${getUserGradientClass(user.name)}`}
         >
-          <User className="h-5 w-5 text-white" />
+          <UserIcon className="h-5 w-5 text-white" />
         </div>
         <div>
           <span className="block text-sm font-semibold text-zinc-900">
             {user.name}
           </span>
-          <span className="text-xs text-zinc-500">{user.lastActive}</span>
+          {/* <span className="text-xs text-zinc-500">{user.lastActive}</span> */}
         </div>
       </div>
 
       <div className="flex items-center gap-2">
-        {user.isActive ? (
+        {isActive ? (
           <span className="rounded-full bg-green-50 px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider text-green-600">
             Active
           </span>
@@ -42,23 +44,40 @@ function UserListItem({ user, onSelect }: UserListItemProps) {
   )
 }
 
+function UserListSkeleton() {
+  return (
+    <div className="flex w-full items-center justify-between rounded-lg border border-zinc-200/50 bg-zinc-50 px-4 py-3">
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 animate-pulse rounded-lg bg-zinc-300" />
+        <div className="space-y-2">
+          <div className="h-4 w-24 animate-pulse rounded bg-zinc-300" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type SwitchUserModalProps = {
-  users: UserType[]
+  activeUser: User
+  users: User[]
   isOpen: boolean
-  onClose: () => void
+  isLoading?: boolean
+  hideCloseIcon: boolean
+  onClose?: () => void
   onSelectUser: (userId: string) => void
-  onCreateUser: (name: string) => void
+  onCreateUser?: (name: string) => void
 }
 
 export function SwitchUserModal({
+  activeUser,
   users,
   isOpen,
+  isLoading = false,
+  hideCloseIcon,
   onClose,
   onSelectUser,
   onCreateUser,
 }: SwitchUserModalProps) {
-  const [newUserName, setNewUserName] = useState("")
-
   if (!isOpen) return null
 
   return (
@@ -74,25 +93,39 @@ export function SwitchUserModal({
               <p className="text-xs text-zinc-500">Select or create a user</p>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-zinc-100 hover:text-zinc-600 active:scale-95"
-            aria-label="Close switch user modal"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          {!hideCloseIcon && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg p-2 text-zinc-400 transition-all hover:bg-zinc-100 hover:text-zinc-600 active:scale-95"
+              aria-label="Close switch user modal"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          )}
         </div>
 
         <div className="max-h-[calc(90vh-80px)] overflow-y-auto p-6">
           <section className="mb-6 space-y-2">
-            {users.map((user) => (
-              <UserListItem key={user.id} user={user} onSelect={onSelectUser} />
-            ))}
+            {isLoading ? (
+              <>
+                <UserListSkeleton />
+                <UserListSkeleton />
+                <UserListSkeleton />
+              </>
+            ) : (
+              users.map((user) => (
+                <UserListItem
+                  key={user.id}
+                  user={user}
+                  onSelect={onSelectUser}
+                  isActive={Boolean(activeUser?.id === user.id)}
+                />
+              ))
+            )}
           </section>
 
-          <section className="border-t border-zinc-200 pt-6">
+          {/* <section className="border-t border-zinc-200 pt-6">
             <h2 className="mb-4 text-xs font-black uppercase tracking-[0.2em] text-zinc-600">
               Create New User
             </h2>
@@ -132,7 +165,7 @@ export function SwitchUserModal({
                 Create User
               </button>
             </form>
-          </section>
+          </section> */}
         </div>
       </div>
     </div>

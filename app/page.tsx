@@ -25,16 +25,15 @@ export default function Home() {
 
         {/* New Design Card */}
         <Link
-          href="/design/new"
+          href="/design"
           className="block p-6 border border-gray-200 rounded-lg hover:border-blue-500 hover:shadow-lg transition-all"
         >
           <h2 className="text-xl font-semibold text-blue-600 mb-2">
-            Open New Design
+            Open design board
           </h2>
           <p className="text-gray-600 text-sm">
-            Create a new design with the React-based editor. Access the design
-            board where you can create designs and collaborate with others in
-            real-time.
+            Access the design board where you can create designs and collaborate
+            with others in real-time.
           </p>
         </Link>
       </div>
