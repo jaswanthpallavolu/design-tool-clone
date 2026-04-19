@@ -1,9 +1,9 @@
 import cors from "cors"
 import express from "express"
 import http from "http"
-import apiRoutes from "./routes"
-import { initSockets } from "./sockets"
-import { errorHandler } from "./middleware/errorHandler"
+import apiRoutes from "./routes/index.js"
+import { initSockets } from "./sockets/index.js"
+import { errorHandler } from "./middleware/errorHandler.js"
 
 const app = express()
 // Enable CORS so your Next.js app (on port 3000) can talk to this server

@@ -1,7 +1,7 @@
 import { Router } from "express"
-import userRouter from "./user"
-import designRouter from "./design"
-import healthRouter from "./health"
+import userRouter from "./user.js"
+import designRouter from "./design.js"
+import healthRouter from "./health.js"
 
 const router = Router()
 
