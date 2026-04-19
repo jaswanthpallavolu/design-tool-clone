@@ -1,8 +1,9 @@
 "use client"
-import { useEffect, useState, useContext } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useGetUserQuery } from "../../features/users/user.queries"
 import { useGlobalContext } from "../hooks/useGlobalContext"
+import { ServerErrorScreen } from "../ui/ServerErrorScreen"
 
 export default function AuthWrapper({
   children,
@@ -19,6 +20,7 @@ export default function AuthWrapper({
     isPending,
     isSuccess,
     isError,
+    error,
   } = useGetUserQuery({ id: clientId }, { enabled: !!clientId })
   const key = "userId"
 
@@ -30,14 +32,21 @@ export default function AuthWrapper({
         createdAt: userData.createdAt,
       })
     }
-  }, [userData])
+  }, [userData, setCurrentUser])
 
   useEffect(() => {
-    if (isInitialized && (!clientId || isError)) {
+    if (isInitialized && !clientId) {
       localStorage.removeItem(key)
       router.push("/login")
     }
-  }, [isInitialized, clientId, isError, router])
+    // Only redirect on non-network errors
+    if (isInitialized && isError && error instanceof Error) {
+      if (!error.message.includes("Unable to connect to server")) {
+        localStorage.removeItem(key)
+        router.push("/login")
+      }
+    }
+  }, [isInitialized, clientId, isError, error, router])
 
   useEffect(() => {
     const userId = localStorage.getItem("clientId") ?? ""
@@ -48,6 +57,15 @@ export default function AuthWrapper({
     setClientId(userId)
     setIsInitialized(true)
   }, [router])
+
+  // Show error message if server is down
+  if (
+    isError &&
+    error instanceof Error &&
+    error.message.includes("Unable to connect to server")
+  ) {
+    return <ServerErrorScreen message={error.message} />
+  }
 
   if (isPending || !currentUser?.id) {
     return (

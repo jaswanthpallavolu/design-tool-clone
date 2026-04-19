@@ -7,6 +7,8 @@ import { Hero } from "./board/Hero"
 import { BoardList } from "./board/BoardList"
 import { SwitchUserModal } from "../../components/ui/SwitchUserModal"
 import { ConfirmationModal } from "../../components/ui/ConfirmationModal"
+import { ServerErrorScreen } from "../../components/ui/ServerErrorScreen"
+import { InlineErrorMessage } from "../../components/ui/InlineErrorMessage"
 import { useGetUsersQuery } from "../../features/users/user.queries"
 import {
   useGetDesignsQuery,
@@ -18,8 +20,18 @@ import type { User, DesignWithCollaborators } from "@/app/types"
 
 export default function DesignBoardPage() {
   const { currentUser, setCurrentUser } = useGlobalContext()
-  const { data: users, isPending: isUsersLoading } = useGetUsersQuery()
-  const { data: designs, isPending: isDesignsLoading } = useGetDesignsQuery(
+  const {
+    data: users,
+    isPending: isUsersLoading,
+    isError: isUsersError,
+    error: usersError,
+  } = useGetUsersQuery()
+  const {
+    data: designs,
+    isPending: isDesignsLoading,
+    isError: isDesignsError,
+    error: designsError,
+  } = useGetDesignsQuery(
     { ownerId: currentUser?.id || "" },
     { enabled: !!currentUser?.id },
   )
@@ -34,6 +46,15 @@ export default function DesignBoardPage() {
     designId: null,
     designName: null,
   })
+
+  // Show error message if server is down
+  if (
+    isUsersError &&
+    usersError instanceof Error &&
+    usersError.message.includes("Unable to connect to server")
+  ) {
+    return <ServerErrorScreen message={usersError.message} />
+  }
 
   if (isUsersLoading || !currentUser) return <></>
 
@@ -95,11 +116,20 @@ export default function DesignBoardPage() {
 
       <main className="mx-auto max-w-6xl px-8 pb-16 pt-28">
         <Hero userName={currentUser.name} />
-        <BoardList
-          designs={designs || []}
-          isLoading={isDesignsLoading}
-          onDelete={handleDeleteDesign}
-        />
+        {isDesignsError &&
+        designsError instanceof Error &&
+        designsError.message.includes("Unable to connect to server") ? (
+          <InlineErrorMessage
+            title="Unable to Load Designs"
+            message={designsError.message}
+          />
+        ) : (
+          <BoardList
+            designs={designs || []}
+            isLoading={isDesignsLoading}
+            onDelete={handleDeleteDesign}
+          />
+        )}
       </main>
 
       {isSwitchUserOpen && (

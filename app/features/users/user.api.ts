@@ -1,34 +1,19 @@
-export const fetchUsers = async () => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users`)
-  if (!res.ok) throw res
-  return res.json()
-}
+import { apiRequest } from "../api-client"
 
-export const fetchUser = async (id: string) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users/${id}`)
-  if (!res.ok) throw res
-  return res.json()
-}
+export const fetchUsers = async () => apiRequest("/api/users")
 
-export const createUser = async (data: { name: string }) => {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/users`, {
+export const fetchUser = async (id: string) => apiRequest(`/api/users/${id}`)
+
+export const createUser = async (data: { name: string }) =>
+  apiRequest("/api/users", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(data),
   })
-  if (!res.ok) throw res
-  return res.json()
-}
 
-export const deleteUser = async (id: string) => {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_API_URL}/api/users/${id}`,
-    {
-      method: "DELETE",
-    },
-  )
-  if (!res.ok) throw res
-  return res.json()
-}
+export const deleteUser = async (id: string) =>
+  apiRequest(`/api/users/${id}`, {
+    method: "DELETE",
+  })
