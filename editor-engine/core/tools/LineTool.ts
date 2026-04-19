@@ -6,8 +6,10 @@ import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
 export class LineTool implements Tool {
   readonly id = "line"
   draft?: LineShape
+  hasDragged = false
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
+    this.hasDragged = false
     // Top-left based: start at mouse position
     this.draft = {
       id: crypto.randomUUID(),
@@ -29,9 +31,16 @@ export class LineTool implements Tool {
 
   onPointerMove(e: PointerEventData, { editor, renderOverlays }: ToolContext) {
     if (!this.draft) return
+    const nextX2 = e.clientX - this.draft.transform.x
+    const nextY2 = e.clientY - this.draft.transform.y
+
+    if (nextX2 === 0 && nextY2 === 0) return
+
+    this.hasDragged = true
+
     // Top-left based: x2/y2 relative to transform.x/y
-    this.draft.local.x2 = e.clientX - this.draft.transform.x
-    this.draft.local.y2 = e.clientY - this.draft.transform.y
+    this.draft.local.x2 = nextX2
+    this.draft.local.y2 = nextY2
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
 
@@ -40,8 +49,19 @@ export class LineTool implements Tool {
   }
 
   onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    this.draft = undefined
-    editor.setActiveTool("select")
+    if (this.draft) {
+      if (!this.hasDragged) {
+        editor.document.remove(this.draft.id)
+        editor.selection.clear()
+        editor.renderer?.renderShapes()
+        this.draft = undefined
+        this.hasDragged = false
+        return
+      }
+      this.draft = undefined
+      this.hasDragged = false
+      editor.setActiveTool("select")
+    }
   }
 }
 

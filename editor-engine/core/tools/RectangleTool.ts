@@ -7,9 +7,11 @@ export class RectangleTool implements Tool {
   readonly id = "rectangle"
   draft?: RectangleShape
   mouseStart: { x: number; y: number } = { x: 0, y: 0 }
+  hasDragged = false
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
     this.mouseStart = { x: e.clientX, y: e.clientY }
+    this.hasDragged = false
     this.draft = {
       id: crypto.randomUUID(),
       kind: "rectangle",
@@ -28,12 +30,18 @@ export class RectangleTool implements Tool {
     const maxX = Math.max(this.mouseStart.x, e.clientX)
     const minY = Math.min(this.mouseStart.y, e.clientY)
     const maxY = Math.max(this.mouseStart.y, e.clientY)
+    const width = maxX - minX
+    const height = maxY - minY
+
+    if (width === 0 && height === 0) return
+
+    this.hasDragged = true
 
     // Top-left based: transform.x/y is the top-left corner
     this.draft.transform.x = minX
     this.draft.transform.y = minY
-    this.draft.local.width = maxX - minX
-    this.draft.local.height = maxY - minY
+    this.draft.local.width = width
+    this.draft.local.height = height
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
 
@@ -42,7 +50,18 @@ export class RectangleTool implements Tool {
   }
 
   onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    this.draft = undefined
-    editor.setActiveTool("select")
+    if (this.draft) {
+      if (!this.hasDragged) {
+        editor.document.remove(this.draft.id)
+        editor.selection.clear()
+        editor.renderer?.renderShapes()
+        this.draft = undefined
+        this.hasDragged = false
+        return
+      }
+      this.draft = undefined
+      this.hasDragged = false
+      editor.setActiveTool("select")
+    }
   }
 }
