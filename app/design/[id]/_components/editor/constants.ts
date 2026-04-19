@@ -2,9 +2,14 @@ import { Circle, MousePointer2, RectangleHorizontal, Minus } from "lucide-react"
 import type { Tool, ColorSwatch } from "./types"
 
 export const tools: Tool[] = [
-  { id: "select", label: "Select", icon: MousePointer2, isActive: true },
-  { id: "rectangle", label: "Rectangle", icon: RectangleHorizontal },
-  { id: "circle", label: "Circle", icon: Circle },
+  { id: "select", label: "Select", icon: MousePointer2, isActive: false },
+  {
+    id: "rectangle",
+    label: "Rectangle",
+    icon: RectangleHorizontal,
+    isActive: true,
+  },
+  { id: "ellipse", label: "Ellipse", icon: Circle },
   { id: "line", label: "Line", icon: Minus },
 ]
 

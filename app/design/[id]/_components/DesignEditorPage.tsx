@@ -1,8 +1,8 @@
 "use client"
 import { TopBar } from "./editor/TopBar"
-import { Canvas } from "./editor/Canvas"
+import { EditorWorkspace } from "./editor/EditorWorkspace"
 import { Sidebar } from "./editor/Sidebar"
-import { MetadataPanel } from "./editor/MetadataPanel"
+// import { MetadataPanel } from "./editor/MetadataPanel"
 import { useGetDesignQuery } from "@/app/features/designs/design.queries"
 
 export default function DesignEditorPage({ id }: { id: string }) {
@@ -19,9 +19,9 @@ export default function DesignEditorPage({ id }: { id: string }) {
   return (
     <div className="h-screen w-screen overflow-hidden bg-gradient-to-br from-zinc-50 via-blue-50/30 to-purple-50/20 text-zinc-900 selection:bg-blue-500/20">
       <TopBar boardName={design.title} designId={id} />
-      <Canvas />
+      <EditorWorkspace />
       <Sidebar />
-      <MetadataPanel />
+      {/* <MetadataPanel /> */}
     </div>
   )
 }

@@ -1,39 +1,129 @@
-function SelectionPreview() {
-  return (
-    <div className="absolute left-1/3 top-1/4 h-40 w-64 rounded-lg border-2 border-blue-500/50 bg-blue-500/10 shadow-lg transition-shadow hover:shadow-xl">
-      <div className="absolute -left-1.5 -top-1.5 h-3 w-3 cursor-nw-resize rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-md transition-transform hover:scale-150" />
-      <div className="absolute -right-1.5 -top-1.5 h-3 w-3 cursor-ne-resize rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-md transition-transform hover:scale-150" />
-      <div className="absolute -bottom-1.5 -left-1.5 h-3 w-3 cursor-sw-resize rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-md transition-transform hover:scale-150" />
-      <div className="absolute -bottom-1.5 -right-1.5 h-3 w-3 cursor-se-resize rounded-full bg-gradient-to-br from-blue-500 to-blue-700 shadow-md transition-transform hover:scale-150" />
-    </div>
-  )
-}
+"use client"
+import { useEffect, useRef } from "react"
+import { Editor, CanvasRenderer, type PointerEventData } from "@/editor-engine"
+import { useGlobalContext } from "@/app/components/hooks/useGlobalContext"
 
-function Tooltip() {
-  return (
-    <div className="absolute bottom-16 left-1/2 -translate-x-1/2 rounded-xl border border-zinc-700 bg-gradient-to-r from-zinc-900 to-zinc-800 px-4 py-2 text-xs font-medium tracking-tight text-white opacity-0 shadow-2xl transition-opacity hover:opacity-100">
-      Press <kbd className="rounded bg-white/20 px-2 py-0.5 font-bold">V</kbd>{" "}
-      for Select •{" "}
-      <kbd className="rounded bg-white/20 px-2 py-0.5 font-bold">R</kbd> for
-      Rectangle
-    </div>
-  )
-}
+export default function Canvas() {
+  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { editorRef } = useGlobalContext()
+  const rendererRef = useRef<CanvasRenderer | null>(null)
 
-export function Canvas() {
+  const createPointerEventData = (
+    e: React.PointerEvent<HTMLCanvasElement>,
+  ): PointerEventData => {
+    const canvas = canvasRef.current
+    if (!canvas) {
+      return {
+        clientX: 0,
+        clientY: 0,
+        shiftKey: e.shiftKey,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        button: e.button,
+      }
+    }
+
+    const rect = canvas.getBoundingClientRect()
+    return {
+      clientX: e.clientX - rect.left,
+      clientY: e.clientY - rect.top,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      altKey: e.altKey,
+      metaKey: e.metaKey,
+      button: e.button,
+    }
+  }
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!editorRef.current) return
+    editorRef.current.onPointerDown(createPointerEventData(e))
+  }
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!editorRef.current) return
+    editorRef.current.onPointerMove(createPointerEventData(e))
+  }
+
+  const handlePointerUp = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!editorRef.current) return
+    editorRef.current.onPointerUp(createPointerEventData(e))
+  }
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    const editor = new Editor()
+    editorRef.current = editor
+
+    const renderer = new CanvasRenderer({ canvas, editor })
+    rendererRef.current = renderer
+    editor.setRenderer(renderer)
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      editor.onKeyDown(e)
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      editor.onKeyUp(e)
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    window.addEventListener("keyup", handleKeyUp)
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown)
+      window.removeEventListener("keyup", handleKeyUp)
+    }
+  }, [editorRef])
+
+  useEffect(() => {
+    const canvas = canvasRef.current
+    const renderer = rendererRef.current
+    if (!canvas || !renderer) return
+
+    const resizeCanvas = () => {
+      const displayWidth = canvas.clientWidth
+      const displayHeight = canvas.clientHeight
+
+      if (canvas.width !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width = displayWidth
+        canvas.height = displayHeight
+
+        renderer.renderShapes()
+        renderer.renderHoverOutline()
+        renderer.renderSelectionBox()
+        renderer.renderSelectionHandles()
+      }
+    }
+
+    resizeCanvas()
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      window.requestAnimationFrame(() => {
+        if (entries[0]?.target === canvas) {
+          resizeCanvas()
+        }
+      })
+    })
+
+    resizeObserver.observe(canvas)
+
+    return () => {
+      resizeObserver.disconnect()
+    }
+  }, [])
+
   return (
-    <main className="relative flex h-full w-full items-center justify-center pt-14">
-      <div
-        className="relative h-full w-full bg-white/40 shadow-inner backdrop-blur-sm"
-        style={{
-          backgroundImage:
-            "radial-gradient(rgb(209, 213, 219) 0.8px, transparent 0.8px)",
-          backgroundSize: "24px 24px",
-        }}
-      >
-        <canvas className="absolute h-full w-full bg-blue-100/20" />
-      </div>
-    </main>
+    <canvas
+      ref={canvasRef}
+      className="absolute h-full w-full"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+    />
   )
 }
 
