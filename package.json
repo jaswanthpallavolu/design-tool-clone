@@ -4,12 +4,10 @@
   "private": true,
   "scripts": {
     "build": "next build",
+    "dev": "next dev",
     "start": "next start",
     "lint": "eslint",
-    "build:engine": "tsup --config tsup.editor-engine.config.ts",
-    "dev:ui": "next dev",
-    "dev:server": "tsx --watch server/index.ts",
-    "dev": "concurrently \"npm run dev:ui\" \"npm run dev:server\""
+    "build:engine": "tsup --config tsup.editor-engine.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.99.0",
@@ -18,21 +16,17 @@
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
-    "socket.io": "^4.8.3",
     "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
-    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0",
     "typescript": "^5"
   }
 }
