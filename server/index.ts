@@ -6,20 +6,36 @@ import { initSockets } from "./sockets/index.js"
 import { errorHandler } from "./middleware/errorHandler.js"
 
 const app = express()
-// Enable CORS so your Next.js app (on port 3000) can talk to this server
+
+app.use(express.json())
+
+// Enable CORS so your Next.js app can talk to this server
+const allowedOrigins = [
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean)
+
 app.use(
   cors({
-    origin: "http://localhost:3000",
-    methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true)
+
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true)
+      } else {
+        callback(new Error("Not allowed by CORS"))
+      }
+    },
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
   }),
 )
 
 const server = http.createServer(app)
 
 initSockets(server)
-
-app.use(express.json())
 
 // Mount all API routes
 app.use("/api", apiRoutes)
