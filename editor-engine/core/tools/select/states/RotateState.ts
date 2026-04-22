@@ -2,6 +2,7 @@ import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "../../../types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
+import { Node } from "../../../model/Node"
 import { Shape } from "../../../model/Shape"
 
 interface OriginalTransform {
@@ -24,13 +25,14 @@ export class RotateState implements InteractionState {
 
     // Calculate center point for rotation
     if (selection.length === 1) {
-      const shape = editor.document.getById(selection[0])
-      if (shape) {
-        this.centerPoint = this.getShapeCenter(shape)
-        this.originalTransforms.set(shape.id, {
-          x: shape.geometry.x,
-          y: shape.geometry.y,
-          rotation: shape.geometry.rotation,
+      const node = editor.document.getNode(selection[0])
+      const shape = editor.document.getShape(selection[0])
+      if (node && shape) {
+        this.centerPoint = this.getShapeCenter(node, shape)
+        this.originalTransforms.set(node.id, {
+          x: node.transform.x,
+          y: node.transform.y,
+          rotation: node.transform.rotation,
         })
       }
     } else if (editor.state.selectionBounds) {
@@ -40,14 +42,14 @@ export class RotateState implements InteractionState {
         x: bounds.minX + (bounds.maxX - bounds.minX) / 2,
         y: bounds.minY + (bounds.maxY - bounds.minY) / 2,
       }
-      // Store original transforms for all shapes
-      selection.forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId)
-        if (shape) {
-          this.originalTransforms.set(shape.id, {
-            x: shape.geometry.x,
-            y: shape.geometry.y,
-            rotation: shape.geometry.rotation,
+      // Store original transforms for all nodes
+      selection.forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId)
+        if (node) {
+          this.originalTransforms.set(node.id, {
+            x: node.transform.x,
+            y: node.transform.y,
+            rotation: node.transform.rotation,
           })
         }
       })
@@ -78,20 +80,21 @@ export class RotateState implements InteractionState {
 
     if (selection.length === 1) {
       // Single shape rotation: rotate around its own center
-      const shape = editor.document.getById(selection[0])
-      if (shape) {
-        const original = this.originalTransforms.get(shape.id)
+      const node = editor.document.getNode(selection[0])
+      const shape = editor.document.getShape(selection[0])
+      if (node && shape) {
+        const original = this.originalTransforms.get(node.id)
         if (original) {
           if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
             // For rectangles and ellipses: only update rotation value
-            shape.geometry.rotation = original.rotation + deltaAngle
+            node.transform.rotation = original.rotation + deltaAngle
           } else if (shape.type === "LINE") {
             // For lines: rotate to follow mouse direction from center
             // Calculate center in world coordinates
             const centerWorldX =
-              shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2
+              node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2
             const centerWorldY =
-              shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2
+              node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2
 
             // Calculate the radius (distance from center to endpoint in local space)
             const dx =
@@ -115,19 +118,21 @@ export class RotateState implements InteractionState {
             shape.geometry.y2 = centerLocalY + radius * Math.sin(angle)
             shape.geometry.x1 = centerLocalX - radius * Math.cos(angle)
             shape.geometry.y1 = centerLocalY - radius * Math.sin(angle)
+
+            editor.document.updateShape(shape)
           }
 
-          editor.document.update(shape)
+          editor.document.updateNode(node)
         }
       }
     } else {
-      // Multi-shape rotation: rotate all shapes around selection center
-      selection.forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId)
-        if (shape) {
-          const original = this.originalTransforms.get(shape.id)
+      // Multi-shape rotation: rotate all nodes around selection center
+      selection.forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId)
+        if (node) {
+          const original = this.originalTransforms.get(node.id)
           if (original) {
-            // Rotate the top-left position around the selection center
+            // Rotate the position around the selection center
             const rotatedPos = this.rotatePoint(
               original.x,
               original.y,
@@ -136,11 +141,11 @@ export class RotateState implements InteractionState {
               deltaAngle,
             )
 
-            shape.geometry.x = rotatedPos.x
-            shape.geometry.y = rotatedPos.y
-            shape.geometry.rotation = original.rotation + deltaAngle
+            node.transform.x = rotatedPos.x
+            node.transform.y = rotatedPos.y
+            node.transform.rotation = original.rotation + deltaAngle
 
-            editor.document.update(shape)
+            editor.document.updateNode(node)
           }
         }
       })
@@ -182,19 +187,19 @@ export class RotateState implements InteractionState {
     }
   }
 
-  private getShapeCenter(shape: Shape): { x: number; y: number } {
-    // Top-left based: calculate center from geometry.x/y + dimensions
+  private getShapeCenter(node: Node, shape: Shape): { x: number; y: number } {
+    // Calculate center from node position + shape dimensions
     if (shape.type === "LINE") {
       const midX = (shape.geometry.x1 + shape.geometry.x2) / 2
       const midY = (shape.geometry.y1 + shape.geometry.y2) / 2
       return {
-        x: shape.geometry.x + midX,
-        y: shape.geometry.y + midY,
+        x: node.transform.x + midX,
+        y: node.transform.y + midY,
       }
     } else {
       return {
-        x: shape.geometry.x + shape.geometry.width / 2,
-        y: shape.geometry.y + shape.geometry.height / 2,
+        x: node.transform.x + shape.geometry.width / 2,
+        y: node.transform.y + shape.geometry.height / 2,
       }
     }
   }

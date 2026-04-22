@@ -1,4 +1,5 @@
 import { Shape, RectangleShape, EllipseShape, LineShape } from "../model/Shape"
+import { Node } from "../model/Node"
 
 export interface AABB {
   minX: number
@@ -8,29 +9,33 @@ export interface AABB {
 }
 
 export class BoundingBoxService {
-  static getAABB(shape: Shape): AABB {
+  /**
+   * Calculate AABB for a node + shape pair
+   * Node provides transform (position, rotation), shape provides geometry
+   */
+  static getAABB(node: Node, shape: Shape): AABB {
     return shape.type === "LINE"
-      ? this.getAABBForLine(shape)
-      : this.getAABBForRectangle(shape)
+      ? this.getAABBForLine(node, shape)
+      : this.getAABBForRectangle(node, shape)
   }
 
   /**
    * Calculate AABB for rectangle or ellipse shapes
    * Handles rotation by computing the bounding box of all rotated corners
-   * Top-left based: calculate center from geometry.x/y + dimensions
    */
   private static getAABBForRectangle(
+    node: Node,
     shape: RectangleShape | EllipseShape,
   ): AABB {
     const hw = shape.geometry.width / 2
     const hh = shape.geometry.height / 2
 
-    // Top-left based: calculate center
-    const cx = shape.geometry.x + hw
-    const cy = shape.geometry.y + hh
+    // Calculate center from node position + half dimensions
+    const cx = node.transform.x + hw
+    const cy = node.transform.y + hh
 
-    const cos = Math.cos(shape.geometry.rotation)
-    const sin = Math.sin(shape.geometry.rotation)
+    const cos = Math.cos(node.transform.rotation)
+    const sin = Math.sin(node.transform.rotation)
 
     // Define corners relative to center
     const corners = [
@@ -62,14 +67,13 @@ export class BoundingBoxService {
   /**
    * Calculate AABB for line shapes
    * Includes stroke width padding
-   * Top-left based: geometry.x/y + local coords
    */
-  private static getAABBForLine(shape: LineShape): AABB {
-    // Top-left based: add local coords to geometry position
-    const x1 = shape.geometry.x + shape.geometry.x1
-    const y1 = shape.geometry.y + shape.geometry.y1
-    const x2 = shape.geometry.x + shape.geometry.x2
-    const y2 = shape.geometry.y + shape.geometry.y2
+  private static getAABBForLine(node: Node, shape: LineShape): AABB {
+    // Add local line coords to node position
+    const x1 = node.transform.x + shape.geometry.x1
+    const y1 = node.transform.y + shape.geometry.y1
+    const x2 = node.transform.x + shape.geometry.x2
+    const y2 = node.transform.y + shape.geometry.y2
 
     let minX = Math.min(x1, x2)
     let minY = Math.min(y1, y2)

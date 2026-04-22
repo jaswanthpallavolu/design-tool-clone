@@ -2,7 +2,6 @@ import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
-import { Shape } from "@/editor-engine/core/model/Shape"
 
 export class DragState implements InteractionState {
   prevMouseX: number = 0
@@ -16,12 +15,12 @@ export class DragState implements InteractionState {
     const { editor } = ctx
     const deltaX = e.clientX - this.prevMouseX
     const deltaY = e.clientY - this.prevMouseY
-    editor.selection.getAll().forEach((shapeId) => {
-      const shape = editor.document.getById(shapeId)
-      if (shape) {
-        shape.geometry.x += deltaX
-        shape.geometry.y += deltaY
-        editor.document.update(shape)
+    editor.selection.getAll().forEach((nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      if (node) {
+        node.transform.x += deltaX
+        node.transform.y += deltaY
+        editor.document.updateNode(node)
       }
     })
     this.prevMouseX = e.clientX

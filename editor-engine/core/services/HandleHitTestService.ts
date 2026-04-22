@@ -1,5 +1,6 @@
 import { HandleGeometry } from "./HandleGeometryService"
 import { Shape } from "../model/Shape"
+import { Node as EditorNode } from "../model/Node"
 import { AABB } from "./BoundingBoxService"
 
 export interface HandleHitResult {
@@ -141,19 +142,22 @@ export class HandleHitTestService {
   }
 
   /**
-   * Get center position for a shape
-   * Top-left based: calculate center from geometry.x/y + dimensions
+   * Get center position for a node + shape
+   * Node provides position, shape provides dimensions
    */
-  static getShapeCenter(shape: Shape): { x: number; y: number } {
+  static getShapeCenter(
+    node: EditorNode,
+    shape: Shape,
+  ): { x: number; y: number } {
     if (shape.type === "LINE") {
       return {
-        x: shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
-        y: shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2,
+        x: node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
+        y: node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2,
       }
     }
     return {
-      x: shape.geometry.x + shape.geometry.width / 2,
-      y: shape.geometry.y + shape.geometry.height / 2,
+      x: node.transform.x + shape.geometry.width / 2,
+      y: node.transform.y + shape.geometry.height / 2,
     }
   }
 

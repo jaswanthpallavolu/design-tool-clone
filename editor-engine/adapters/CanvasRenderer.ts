@@ -1,6 +1,7 @@
 import { RenderPort } from "../core/ports/RenderPort"
 import { Editor } from "../core/Editor"
 import { Shape } from "../core/model/Shape"
+import { Node } from "../core/model/Node"
 import { HitTestPort } from "../core/ports/HitTestPort"
 import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
 import { CanvasPathBuilder, HandlePaths } from "./CanvasPathBuilder"
@@ -44,8 +45,8 @@ export class CanvasRenderer implements RenderPort {
 
   renderShapes(): void {
     this.clear()
-    this.editor.document.getAll().forEach((shape) => {
-      this.renderShape(shape)
+    this.editor.document.getShapeNodes().forEach(([node, shape]) => {
+      this.renderShape(node, shape)
     })
     this.imageData = this.ctx.getImageData(
       0,
@@ -65,15 +66,17 @@ export class CanvasRenderer implements RenderPort {
     )
   }
 
-  private renderShape(shape: Shape): void {
+  private renderShape(node: Node, shape: Shape): void {
+    if (!node.visible) return
+
     this.ctx.save()
     this.ctx.fillStyle = shape.style.fillColor
     this.ctx.strokeStyle = shape.style.strokeColor
     const path: Path2D = CanvasPathBuilder.getPath(shape)
 
-    // Calculate center from top-left position
-    let centerX = shape.geometry.x
-    let centerY = shape.geometry.y
+    // Calculate center from node position
+    let centerX = node.transform.x
+    let centerY = node.transform.y
     if (shape.type === "LINE") {
       centerX += (shape.geometry.x1 + shape.geometry.x2) / 2
       centerY += (shape.geometry.y1 + shape.geometry.y2) / 2
@@ -84,7 +87,7 @@ export class CanvasRenderer implements RenderPort {
 
     // Translate to center and rotate
     this.ctx.translate(centerX, centerY)
-    this.ctx.rotate(shape.geometry.rotation)
+    this.ctx.rotate(node.transform.rotation)
 
     if (shape.type === "LINE") {
       this.ctx.lineWidth = shape.geometry.lineWidth
@@ -103,19 +106,22 @@ export class CanvasRenderer implements RenderPort {
 
   renderHoverOutline(): void {
     if (!this.editor.state.hoveredShapeId) return
-    const hoveredShape = this.editor.document.getById(
+    const hoveredNode = this.editor.document.getNode(
       this.editor.state.hoveredShapeId,
     )
-    if (!hoveredShape) return
+    const hoveredShape = this.editor.document.getShape(
+      this.editor.state.hoveredShapeId,
+    )
+    if (!hoveredNode || !hoveredShape) return
 
     this.ctx.save()
     this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor
     this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth
     const path: Path2D = CanvasPathBuilder.getPath(hoveredShape)
 
-    // Calculate center from top-left position
-    let centerX = hoveredShape.geometry.x
-    let centerY = hoveredShape.geometry.y
+    // Calculate center from node position
+    let centerX = hoveredNode.transform.x
+    let centerY = hoveredNode.transform.y
     if (hoveredShape.type === "LINE") {
       centerX += (hoveredShape.geometry.x1 + hoveredShape.geometry.x2) / 2
       centerY += (hoveredShape.geometry.y1 + hoveredShape.geometry.y2) / 2
@@ -125,7 +131,7 @@ export class CanvasRenderer implements RenderPort {
     }
 
     this.ctx.translate(centerX, centerY)
-    this.ctx.rotate(hoveredShape.geometry.rotation)
+    this.ctx.rotate(hoveredNode.transform.rotation)
     this.ctx.stroke(path)
     this.ctx.restore()
   }
@@ -167,11 +173,12 @@ export class CanvasRenderer implements RenderPort {
       this.drawHandlesForAABB(paths, this.editor.state.selectionBounds)
     } else if (selection.length === 1) {
       // Single select: Use shape-specific handles
-      const shape = this.editor.document.getById(selection[0])
-      if (shape) {
+      const node = this.editor.document.getNode(selection[0])
+      const shape = this.editor.document.getShape(selection[0])
+      if (node && shape) {
         const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
         const paths = CanvasPathBuilder.getHandlePaths(geometry)
-        this.drawHandlesForShape(paths, shape)
+        this.drawHandlesForShape(paths, node, shape)
       }
     }
   }
@@ -213,12 +220,16 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.restore()
   }
 
-  private drawHandlesForShape(paths: HandlePaths, shape: Shape): void {
+  private drawHandlesForShape(
+    paths: HandlePaths,
+    node: Node,
+    shape: Shape,
+  ): void {
     this.ctx.save()
 
     // Calculate center position based on shape type
-    let centerX = shape.geometry.x
-    let centerY = shape.geometry.y
+    let centerX = node.transform.x
+    let centerY = node.transform.y
 
     if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
       centerX += shape.geometry.width / 2
@@ -229,7 +240,7 @@ export class CanvasRenderer implements RenderPort {
     }
 
     this.ctx.translate(centerX, centerY)
-    this.ctx.rotate(shape.geometry.rotation)
+    this.ctx.rotate(node.transform.rotation)
 
     // Draw corner handles
     this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor

@@ -27,50 +27,262 @@ var EditorEngine = (() => {
     EditorState: () => EditorState,
     EllipseTool: () => EllipseTool,
     LineTool: () => LineTool,
+    NodeType: () => NodeType,
     RectangleTool: () => RectangleTool,
     SelectTool: () => SelectTool,
     SelectionManager: () => SelectionManager,
     ShapeType: () => ShapeType,
-    ToolManager: () => ToolManager
+    ToolManager: () => ToolManager,
+    createEllipseShape: () => createEllipseShape,
+    createGroupNode: () => createGroupNode,
+    createLineShape: () => createLineShape,
+    createRectangleShape: () => createRectangleShape,
+    createShapeNode: () => createShapeNode,
+    isEllipseShape: () => isEllipseShape,
+    isGroupNode: () => isGroupNode,
+    isLineShape: () => isLineShape,
+    isRectangleShape: () => isRectangleShape,
+    isShapeNode: () => isShapeNode
   });
+
+  // editor-engine/core/model/Node.ts
+  var NodeType = /* @__PURE__ */ ((NodeType2) => {
+    NodeType2["GROUP"] = "GROUP";
+    NodeType2["SHAPE"] = "SHAPE";
+    return NodeType2;
+  })(NodeType || {});
+  function isGroupNode(node) {
+    return node.type === "GROUP" /* GROUP */;
+  }
+  function isShapeNode(node) {
+    return node.type === "SHAPE" /* SHAPE */;
+  }
+  function createGroupNode(id, transform, options) {
+    var _a, _b;
+    return {
+      id,
+      type: "GROUP" /* GROUP */,
+      name: (options == null ? void 0 : options.name) || "Group",
+      parentId: options == null ? void 0 : options.parentId,
+      children: [],
+      transform,
+      visible: (_a = options == null ? void 0 : options.visible) != null ? _a : true,
+      locked: (_b = options == null ? void 0 : options.locked) != null ? _b : false
+    };
+  }
+  function createShapeNode(id, transform, options) {
+    var _a, _b;
+    return {
+      id,
+      type: "SHAPE" /* SHAPE */,
+      name: (options == null ? void 0 : options.name) || "Shape",
+      parentId: options == null ? void 0 : options.parentId,
+      children: [],
+      transform,
+      visible: (_a = options == null ? void 0 : options.visible) != null ? _a : true,
+      locked: (_b = options == null ? void 0 : options.locked) != null ? _b : false
+    };
+  }
 
   // editor-engine/core/Document.ts
   var Document = class {
     constructor() {
+      this.nodes = /* @__PURE__ */ new Map();
       this.shapes = /* @__PURE__ */ new Map();
     }
+    // nodeId -> Shape
     // ---------------------------------------------
-    // Queries
+    // Node Queries
     // ---------------------------------------------
-    getAll() {
+    getNode(id) {
+      return this.nodes.get(id);
+    }
+    getAllNodes() {
+      return Array.from(this.nodes.values());
+    }
+    hasNode(id) {
+      return this.nodes.has(id);
+    }
+    getRootNodes() {
+      return Array.from(this.nodes.values()).filter((n) => !n.parentId);
+    }
+    getChildren(parentId) {
+      return Array.from(this.nodes.values()).filter(
+        (n) => n.parentId === parentId
+      );
+    }
+    getParent(childId) {
+      const child = this.nodes.get(childId);
+      return (child == null ? void 0 : child.parentId) ? this.nodes.get(child.parentId) : void 0;
+    }
+    // ---------------------------------------------
+    // Shape Queries
+    // ---------------------------------------------
+    getShape(nodeId) {
+      return this.shapes.get(nodeId);
+    }
+    getAllShapes() {
       return Array.from(this.shapes.values());
     }
-    getById(id) {
-      return this.shapes.get(id);
-    }
-    has(id) {
-      return this.shapes.has(id);
+    hasShape(nodeId) {
+      return this.shapes.has(nodeId);
     }
     // ---------------------------------------------
-    // Commands
+    // Combined Queries (for convenience)
     // ---------------------------------------------
-    add(shape) {
-      if (this.shapes.has(shape.id)) {
-        throw new Error(`Shape with id '${shape.id}' already exists`);
+    /**
+     * Get all nodes that are shapes (not groups)
+     * Returns array of [node, shape] tuples
+     */
+    getShapeNodes() {
+      const result = [];
+      for (const node of this.nodes.values()) {
+        if (node.type === "SHAPE" /* SHAPE */) {
+          const shape = this.shapes.get(node.id);
+          if (shape) {
+            result.push([node, shape]);
+          }
+        }
       }
-      this.shapes.set(shape.id, shape);
+      return result;
     }
-    remove(id) {
+    // ---------------------------------------------
+    // Node Commands
+    // ---------------------------------------------
+    addNode(node) {
+      if (this.nodes.has(node.id)) {
+        throw new Error(`Node with id '${node.id}' already exists`);
+      }
+      if (node.parentId) {
+        const parent = this.nodes.get(node.parentId);
+        if (!parent) {
+          throw new Error(`Parent node '${node.parentId}' does not exist`);
+        }
+        if (!isGroupNode(parent)) {
+          throw new Error(`Parent node '${node.parentId}' is not a group`);
+        }
+        if (!parent.children.includes(node.id)) {
+          parent.children.push(node.id);
+        }
+      }
+      this.nodes.set(node.id, node);
+    }
+    removeNode(id) {
+      const node = this.nodes.get(id);
+      if (!node) return;
+      if (node.parentId) {
+        const parent = this.nodes.get(node.parentId);
+        if (parent && isGroupNode(parent)) {
+          parent.children = parent.children.filter((childId) => childId !== id);
+        }
+      }
       this.shapes.delete(id);
-    }
-    update(shape) {
-      if (!this.shapes.has(shape.id)) {
-        throw new Error(`Shape with id '${shape.id}' does not exist`);
+      this.nodes.delete(id);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.removeNode(childId);
+        }
       }
-      this.shapes.set(shape.id, shape);
     }
+    updateNode(node) {
+      if (!this.nodes.has(node.id)) {
+        throw new Error(`Node with id '${node.id}' does not exist`);
+      }
+      this.nodes.set(node.id, node);
+    }
+    /**
+     * Move a node to a new parent (or root if parentId is undefined)
+     */
+    reparent(childId, newParentId) {
+      const child = this.nodes.get(childId);
+      if (!child) {
+        throw new Error(`Child node '${childId}' does not exist`);
+      }
+      const oldParentId = child.parentId;
+      if (oldParentId) {
+        const oldParent = this.nodes.get(oldParentId);
+        if (oldParent && isGroupNode(oldParent)) {
+          oldParent.children = oldParent.children.filter((id) => id !== childId);
+        }
+      }
+      child.parentId = newParentId;
+      if (newParentId) {
+        const newParent = this.nodes.get(newParentId);
+        if (!newParent) {
+          throw new Error(`New parent node '${newParentId}' does not exist`);
+        }
+        if (!isGroupNode(newParent)) {
+          throw new Error(`New parent node '${newParentId}' is not a group`);
+        }
+        if (!newParent.children.includes(childId)) {
+          newParent.children.push(childId);
+        }
+      }
+    }
+    // ---------------------------------------------
+    // Shape Commands
+    // ---------------------------------------------
+    addShape(shape) {
+      if (this.shapes.has(shape.nodeId)) {
+        throw new Error(`Shape for node '${shape.nodeId}' already exists`);
+      }
+      const node = this.nodes.get(shape.nodeId);
+      if (!node) {
+        throw new Error(`Node '${shape.nodeId}' does not exist`);
+      }
+      if (node.type !== "SHAPE" /* SHAPE */) {
+        throw new Error(`Node '${shape.nodeId}' is not a shape node`);
+      }
+      this.shapes.set(shape.nodeId, shape);
+    }
+    removeShape(nodeId) {
+      this.shapes.delete(nodeId);
+    }
+    updateShape(shape) {
+      if (!this.shapes.has(shape.nodeId)) {
+        throw new Error(`Shape for node '${shape.nodeId}' does not exist`);
+      }
+      this.shapes.set(shape.nodeId, shape);
+    }
+    // ---------------------------------------------
+    // Utility
+    // ---------------------------------------------
     clear() {
+      this.nodes.clear();
       this.shapes.clear();
+    }
+    // ---------------------------------------------
+    // Debug
+    // ---------------------------------------------
+    /**
+     * Print document tree in depth-first order
+     * Last drawn shape appears first (reverse order)
+     */
+    debugTree() {
+      console.group("\u{1F333} Document Tree (newest first)");
+      const printNode = (nodeId, depth = 0) => {
+        const node = this.nodes.get(nodeId);
+        if (!node) return;
+        const indent = "  ".repeat(depth);
+        const icon = node.type === "GROUP" ? "\u{1F4C1}" : "\u{1F4C4}";
+        const shape = this.shapes.get(nodeId);
+        console.log(
+          `${indent}${icon} ${node.name} | x:${node.transform.x} y:${node.transform.y}`,
+          shape ? `| ${shape.type}` : ""
+        );
+        if (isGroupNode(node)) {
+          const reversedChildren = [...node.children].reverse();
+          reversedChildren.forEach((childId) => printNode(childId, depth + 1));
+        }
+      };
+      const roots = this.getRootNodes();
+      if (roots.length === 0) {
+        console.log("(empty)");
+      } else {
+        const reversedRoots = [...roots].reverse();
+        reversedRoots.forEach((root) => printNode(root.id));
+      }
+      console.groupEnd();
     }
   };
 
@@ -275,6 +487,9 @@ var EditorEngine = (() => {
     }
     onPointerUp(e) {
       this.tools.pointerUp(e);
+      if (this.document.getAllNodes().length > 0) {
+        this.document.debugTree();
+      }
     }
     onKeyDown(e) {
       var _a;
@@ -328,27 +543,63 @@ var EditorEngine = (() => {
     ShapeType2["LINE"] = "LINE";
     return ShapeType2;
   })(ShapeType || {});
+  function isRectangleShape(shape) {
+    return shape.type === "RECTANGLE" /* RECTANGLE */;
+  }
+  function isEllipseShape(shape) {
+    return shape.type === "ELLIPSE" /* ELLIPSE */;
+  }
+  function isLineShape(shape) {
+    return shape.type === "LINE" /* LINE */;
+  }
+  function createRectangleShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "RECTANGLE" /* RECTANGLE */,
+      geometry,
+      style
+    };
+  }
+  function createEllipseShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "ELLIPSE" /* ELLIPSE */,
+      geometry,
+      style
+    };
+  }
+  function createLineShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "LINE" /* LINE */,
+      geometry,
+      style
+    };
+  }
 
   // editor-engine/core/tools/select/states/IdleState.ts
   var IdleState = class {
     onPointerDown(e, ctx) {
     }
     onPointerMove(e, { editor }) {
-      var _a, _b, _c;
+      var _a, _b;
       let hoveringOnShape = false;
       if (editor.state.hoveredShapeId) {
-        const hoveredShape = editor.document.getById(editor.state.hoveredShapeId);
-        if (hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredShape, e.clientX, e.clientY))) {
+        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
+        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
+        if (hoveredNode && hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredNode, hoveredShape, e.clientX, e.clientY))) {
           hoveringOnShape = true;
         }
       }
       if (!hoveringOnShape) {
-        editor.state.hoveredShapeId = (_c = editor.document.getAll().find(
-          (shape) => {
+        const shapeNodes = editor.document.getShapeNodes();
+        const found = shapeNodes.find(
+          ([node, shape]) => {
             var _a2, _b2;
-            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(shape, e.clientX, e.clientY);
+            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(node, shape, e.clientX, e.clientY);
           }
-        )) == null ? void 0 : _c.id;
+        );
+        editor.state.hoveredShapeId = found ? found[0].id : void 0;
       }
     }
     onPointerUp(e, ctx) {
@@ -357,21 +608,24 @@ var EditorEngine = (() => {
 
   // editor-engine/core/services/BoundingBoxService.ts
   var BoundingBoxService = class {
-    static getAABB(shape) {
-      return shape.type === "LINE" ? this.getAABBForLine(shape) : this.getAABBForRectangle(shape);
+    /**
+     * Calculate AABB for a node + shape pair
+     * Node provides transform (position, rotation), shape provides geometry
+     */
+    static getAABB(node, shape) {
+      return shape.type === "LINE" ? this.getAABBForLine(node, shape) : this.getAABBForRectangle(node, shape);
     }
     /**
      * Calculate AABB for rectangle or ellipse shapes
      * Handles rotation by computing the bounding box of all rotated corners
-     * Top-left based: calculate center from geometry.x/y + dimensions
      */
-    static getAABBForRectangle(shape) {
+    static getAABBForRectangle(node, shape) {
       const hw = shape.geometry.width / 2;
       const hh = shape.geometry.height / 2;
-      const cx = shape.geometry.x + hw;
-      const cy = shape.geometry.y + hh;
-      const cos = Math.cos(shape.geometry.rotation);
-      const sin = Math.sin(shape.geometry.rotation);
+      const cx = node.transform.x + hw;
+      const cy = node.transform.y + hh;
+      const cos = Math.cos(node.transform.rotation);
+      const sin = Math.sin(node.transform.rotation);
       const corners = [
         { x: -hw, y: -hh },
         // Top-left
@@ -399,13 +653,12 @@ var EditorEngine = (() => {
     /**
      * Calculate AABB for line shapes
      * Includes stroke width padding
-     * Top-left based: geometry.x/y + local coords
      */
-    static getAABBForLine(shape) {
-      const x1 = shape.geometry.x + shape.geometry.x1;
-      const y1 = shape.geometry.y + shape.geometry.y1;
-      const x2 = shape.geometry.x + shape.geometry.x2;
-      const y2 = shape.geometry.y + shape.geometry.y2;
+    static getAABBForLine(node, shape) {
+      const x1 = node.transform.x + shape.geometry.x1;
+      const y1 = node.transform.y + shape.geometry.y1;
+      const x2 = node.transform.x + shape.geometry.x2;
+      const y2 = node.transform.y + shape.geometry.y2;
       let minX = Math.min(x1, x2);
       let minY = Math.min(y1, y2);
       let maxX = Math.max(x1, x2);
@@ -478,10 +731,11 @@ var EditorEngine = (() => {
       const { editor } = ctx;
       const selectedShapesAABB = [];
       editor.state.selectionBounds = void 0;
-      editor.selection.getAll().forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId);
-        if (shape) {
-          selectedShapesAABB.push(BoundingBoxService.getAABB(shape));
+      editor.selection.getAll().forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        const shape = editor.document.getShape(nodeId);
+        if (node && shape) {
+          selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape));
         }
       });
       if (selectedShapesAABB.length > 0) {
@@ -508,12 +762,12 @@ var EditorEngine = (() => {
       const { editor } = ctx;
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
-      editor.selection.getAll().forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId);
-        if (shape) {
-          shape.geometry.x += deltaX;
-          shape.geometry.y += deltaY;
-          editor.document.update(shape);
+      editor.selection.getAll().forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        if (node) {
+          node.transform.x += deltaX;
+          node.transform.y += deltaY;
+          editor.document.updateNode(node);
         }
       });
       this.prevMouseX = e.clientX;
@@ -532,58 +786,41 @@ var EditorEngine = (() => {
     }
     onPointerDown(e, ctx) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
-      this.draft = {
-        id: crypto.randomUUID(),
-        type: "RECTANGLE" /* RECTANGLE */,
-        style: {
-          fillColor: "",
-          strokeColor: ""
-        },
-        geometry: {
-          x: this.mouseStart.x,
-          y: this.mouseStart.y,
-          rotation: 0,
-          width: 0,
-          height: 0
-        }
-      };
     }
     onPointerMove(e, { editor }) {
-      if (this.draft) {
-        if (!this.draft) return;
-        const minX = Math.min(this.mouseStart.x, e.clientX);
-        const maxX = Math.max(this.mouseStart.x, e.clientX);
-        const minY = Math.min(this.mouseStart.y, e.clientY);
-        const maxY = Math.max(this.mouseStart.y, e.clientY);
-        this.draft.geometry.x = minX;
-        this.draft.geometry.y = minY;
-        this.draft.geometry.width = maxX - minX;
-        this.draft.geometry.height = maxY - minY;
-        editor.state.marquee = BoundingBoxService.getAABB(this.draft);
-      }
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.marqueeBox = {
+        minX,
+        minY,
+        maxX,
+        maxY
+      };
+      editor.state.marquee = this.marqueeBox;
     }
     onPointerUp(e, ctx) {
-      var _a;
       const { editor } = ctx;
       if (editor.state.marquee) {
-        const marquee = (_a = editor.state.marquee) != null ? _a : {};
-        editor.document.getAll().forEach((shape) => {
+        const marquee = editor.state.marquee;
+        editor.document.getShapeNodes().forEach(([node, shape]) => {
           const intersect = shape.type === "LINE" ? BoundingBoxService.lineIntersectsAABB(
-            shape.geometry.x + shape.geometry.x1,
-            shape.geometry.y + shape.geometry.y1,
-            shape.geometry.x + shape.geometry.x2,
-            shape.geometry.y + shape.geometry.y2,
+            node.transform.x + shape.geometry.x1,
+            node.transform.y + shape.geometry.y1,
+            node.transform.x + shape.geometry.x2,
+            node.transform.y + shape.geometry.y2,
             marquee
           ) : BoundingBoxService.aabbIntersects(
             marquee,
-            BoundingBoxService.getAABB(shape)
+            BoundingBoxService.getAABB(node, shape)
           );
           if (intersect) {
-            editor.selection.select(shape.id);
+            editor.selection.select(node.id);
           }
         });
       }
-      this.draft = void 0;
+      this.marqueeBox = void 0;
       editor.state.marquee = void 0;
       SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
@@ -594,14 +831,18 @@ var EditorEngine = (() => {
     constructor(handleType) {
       this.handleType = handleType;
       this.startMouse = { x: 0, y: 0 };
-      this.originalShapes = /* @__PURE__ */ new Map();
+      this.originalData = /* @__PURE__ */ new Map();
     }
     onEnter(ctx) {
       const { editor } = ctx;
-      editor.selection.getAll().forEach((shapeId) => {
-        const shape = editor.document.getById(shapeId);
-        if (shape) {
-          this.originalShapes.set(shapeId, JSON.parse(JSON.stringify(shape)));
+      editor.selection.getAll().forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        const shape = editor.document.getShape(nodeId);
+        if (node && shape) {
+          this.originalData.set(nodeId, {
+            node: JSON.parse(JSON.stringify(node)),
+            shape: JSON.parse(JSON.stringify(shape))
+          });
         }
       });
     }
@@ -615,11 +856,13 @@ var EditorEngine = (() => {
       const dy = e.clientY - this.startMouse.y;
       const selection = editor.selection.getAll();
       if (selection.length === 1) {
-        const shape = editor.document.getById(selection[0]);
-        const original = this.originalShapes.get(selection[0]);
-        if (!shape || !original) return;
-        this.resizeSingleShape(shape, original, dx, dy, this.handleType);
-        editor.document.update(shape);
+        const node = editor.document.getNode(selection[0]);
+        const shape = editor.document.getShape(selection[0]);
+        const original = this.originalData.get(selection[0]);
+        if (!node || !shape || !original) return;
+        this.resizeSingleShape(node, shape, original, dx, dy, this.handleType);
+        editor.document.updateNode(node);
+        editor.document.updateShape(shape);
       } else if (selection.length > 1 && editor.state.selectionBounds) {
         this.resizeMultipleShapes(editor, dx, dy, this.handleType);
       }
@@ -629,11 +872,11 @@ var EditorEngine = (() => {
     }
     onPointerUp(e, ctx) {
     }
-    resizeSingleShape(shape, original, dx, dy, handle) {
-      if (shape.type === "LINE" && original.type === "LINE") {
-        this.resizeLine(shape, original, dx, dy, handle);
-      } else if ((shape.type === "RECTANGLE" || shape.type === "ELLIPSE") && (original.type === "RECTANGLE" || original.type === "ELLIPSE")) {
-        this.resizeRectangular(shape, original, dx, dy, handle);
+    resizeSingleShape(node, shape, original, dx, dy, handle) {
+      if (shape.type === "LINE" && original.shape.type === "LINE") {
+        this.resizeLine(shape, original.shape, dx, dy, handle);
+      } else if ((shape.type === "RECTANGLE" || shape.type === "ELLIPSE") && (original.shape.type === "RECTANGLE" || original.shape.type === "ELLIPSE")) {
+        this.resizeRectangular(node, shape, original, dx, dy, handle);
       }
     }
     resizeLine(shape, original, dx, dy, handle) {
@@ -645,45 +888,46 @@ var EditorEngine = (() => {
         shape.geometry.y2 = original.geometry.y2 + dy;
       }
     }
-    resizeRectangular(shape, original, dx, dy, handle) {
-      const cos = Math.cos(-shape.geometry.rotation);
-      const sin = Math.sin(-shape.geometry.rotation);
+    resizeRectangular(node, shape, original, dx, dy, handle) {
+      const originalShape = original.shape;
+      const cos = Math.cos(-node.transform.rotation);
+      const sin = Math.sin(-node.transform.rotation);
       const localDx = dx * cos - dy * sin;
       const localDy = dx * sin + dy * cos;
       switch (handle) {
         case "nw":
-          shape.geometry.width = original.geometry.width - localDx;
-          shape.geometry.height = original.geometry.height - localDy;
-          shape.geometry.x = original.geometry.x + dx;
-          shape.geometry.y = original.geometry.y + dy;
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.x = original.node.transform.x + dx;
+          node.transform.y = original.node.transform.y + dy;
           break;
         case "ne":
-          shape.geometry.width = original.geometry.width + localDx;
-          shape.geometry.height = original.geometry.height - localDy;
-          shape.geometry.y = original.geometry.y + dy;
+          shape.geometry.width = originalShape.geometry.width + localDx;
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.y = original.node.transform.y + dy;
           break;
         case "se":
-          shape.geometry.width = original.geometry.width + localDx;
-          shape.geometry.height = original.geometry.height + localDy;
+          shape.geometry.width = originalShape.geometry.width + localDx;
+          shape.geometry.height = originalShape.geometry.height + localDy;
           break;
         case "sw":
-          shape.geometry.width = original.geometry.width - localDx;
-          shape.geometry.height = original.geometry.height + localDy;
-          shape.geometry.x = original.geometry.x + dx;
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          shape.geometry.height = originalShape.geometry.height + localDy;
+          node.transform.x = original.node.transform.x + dx;
           break;
         case "n":
-          shape.geometry.height = original.geometry.height - localDy;
-          shape.geometry.y = original.geometry.y + dy;
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.y = original.node.transform.y + dy;
           break;
         case "e":
-          shape.geometry.width = original.geometry.width + localDx;
+          shape.geometry.width = originalShape.geometry.width + localDx;
           break;
         case "s":
-          shape.geometry.height = original.geometry.height + localDy;
+          shape.geometry.height = originalShape.geometry.height + localDy;
           break;
         case "w":
-          shape.geometry.width = original.geometry.width - localDx;
-          shape.geometry.x = original.geometry.x + dx;
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          node.transform.x = original.node.transform.x + dx;
           break;
       }
       if (shape.geometry.width < 1) shape.geometry.width = 1;
@@ -707,13 +951,14 @@ var EditorEngine = (() => {
       const { editor } = ctx;
       const selection = editor.selection.getAll();
       if (selection.length === 1) {
-        const shape = editor.document.getById(selection[0]);
-        if (shape) {
-          this.centerPoint = this.getShapeCenter(shape);
-          this.originalTransforms.set(shape.id, {
-            x: shape.geometry.x,
-            y: shape.geometry.y,
-            rotation: shape.geometry.rotation
+        const node = editor.document.getNode(selection[0]);
+        const shape = editor.document.getShape(selection[0]);
+        if (node && shape) {
+          this.centerPoint = this.getShapeCenter(node, shape);
+          this.originalTransforms.set(node.id, {
+            x: node.transform.x,
+            y: node.transform.y,
+            rotation: node.transform.rotation
           });
         }
       } else if (editor.state.selectionBounds) {
@@ -722,13 +967,13 @@ var EditorEngine = (() => {
           x: bounds.minX + (bounds.maxX - bounds.minX) / 2,
           y: bounds.minY + (bounds.maxY - bounds.minY) / 2
         };
-        selection.forEach((shapeId) => {
-          const shape = editor.document.getById(shapeId);
-          if (shape) {
-            this.originalTransforms.set(shape.id, {
-              x: shape.geometry.x,
-              y: shape.geometry.y,
-              rotation: shape.geometry.rotation
+        selection.forEach((nodeId) => {
+          const node = editor.document.getNode(nodeId);
+          if (node) {
+            this.originalTransforms.set(node.id, {
+              x: node.transform.x,
+              y: node.transform.y,
+              rotation: node.transform.rotation
             });
           }
         });
@@ -755,15 +1000,16 @@ var EditorEngine = (() => {
       const deltaAngle = currentAngle - this.startAngle;
       const selection = editor.selection.getAll();
       if (selection.length === 1) {
-        const shape = editor.document.getById(selection[0]);
-        if (shape) {
-          const original = this.originalTransforms.get(shape.id);
+        const node = editor.document.getNode(selection[0]);
+        const shape = editor.document.getShape(selection[0]);
+        if (node && shape) {
+          const original = this.originalTransforms.get(node.id);
           if (original) {
             if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
-              shape.geometry.rotation = original.rotation + deltaAngle;
+              node.transform.rotation = original.rotation + deltaAngle;
             } else if (shape.type === "LINE") {
-              const centerWorldX = shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2;
-              const centerWorldY = shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2;
+              const centerWorldX = node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const centerWorldY = node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2;
               const dx = shape.geometry.x1 - (shape.geometry.x1 + shape.geometry.x2) / 2;
               const dy = shape.geometry.y1 - (shape.geometry.y1 + shape.geometry.y2) / 2;
               const radius = Math.sqrt(dx * dx + dy * dy);
@@ -777,15 +1023,16 @@ var EditorEngine = (() => {
               shape.geometry.y2 = centerLocalY + radius * Math.sin(angle);
               shape.geometry.x1 = centerLocalX - radius * Math.cos(angle);
               shape.geometry.y1 = centerLocalY - radius * Math.sin(angle);
+              editor.document.updateShape(shape);
             }
-            editor.document.update(shape);
+            editor.document.updateNode(node);
           }
         }
       } else {
-        selection.forEach((shapeId) => {
-          const shape = editor.document.getById(shapeId);
-          if (shape) {
-            const original = this.originalTransforms.get(shape.id);
+        selection.forEach((nodeId) => {
+          const node = editor.document.getNode(nodeId);
+          if (node) {
+            const original = this.originalTransforms.get(node.id);
             if (original) {
               const rotatedPos = this.rotatePoint(
                 original.x,
@@ -794,10 +1041,10 @@ var EditorEngine = (() => {
                 this.centerPoint.y,
                 deltaAngle
               );
-              shape.geometry.x = rotatedPos.x;
-              shape.geometry.y = rotatedPos.y;
-              shape.geometry.rotation = original.rotation + deltaAngle;
-              editor.document.update(shape);
+              node.transform.x = rotatedPos.x;
+              node.transform.y = rotatedPos.y;
+              node.transform.rotation = original.rotation + deltaAngle;
+              editor.document.updateNode(node);
             }
           }
         });
@@ -821,18 +1068,18 @@ var EditorEngine = (() => {
         y: centerY + dx * sin + dy * cos
       };
     }
-    getShapeCenter(shape) {
+    getShapeCenter(node, shape) {
       if (shape.type === "LINE") {
         const midX = (shape.geometry.x1 + shape.geometry.x2) / 2;
         const midY = (shape.geometry.y1 + shape.geometry.y2) / 2;
         return {
-          x: shape.geometry.x + midX,
-          y: shape.geometry.y + midY
+          x: node.transform.x + midX,
+          y: node.transform.y + midY
         };
       } else {
         return {
-          x: shape.geometry.x + shape.geometry.width / 2,
-          y: shape.geometry.y + shape.geometry.height / 2
+          x: node.transform.x + shape.geometry.width / 2,
+          y: node.transform.y + shape.geometry.height / 2
         };
       }
     }
@@ -916,19 +1163,19 @@ var EditorEngine = (() => {
       return distance <= threshold;
     }
     /**
-     * Get center position for a shape
-     * Top-left based: calculate center from geometry.x/y + dimensions
+     * Get center position for a node + shape
+     * Node provides position, shape provides dimensions
      */
-    static getShapeCenter(shape) {
+    static getShapeCenter(node, shape) {
       if (shape.type === "LINE") {
         return {
-          x: shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
-          y: shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2
+          x: node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
+          y: node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2
         };
       }
       return {
-        x: shape.geometry.x + shape.geometry.width / 2,
-        y: shape.geometry.y + shape.geometry.height / 2
+        x: node.transform.x + shape.geometry.width / 2,
+        y: node.transform.y + shape.geometry.height / 2
       };
     }
     /**
@@ -1137,7 +1384,7 @@ var EditorEngine = (() => {
       const selectedIds = ctx.editor.selection.getAll();
       if (selectedIds.length === 0) return;
       selectedIds.forEach((id) => {
-        ctx.editor.document.remove(id);
+        ctx.editor.document.removeNode(id);
       });
       ctx.editor.selection.clear();
       ctx.editor.state.clearTransient();
@@ -1160,11 +1407,12 @@ var EditorEngine = (() => {
         return new ResizeState(handleHit.handle);
       }
       if (editor.state.hoveredShapeId) {
-        const shape = editor.document.getById(editor.state.hoveredShapeId);
-        if (shape && editor.state.selectionBounds) {
+        const node = editor.document.getNode(editor.state.hoveredShapeId);
+        const shape = editor.document.getShape(editor.state.hoveredShapeId);
+        if (node && shape && editor.state.selectionBounds) {
           if (BoundingBoxService.aabbIntersects(
             editor.state.selectionBounds,
-            BoundingBoxService.getAABB(shape)
+            BoundingBoxService.getAABB(node, shape)
           ))
             return new DragState();
         }
@@ -1197,17 +1445,18 @@ var EditorEngine = (() => {
         );
       }
       if (selection.length === 1) {
-        const shape = editor.document.getById(selection[0]);
-        if (shape) {
+        const node = editor.document.getNode(selection[0]);
+        const shape = editor.document.getShape(selection[0]);
+        if (node && shape) {
           const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
-          const center = HandleHitTestService.getShapeCenter(shape);
+          const center = HandleHitTestService.getShapeCenter(node, shape);
           return HandleHitTestService.testHandles(
             e.clientX,
             e.clientY,
             geometry,
             center.x,
             center.y,
-            shape.geometry.rotation
+            node.transform.rotation
           );
         }
       }
@@ -1223,53 +1472,66 @@ var EditorEngine = (() => {
     }
     onPointerDown(e, { editor }) {
       this.hasDragged = false;
-      this.draft = {
-        id: crypto.randomUUID(),
-        type: "LINE" /* LINE */,
-        style: {
-          fillColor: editor.state.toolOptions.fillColor,
-          strokeColor: editor.state.toolOptions.strokeColor
-        },
-        geometry: {
+      const nodeId = crypto.randomUUID();
+      this.draftNodeId = nodeId;
+      const node = createShapeNode(
+        nodeId,
+        {
           x: e.clientX,
           y: e.clientY,
-          rotation: 0,
+          rotation: 0
+        },
+        {
+          name: "Line"
+        }
+      );
+      const shape = createLineShape(
+        nodeId,
+        {
           x1: 0,
           y1: 0,
           x2: 0,
           y2: 0,
           lineWidth: 4
+        },
+        {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
         }
-      };
-      editor.selection.setSingle(this.draft.id);
-      editor.document.add(this.draft);
+      );
+      editor.document.addNode(node);
+      editor.document.addShape(shape);
+      editor.selection.setSingle(nodeId);
     }
     onPointerMove(e, { editor, renderOverlays }) {
       var _a;
-      if (!this.draft) return;
-      const nextX2 = e.clientX - this.draft.geometry.x;
-      const nextY2 = e.clientY - this.draft.geometry.y;
+      if (!this.draftNodeId) return;
+      const node = editor.document.getNode(this.draftNodeId);
+      const shape = editor.document.getShape(this.draftNodeId);
+      if (!node || !shape || shape.type !== "LINE" /* LINE */) return;
+      const nextX2 = e.clientX - node.transform.x;
+      const nextY2 = e.clientY - node.transform.y;
       if (nextX2 === 0 && nextY2 === 0) return;
       this.hasDragged = true;
-      this.draft.geometry.x2 = nextX2;
-      this.draft.geometry.y2 = nextY2;
-      editor.document.update(this.draft);
+      shape.geometry.x2 = nextX2;
+      shape.geometry.y2 = nextY2;
+      editor.document.updateShape(shape);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
       var _a;
-      if (this.draft) {
+      if (this.draftNodeId) {
         if (!this.hasDragged) {
-          editor.document.remove(this.draft.id);
+          editor.document.removeNode(this.draftNodeId);
           editor.selection.clear();
           (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draft = void 0;
+          this.draftNodeId = void 0;
           this.hasDragged = false;
           return;
         }
-        this.draft = void 0;
+        this.draftNodeId = void 0;
         this.hasDragged = false;
         editor.setActiveTool("select");
       }
@@ -1286,27 +1548,40 @@ var EditorEngine = (() => {
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
       this.hasDragged = false;
-      this.draft = {
-        id: crypto.randomUUID(),
-        type: "RECTANGLE" /* RECTANGLE */,
-        style: {
-          fillColor: editor.state.toolOptions.fillColor,
-          strokeColor: editor.state.toolOptions.strokeColor
-        },
-        geometry: {
+      const nodeId = crypto.randomUUID();
+      this.draftNodeId = nodeId;
+      const node = createShapeNode(
+        nodeId,
+        {
           x: this.mouseStart.x,
           y: this.mouseStart.y,
-          rotation: 0,
+          rotation: 0
+        },
+        {
+          name: "Rectangle"
+        }
+      );
+      const shape = createRectangleShape(
+        nodeId,
+        {
           width: 0,
           height: 0
+        },
+        {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
         }
-      };
-      editor.selection.setSingle(this.draft.id);
-      editor.document.add(this.draft);
+      );
+      editor.document.addNode(node);
+      editor.document.addShape(shape);
+      editor.selection.setSingle(nodeId);
     }
     onPointerMove(e, { editor, renderOverlays }) {
       var _a;
-      if (!this.draft) return;
+      if (!this.draftNodeId) return;
+      const node = editor.document.getNode(this.draftNodeId);
+      const shape = editor.document.getShape(this.draftNodeId);
+      if (!node || !shape || shape.type !== "RECTANGLE" /* RECTANGLE */) return;
       const minX = Math.min(this.mouseStart.x, e.clientX);
       const maxX = Math.max(this.mouseStart.x, e.clientX);
       const minY = Math.min(this.mouseStart.y, e.clientY);
@@ -1315,27 +1590,28 @@ var EditorEngine = (() => {
       const height = maxY - minY;
       if (width === 0 && height === 0) return;
       this.hasDragged = true;
-      this.draft.geometry.x = minX;
-      this.draft.geometry.y = minY;
-      this.draft.geometry.width = width;
-      this.draft.geometry.height = height;
-      editor.document.update(this.draft);
+      node.transform.x = minX;
+      node.transform.y = minY;
+      shape.geometry.width = width;
+      shape.geometry.height = height;
+      editor.document.updateNode(node);
+      editor.document.updateShape(shape);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
       var _a;
-      if (this.draft) {
+      if (this.draftNodeId) {
         if (!this.hasDragged) {
-          editor.document.remove(this.draft.id);
+          editor.document.removeNode(this.draftNodeId);
           editor.selection.clear();
           (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draft = void 0;
+          this.draftNodeId = void 0;
           this.hasDragged = false;
           return;
         }
-        this.draft = void 0;
+        this.draftNodeId = void 0;
         this.hasDragged = false;
         editor.setActiveTool("select");
       }
@@ -1352,27 +1628,40 @@ var EditorEngine = (() => {
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
       this.hasDragged = false;
-      this.draft = {
-        id: crypto.randomUUID(),
-        type: "ELLIPSE" /* ELLIPSE */,
-        style: {
-          fillColor: editor.state.toolOptions.fillColor,
-          strokeColor: editor.state.toolOptions.strokeColor
-        },
-        geometry: {
+      const nodeId = crypto.randomUUID();
+      this.draftNodeId = nodeId;
+      const node = createShapeNode(
+        nodeId,
+        {
           x: this.mouseStart.x,
           y: this.mouseStart.y,
-          rotation: 0,
+          rotation: 0
+        },
+        {
+          name: "Ellipse"
+        }
+      );
+      const shape = createEllipseShape(
+        nodeId,
+        {
           width: 0,
           height: 0
+        },
+        {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
         }
-      };
-      editor.selection.setSingle(this.draft.id);
-      editor.document.add(this.draft);
+      );
+      editor.document.addNode(node);
+      editor.document.addShape(shape);
+      editor.selection.setSingle(nodeId);
     }
     onPointerMove(e, { editor, renderOverlays }) {
       var _a;
-      if (!this.draft) return;
+      if (!this.draftNodeId) return;
+      const node = editor.document.getNode(this.draftNodeId);
+      const shape = editor.document.getShape(this.draftNodeId);
+      if (!node || !shape || shape.type !== "ELLIPSE" /* ELLIPSE */) return;
       const minX = Math.min(this.mouseStart.x, e.clientX);
       const minY = Math.min(this.mouseStart.y, e.clientY);
       const maxX = Math.max(this.mouseStart.x, e.clientX);
@@ -1381,27 +1670,28 @@ var EditorEngine = (() => {
       const height = maxY - minY;
       if (width === 0 && height === 0) return;
       this.hasDragged = true;
-      this.draft.geometry.x = minX;
-      this.draft.geometry.y = minY;
-      this.draft.geometry.width = width;
-      this.draft.geometry.height = height;
-      editor.document.update(this.draft);
+      node.transform.x = minX;
+      node.transform.y = minY;
+      shape.geometry.width = width;
+      shape.geometry.height = height;
+      editor.document.updateNode(node);
+      editor.document.updateShape(shape);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
       var _a;
-      if (this.draft) {
+      if (this.draftNodeId) {
         if (!this.hasDragged) {
-          editor.document.remove(this.draft.id);
+          editor.document.removeNode(this.draftNodeId);
           editor.selection.clear();
           (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draft = void 0;
+          this.draftNodeId = void 0;
           this.hasDragged = false;
           return;
         }
-        this.draft = void 0;
+        this.draftNodeId = void 0;
         this.hasDragged = false;
         editor.setActiveTool("select");
       }
@@ -1498,11 +1788,11 @@ var EditorEngine = (() => {
     constructor(ctx) {
       this.ctx = ctx;
     }
-    testShape(shape, x, y) {
+    testShape(node, shape, x, y) {
       this.ctx.save();
-      const center = HandleHitTestService.getShapeCenter(shape);
+      const center = HandleHitTestService.getShapeCenter(node, shape);
       this.ctx.translate(center.x, center.y);
-      this.ctx.rotate(shape.geometry.rotation);
+      this.ctx.rotate(node.transform.rotation);
       this.ctx.lineWidth = 10;
       const path = CanvasPathBuilder.getPath(shape);
       const hitFound = shape.type === "LINE" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
@@ -1537,8 +1827,8 @@ var EditorEngine = (() => {
     }
     renderShapes() {
       this.clear();
-      this.editor.document.getAll().forEach((shape) => {
-        this.renderShape(shape);
+      this.editor.document.getShapeNodes().forEach(([node, shape]) => {
+        this.renderShape(node, shape);
       });
       this.imageData = this.ctx.getImageData(
         0,
@@ -1556,13 +1846,14 @@ var EditorEngine = (() => {
         this.canvas.height
       );
     }
-    renderShape(shape) {
+    renderShape(node, shape) {
+      if (!node.visible) return;
       this.ctx.save();
       this.ctx.fillStyle = shape.style.fillColor;
       this.ctx.strokeStyle = shape.style.strokeColor;
       const path = CanvasPathBuilder.getPath(shape);
-      let centerX = shape.geometry.x;
-      let centerY = shape.geometry.y;
+      let centerX = node.transform.x;
+      let centerY = node.transform.y;
       if (shape.type === "LINE") {
         centerX += (shape.geometry.x1 + shape.geometry.x2) / 2;
         centerY += (shape.geometry.y1 + shape.geometry.y2) / 2;
@@ -1571,7 +1862,7 @@ var EditorEngine = (() => {
         centerY += shape.geometry.height / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(shape.geometry.rotation);
+      this.ctx.rotate(node.transform.rotation);
       if (shape.type === "LINE") {
         this.ctx.lineWidth = shape.geometry.lineWidth;
       } else this.ctx.fill(path);
@@ -1584,16 +1875,19 @@ var EditorEngine = (() => {
     }
     renderHoverOutline() {
       if (!this.editor.state.hoveredShapeId) return;
-      const hoveredShape = this.editor.document.getById(
+      const hoveredNode = this.editor.document.getNode(
         this.editor.state.hoveredShapeId
       );
-      if (!hoveredShape) return;
+      const hoveredShape = this.editor.document.getShape(
+        this.editor.state.hoveredShapeId
+      );
+      if (!hoveredNode || !hoveredShape) return;
       this.ctx.save();
       this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor;
       this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth;
       const path = CanvasPathBuilder.getPath(hoveredShape);
-      let centerX = hoveredShape.geometry.x;
-      let centerY = hoveredShape.geometry.y;
+      let centerX = hoveredNode.transform.x;
+      let centerY = hoveredNode.transform.y;
       if (hoveredShape.type === "LINE") {
         centerX += (hoveredShape.geometry.x1 + hoveredShape.geometry.x2) / 2;
         centerY += (hoveredShape.geometry.y1 + hoveredShape.geometry.y2) / 2;
@@ -1602,7 +1896,7 @@ var EditorEngine = (() => {
         centerY += hoveredShape.geometry.height / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(hoveredShape.geometry.rotation);
+      this.ctx.rotate(hoveredNode.transform.rotation);
       this.ctx.stroke(path);
       this.ctx.restore();
     }
@@ -1638,11 +1932,12 @@ var EditorEngine = (() => {
         const paths = CanvasPathBuilder.getHandlePaths(geometry);
         this.drawHandlesForAABB(paths, this.editor.state.selectionBounds);
       } else if (selection.length === 1) {
-        const shape = this.editor.document.getById(selection[0]);
-        if (shape) {
+        const node = this.editor.document.getNode(selection[0]);
+        const shape = this.editor.document.getShape(selection[0]);
+        if (node && shape) {
           const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
           const paths = CanvasPathBuilder.getHandlePaths(geometry);
-          this.drawHandlesForShape(paths, shape);
+          this.drawHandlesForShape(paths, node, shape);
         }
       }
     }
@@ -1674,10 +1969,10 @@ var EditorEngine = (() => {
       }
       this.ctx.restore();
     }
-    drawHandlesForShape(paths, shape) {
+    drawHandlesForShape(paths, node, shape) {
       this.ctx.save();
-      let centerX = shape.geometry.x;
-      let centerY = shape.geometry.y;
+      let centerX = node.transform.x;
+      let centerY = node.transform.y;
       if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
         centerX += shape.geometry.width / 2;
         centerY += shape.geometry.height / 2;
@@ -1686,7 +1981,7 @@ var EditorEngine = (() => {
         centerY += (shape.geometry.y1 + shape.geometry.y2) / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(shape.geometry.rotation);
+      this.ctx.rotate(node.transform.rotation);
       this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor;
       this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor;
       this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth;

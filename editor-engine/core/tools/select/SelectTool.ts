@@ -51,9 +51,9 @@ export class SelectTool implements Tool {
 
     if (selectedIds.length === 0) return
 
-    // Remove all selected shapes from document
+    // Remove all selected nodes (and their shapes) from document
     selectedIds.forEach((id) => {
-      ctx.editor.document.remove(id)
+      ctx.editor.document.removeNode(id)
     })
 
     // Clear selection and transient state
@@ -92,12 +92,13 @@ export class SelectTool implements Tool {
     // 2. Check shape hit (existing logic)
     if (editor.state.hoveredShapeId) {
       // Check hoveredShapeId is in selectionBounds
-      const shape = editor.document.getById(editor.state.hoveredShapeId)
-      if (shape && editor.state.selectionBounds) {
+      const node = editor.document.getNode(editor.state.hoveredShapeId)
+      const shape = editor.document.getShape(editor.state.hoveredShapeId)
+      if (node && shape && editor.state.selectionBounds) {
         if (
           BoundingBoxService.aabbIntersects(
             editor.state.selectionBounds,
-            BoundingBoxService.getAABB(shape),
+            BoundingBoxService.getAABB(node, shape),
           )
         )
           return new DragState()
@@ -140,17 +141,18 @@ export class SelectTool implements Tool {
 
     // Test for single shape handles
     if (selection.length === 1) {
-      const shape = editor.document.getById(selection[0])
-      if (shape) {
+      const node = editor.document.getNode(selection[0])
+      const shape = editor.document.getShape(selection[0])
+      if (node && shape) {
         const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
-        const center = HandleHitTestService.getShapeCenter(shape)
+        const center = HandleHitTestService.getShapeCenter(node, shape)
         return HandleHitTestService.testHandles(
           e.clientX,
           e.clientY,
           geometry,
           center.x,
           center.y,
-          shape.geometry.rotation,
+          node.transform.rotation,
         )
       }
     }

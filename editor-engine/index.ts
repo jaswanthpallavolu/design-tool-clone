@@ -9,7 +9,34 @@ export { SelectionManager } from "./core/SelectionManager"
 export { ToolManager } from "./core/ToolManager"
 
 // Models
-export { type Shape, ShapeType } from "./core/model/Shape"
+export {
+  type Node,
+  type GroupNode,
+  type ShapeNode,
+  NodeType,
+  type Transform,
+  isGroupNode,
+  isShapeNode,
+  createGroupNode,
+  createShapeNode,
+} from "./core/model/Node"
+export {
+  type Shape,
+  type RectangleShape,
+  type EllipseShape,
+  type LineShape,
+  ShapeType,
+  type ShapeStyle,
+  type RectangleGeometry,
+  type EllipseGeometry,
+  type LineGeometry,
+  isRectangleShape,
+  isEllipseShape,
+  isLineShape,
+  createRectangleShape,
+  createEllipseShape,
+  createLineShape,
+} from "./core/model/Shape"
 
 // Types
 export { type PointerEventData } from "./core/types/InputTypes"

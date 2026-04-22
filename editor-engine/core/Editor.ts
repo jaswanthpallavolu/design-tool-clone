@@ -41,6 +41,11 @@ export class Editor {
 
   onPointerUp(e: PointerEventData) {
     this.tools.pointerUp(e)
+
+    // Debug: Print document tree after every interaction
+    if (this.document.getAllNodes().length > 0) {
+      this.document.debugTree()
+    }
   }
 
   onKeyDown(e: KeyboardEvent) {

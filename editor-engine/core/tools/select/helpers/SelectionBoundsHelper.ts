@@ -7,10 +7,11 @@ export class SelectionBoundsHelper {
     const selectedShapesAABB: AABB[] = []
 
     editor.state.selectionBounds = undefined
-    editor.selection.getAll().forEach((shapeId) => {
-      const shape = editor.document.getById(shapeId)
-      if (shape) {
-        selectedShapesAABB.push(BoundingBoxService.getAABB(shape))
+    editor.selection.getAll().forEach((nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      const shape = editor.document.getShape(nodeId)
+      if (node && shape) {
+        selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape))
       }
     })
 

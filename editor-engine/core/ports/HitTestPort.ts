@@ -1,4 +1,6 @@
+import { Node } from "../model/Node"
 import { Shape } from "../model/Shape"
+
 export interface HitTestPort {
-  testShape(shape: Shape, x: number, y: number): boolean
+  testShape(node: Node, shape: Shape, x: number, y: number): boolean
 }

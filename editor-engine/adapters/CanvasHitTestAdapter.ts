@@ -1,4 +1,5 @@
 import { Shape } from "../core/model/Shape"
+import { Node } from "../core/model/Node"
 import { HitTestPort } from "../core/ports/HitTestPort"
 import { CanvasPathBuilder } from "./CanvasPathBuilder"
 import { HandleHitTestService } from "../core/services/HandleHitTestService"
@@ -8,11 +9,11 @@ export class CanvasHitTestAdapter implements HitTestPort {
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx
   }
-  testShape(shape: Shape, x: number, y: number): boolean {
+  testShape(node: Node, shape: Shape, x: number, y: number): boolean {
     this.ctx.save()
-    const center = HandleHitTestService.getShapeCenter(shape)
+    const center = HandleHitTestService.getShapeCenter(node, shape)
     this.ctx.translate(center.x, center.y)
-    this.ctx.rotate(shape.geometry.rotation)
+    this.ctx.rotate(node.transform.rotation)
     this.ctx.lineWidth = 10
     const path = CanvasPathBuilder.getPath(shape)
     const hitFound =

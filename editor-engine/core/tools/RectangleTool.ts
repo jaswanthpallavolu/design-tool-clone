@@ -1,38 +1,62 @@
 import { Tool, ToolContext } from "./Tool"
-import { RectangleShape, ShapeType } from "../model/Shape"
+import { RectangleShape, ShapeType, createRectangleShape } from "../model/Shape"
+import { createShapeNode } from "../model/Node"
 import type { PointerEventData } from "../types/InputTypes"
 import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
 
 export class RectangleTool implements Tool {
   readonly id = "rectangle"
-  draft?: RectangleShape
+  draftNodeId?: string
   mouseStart: { x: number; y: number } = { x: 0, y: 0 }
   hasDragged = false
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
     this.mouseStart = { x: e.clientX, y: e.clientY }
     this.hasDragged = false
-    this.draft = {
-      id: crypto.randomUUID(),
-      type: ShapeType.RECTANGLE,
-      style: {
-        fillColor: editor.state.toolOptions.fillColor,
-        strokeColor: editor.state.toolOptions.strokeColor,
-      },
-      geometry: {
+
+    // Create node ID
+    const nodeId = crypto.randomUUID()
+    this.draftNodeId = nodeId
+
+    // Create node with transform
+    const node = createShapeNode(
+      nodeId,
+      {
         x: this.mouseStart.x,
         y: this.mouseStart.y,
         rotation: 0,
+      },
+      {
+        name: "Rectangle",
+      },
+    )
+
+    // Create shape with geometry
+    const shape = createRectangleShape(
+      nodeId,
+      {
         width: 0,
         height: 0,
       },
-    }
-    editor.selection.setSingle(this.draft.id)
-    editor.document.add(this.draft)
+      {
+        fillColor: editor.state.toolOptions.fillColor,
+        strokeColor: editor.state.toolOptions.strokeColor,
+      },
+    )
+
+    // Add to document
+    editor.document.addNode(node)
+    editor.document.addShape(shape)
+    editor.selection.setSingle(nodeId)
   }
 
   onPointerMove(e: PointerEventData, { editor, renderOverlays }: ToolContext) {
-    if (!this.draft) return
+    if (!this.draftNodeId) return
+
+    const node = editor.document.getNode(this.draftNodeId)
+    const shape = editor.document.getShape(this.draftNodeId)
+    if (!node || !shape || shape.type !== ShapeType.RECTANGLE) return
+
     const minX = Math.min(this.mouseStart.x, e.clientX)
     const maxX = Math.max(this.mouseStart.x, e.clientX)
     const minY = Math.min(this.mouseStart.y, e.clientY)
@@ -44,12 +68,16 @@ export class RectangleTool implements Tool {
 
     this.hasDragged = true
 
-    // Top-left based: geometry.x/y is the top-left corner
-    this.draft.geometry.x = minX
-    this.draft.geometry.y = minY
-    this.draft.geometry.width = width
-    this.draft.geometry.height = height
-    editor.document.update(this.draft)
+    // Update node position (top-left corner)
+    node.transform.x = minX
+    node.transform.y = minY
+
+    // Update shape geometry
+    shape.geometry.width = width
+    shape.geometry.height = height
+
+    editor.document.updateNode(node)
+    editor.document.updateShape(shape)
     editor.renderer?.renderShapes()
 
     SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays })
@@ -57,16 +85,16 @@ export class RectangleTool implements Tool {
   }
 
   onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    if (this.draft) {
+    if (this.draftNodeId) {
       if (!this.hasDragged) {
-        editor.document.remove(this.draft.id)
+        editor.document.removeNode(this.draftNodeId)
         editor.selection.clear()
         editor.renderer?.renderShapes()
-        this.draft = undefined
+        this.draftNodeId = undefined
         this.hasDragged = false
         return
       }
-      this.draft = undefined
+      this.draftNodeId = undefined
       this.hasDragged = false
       editor.setActiveTool("select")
     }

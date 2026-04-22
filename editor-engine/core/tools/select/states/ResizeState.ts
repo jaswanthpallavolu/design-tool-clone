@@ -8,21 +8,31 @@ import {
   RectangleShape,
   EllipseShape,
 } from "../../../model/Shape"
+import { Node } from "../../../model/Node"
 import { Editor } from "../../../Editor"
+
+interface OriginalNodeShape {
+  node: Node
+  shape: Shape
+}
 
 export class ResizeState implements InteractionState {
   private startMouse: { x: number; y: number } = { x: 0, y: 0 }
-  private originalShapes: Map<string, Shape> = new Map()
+  private originalData: Map<string, OriginalNodeShape> = new Map()
 
   constructor(private handleType: string) {}
 
   onEnter?(ctx: ToolContext): void {
     const { editor } = ctx
-    // Store original shape data for all selected shapes
-    editor.selection.getAll().forEach((shapeId) => {
-      const shape = editor.document.getById(shapeId)
-      if (shape) {
-        this.originalShapes.set(shapeId, JSON.parse(JSON.stringify(shape)))
+    // Store original node + shape data for all selected
+    editor.selection.getAll().forEach((nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      const shape = editor.document.getShape(nodeId)
+      if (node && shape) {
+        this.originalData.set(nodeId, {
+          node: JSON.parse(JSON.stringify(node)),
+          shape: JSON.parse(JSON.stringify(shape)),
+        })
       }
     })
   }
@@ -40,12 +50,14 @@ export class ResizeState implements InteractionState {
 
     if (selection.length === 1) {
       // Single shape resize
-      const shape = editor.document.getById(selection[0])
-      const original = this.originalShapes.get(selection[0])
-      if (!shape || !original) return
+      const node = editor.document.getNode(selection[0])
+      const shape = editor.document.getShape(selection[0])
+      const original = this.originalData.get(selection[0])
+      if (!node || !shape || !original) return
 
-      this.resizeSingleShape(shape, original, dx, dy, this.handleType)
-      editor.document.update(shape)
+      this.resizeSingleShape(node, shape, original, dx, dy, this.handleType)
+      editor.document.updateNode(node)
+      editor.document.updateShape(shape)
     } else if (selection.length > 1 && editor.state.selectionBounds) {
       // Multi-shape resize (scale all shapes proportionally)
       this.resizeMultipleShapes(editor, dx, dy, this.handleType)
@@ -61,19 +73,20 @@ export class ResizeState implements InteractionState {
   }
 
   private resizeSingleShape(
+    node: Node,
     shape: Shape,
-    original: Shape,
+    original: OriginalNodeShape,
     dx: number,
     dy: number,
     handle: string,
   ): void {
-    if (shape.type === "LINE" && original.type === "LINE") {
-      this.resizeLine(shape, original, dx, dy, handle)
+    if (shape.type === "LINE" && original.shape.type === "LINE") {
+      this.resizeLine(shape, original.shape, dx, dy, handle)
     } else if (
       (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") &&
-      (original.type === "RECTANGLE" || original.type === "ELLIPSE")
+      (original.shape.type === "RECTANGLE" || original.shape.type === "ELLIPSE")
     ) {
-      this.resizeRectangular(shape, original, dx, dy, handle)
+      this.resizeRectangular(node, shape, original, dx, dy, handle)
     }
   }
 
@@ -97,53 +110,56 @@ export class ResizeState implements InteractionState {
   }
 
   private resizeRectangular(
+    node: Node,
     shape: RectangleShape | EllipseShape,
-    original: RectangleShape | EllipseShape,
+    original: OriginalNodeShape,
     dx: number,
     dy: number,
     handle: string,
   ): void {
+    const originalShape = original.shape as RectangleShape | EllipseShape
+
     // Transform delta to local space
-    const cos = Math.cos(-shape.geometry.rotation)
-    const sin = Math.sin(-shape.geometry.rotation)
+    const cos = Math.cos(-node.transform.rotation)
+    const sin = Math.sin(-node.transform.rotation)
     const localDx = dx * cos - dy * sin
     const localDy = dx * sin + dy * cos
 
-    // Top-left based resize: adjust both position and size
+    // Resize: adjust both node position and shape size
     switch (handle) {
       case "nw": // Top-left corner
-        shape.geometry.width = original.geometry.width - localDx
-        shape.geometry.height = original.geometry.height - localDy
-        shape.geometry.x = original.geometry.x + dx
-        shape.geometry.y = original.geometry.y + dy
+        shape.geometry.width = originalShape.geometry.width - localDx
+        shape.geometry.height = originalShape.geometry.height - localDy
+        node.transform.x = original.node.transform.x + dx
+        node.transform.y = original.node.transform.y + dy
         break
       case "ne": // Top-right corner
-        shape.geometry.width = original.geometry.width + localDx
-        shape.geometry.height = original.geometry.height - localDy
-        shape.geometry.y = original.geometry.y + dy
+        shape.geometry.width = originalShape.geometry.width + localDx
+        shape.geometry.height = originalShape.geometry.height - localDy
+        node.transform.y = original.node.transform.y + dy
         break
       case "se": // Bottom-right corner
-        shape.geometry.width = original.geometry.width + localDx
-        shape.geometry.height = original.geometry.height + localDy
+        shape.geometry.width = originalShape.geometry.width + localDx
+        shape.geometry.height = originalShape.geometry.height + localDy
         break
       case "sw": // Bottom-left corner
-        shape.geometry.width = original.geometry.width - localDx
-        shape.geometry.height = original.geometry.height + localDy
-        shape.geometry.x = original.geometry.x + dx
+        shape.geometry.width = originalShape.geometry.width - localDx
+        shape.geometry.height = originalShape.geometry.height + localDy
+        node.transform.x = original.node.transform.x + dx
         break
       case "n": // Top edge
-        shape.geometry.height = original.geometry.height - localDy
-        shape.geometry.y = original.geometry.y + dy
+        shape.geometry.height = originalShape.geometry.height - localDy
+        node.transform.y = original.node.transform.y + dy
         break
       case "e": // Right edge
-        shape.geometry.width = original.geometry.width + localDx
+        shape.geometry.width = originalShape.geometry.width + localDx
         break
       case "s": // Bottom edge
-        shape.geometry.height = original.geometry.height + localDy
+        shape.geometry.height = originalShape.geometry.height + localDy
         break
       case "w": // Left edge
-        shape.geometry.width = original.geometry.width - localDx
-        shape.geometry.x = original.geometry.x + dx
+        shape.geometry.width = originalShape.geometry.width - localDx
+        node.transform.x = original.node.transform.x + dx
         break
     }
 
