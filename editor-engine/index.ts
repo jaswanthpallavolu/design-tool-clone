@@ -8,6 +8,14 @@ export { EditorState, type ToolOptions } from "./core/EditorState"
 export { SelectionManager } from "./core/SelectionManager"
 export { ToolManager } from "./core/ToolManager"
 
+// Services
+export { GroupService } from "./core/services/GroupService"
+export {
+  BoundingBoxService,
+  type AABB,
+  type OBB,
+} from "./core/services/BoundingBoxService"
+
 // Models
 export {
   type Node,

@@ -91,20 +91,39 @@ export class SelectTool implements Tool {
 
     // 2. Check shape hit (existing logic)
     if (editor.state.hoveredShapeId) {
-      // Check hoveredShapeId is in selectionBounds
-      const node = editor.document.getNode(editor.state.hoveredShapeId)
-      const shape = editor.document.getShape(editor.state.hoveredShapeId)
-      if (node && shape && editor.state.selectionBounds) {
+      // Determine what to select: group or individual shape
+      let nodeToSelect = editor.state.hoveredShapeId
+
+      // If Cmd/Ctrl is NOT held, select the top-level parent (group if exists)
+      if (!e.ctrlKey && !e.metaKey) {
+        const topLevelParent = editor.document.getTopLevelParent(
+          editor.state.hoveredShapeId,
+        )
+        if (
+          topLevelParent &&
+          topLevelParent.id !== editor.state.hoveredShapeId
+        ) {
+          // The shape is inside a group, select the group instead
+          nodeToSelect = topLevelParent.id
+        }
+      }
+
+      // Check if the hovered shape is in selectionBounds (for drag detection)
+      const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId)
+      const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId)
+      if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
         if (
           BoundingBoxService.aabbIntersects(
             editor.state.selectionBounds,
-            BoundingBoxService.getAABB(node, shape),
+            BoundingBoxService.getAABB(hoveredNode, hoveredShape),
           )
         )
           return new DragState()
       }
-      if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId)
-      else editor.selection.setSingle(editor.state.hoveredShapeId)
+
+      // Select the determined node (group or individual shape)
+      if (e.shiftKey) editor.selection.select(nodeToSelect)
+      else editor.selection.setSingle(nodeToSelect)
       SelectionBoundsHelper.updateSelectionBounds(ctx)
       return new DragState()
     }
@@ -139,11 +158,29 @@ export class SelectTool implements Tool {
       )
     }
 
-    // Test for single shape handles
+    // Test for single selection handles (shape or group)
     if (selection.length === 1) {
       const node = editor.document.getNode(selection[0])
       const shape = editor.document.getShape(selection[0])
-      if (node && shape) {
+
+      // If it's a group (no shape), use AABB handles
+      if (node && !shape && editor.state.selectionBounds) {
+        const geometry = HandleGeometryService.getAABBHandleGeometry(
+          editor.state.selectionBounds,
+        )
+        const center = HandleHitTestService.getAABBCenter(
+          editor.state.selectionBounds,
+        )
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          0, // AABB has no rotation
+        )
+      } else if (node && shape) {
+        // Single shape: use shape-specific handles
         const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
         const center = HandleHitTestService.getShapeCenter(node, shape)
         return HandleHitTestService.testHandles(

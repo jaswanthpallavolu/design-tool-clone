@@ -8,7 +8,7 @@ import {
   RectangleShape,
   EllipseShape,
 } from "../../../model/Shape"
-import { Node } from "../../../model/Node"
+import { Node, isGroupNode } from "../../../model/Node"
 import { Editor } from "../../../Editor"
 
 interface OriginalNodeShape {
@@ -24,17 +24,31 @@ export class ResizeState implements InteractionState {
 
   onEnter?(ctx: ToolContext): void {
     const { editor } = ctx
-    // Store original node + shape data for all selected
+    // Store original node + shape data for all selected (including children of groups)
     editor.selection.getAll().forEach((nodeId) => {
-      const node = editor.document.getNode(nodeId)
+      this.collectOriginalData(nodeId, editor)
+    })
+  }
+
+  private collectOriginalData(nodeId: string, editor: Editor): void {
+    const node = editor.document.getNode(nodeId)
+    if (!node) return
+
+    if (isGroupNode(node)) {
+      // Recursively collect data from all children
+      for (const childId of node.children) {
+        this.collectOriginalData(childId, editor)
+      }
+    } else {
+      // It's a shape node
       const shape = editor.document.getShape(nodeId)
-      if (node && shape) {
+      if (shape) {
         this.originalData.set(nodeId, {
           node: JSON.parse(JSON.stringify(node)),
           shape: JSON.parse(JSON.stringify(shape)),
         })
       }
-    })
+    }
   }
 
   onPointerDown(e: PointerEventData, ctx: ToolContext): void {
@@ -49,15 +63,22 @@ export class ResizeState implements InteractionState {
     const selection = editor.selection.getAll()
 
     if (selection.length === 1) {
-      // Single shape resize
       const node = editor.document.getNode(selection[0])
-      const shape = editor.document.getShape(selection[0])
-      const original = this.originalData.get(selection[0])
-      if (!node || !shape || !original) return
 
-      this.resizeSingleShape(node, shape, original, dx, dy, this.handleType)
-      editor.document.updateNode(node)
-      editor.document.updateShape(shape)
+      // Check if it's a group or a single shape
+      if (node && isGroupNode(node) && editor.state.selectionBounds) {
+        // Group resize: treat like multi-select
+        this.resizeMultipleShapes(editor, dx, dy, this.handleType)
+      } else {
+        // Single shape resize
+        const shape = editor.document.getShape(selection[0])
+        const original = this.originalData.get(selection[0])
+        if (!node || !shape || !original) return
+
+        this.resizeSingleShape(node, shape, original, dx, dy, this.handleType)
+        editor.document.updateNode(node)
+        editor.document.updateShape(shape)
+      }
     } else if (selection.length > 1 && editor.state.selectionBounds) {
       // Multi-shape resize (scale all shapes proportionally)
       this.resizeMultipleShapes(editor, dx, dy, this.handleType)
@@ -178,9 +199,7 @@ export class ResizeState implements InteractionState {
     // This is more complex and would require calculating scale factors
     // based on the handle being dragged and the original bounds
     // For now, we'll implement a simplified version
-
     // TODO: Implement proportional multi-shape resize
-    console.log("Multi-shape resize not yet implemented")
   }
 }
 

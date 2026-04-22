@@ -2,8 +2,9 @@ import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "../../../types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
-import { Node } from "../../../model/Node"
+import { Node, isGroupNode } from "../../../model/Node"
 import { Shape } from "../../../model/Shape"
+import { Editor } from "../../../Editor"
 
 interface OriginalTransform {
   x: number
@@ -24,35 +25,60 @@ export class RotateState implements InteractionState {
     const selection = editor.selection.getAll()
 
     // Calculate center point for rotation
-    if (selection.length === 1) {
-      const node = editor.document.getNode(selection[0])
-      const shape = editor.document.getShape(selection[0])
-      if (node && shape) {
-        this.centerPoint = this.getShapeCenter(node, shape)
-        this.originalTransforms.set(node.id, {
-          x: node.transform.x,
-          y: node.transform.y,
-          rotation: node.transform.rotation,
+    if (editor.state.selectionBounds) {
+      const bounds = editor.state.selectionBounds
+      const width = bounds.maxX - bounds.minX
+      const height = bounds.maxY - bounds.minY
+      this.centerPoint = {
+        x: bounds.minX + width / 2,
+        y: bounds.minY + height / 2,
+      }
+
+      if (selection.length === 1) {
+        const node = editor.document.getNode(selection[0])
+
+        // Check if it's a group or single shape
+        if (node && isGroupNode(node)) {
+          // Group: store transforms for all children recursively (but NOT the group itself)
+          for (const childId of node.children) {
+            this.collectOriginalTransforms(childId, editor)
+          }
+        } else {
+          // Single shape
+          const shape = editor.document.getShape(selection[0])
+          if (node && shape) {
+            this.originalTransforms.set(node.id, {
+              x: node.transform.x,
+              y: node.transform.y,
+              rotation: node.transform.rotation,
+            })
+          }
+        }
+      } else {
+        // Multi-select: store original transforms for all nodes
+        selection.forEach((nodeId) => {
+          this.collectOriginalTransforms(nodeId, editor)
         })
       }
-    } else if (editor.state.selectionBounds) {
-      // Multi-select: rotate around selection bounds center
-      const bounds = editor.state.selectionBounds
-      this.centerPoint = {
-        x: bounds.minX + (bounds.maxX - bounds.minX) / 2,
-        y: bounds.minY + (bounds.maxY - bounds.minY) / 2,
+    }
+  }
+
+  private collectOriginalTransforms(nodeId: string, editor: Editor): void {
+    const node = editor.document.getNode(nodeId)
+    if (!node) return
+
+    // Store this node's transform
+    this.originalTransforms.set(node.id, {
+      x: node.transform.x,
+      y: node.transform.y,
+      rotation: node.transform.rotation,
+    })
+
+    // If it's a group, recursively collect children
+    if (isGroupNode(node)) {
+      for (const childId of node.children) {
+        this.collectOriginalTransforms(childId, editor)
       }
-      // Store original transforms for all nodes
-      selection.forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId)
-        if (node) {
-          this.originalTransforms.set(node.id, {
-            x: node.transform.x,
-            y: node.transform.y,
-            rotation: node.transform.rotation,
-          })
-        }
-      })
     }
   }
 
@@ -79,10 +105,18 @@ export class RotateState implements InteractionState {
     const selection = editor.selection.getAll()
 
     if (selection.length === 1) {
-      // Single shape rotation: rotate around its own center
       const node = editor.document.getNode(selection[0])
       const shape = editor.document.getShape(selection[0])
-      if (node && shape) {
+
+      // Check if it's a group (no shape)
+      if (node && !shape && isGroupNode(node)) {
+        // Group rotation: update group's rotation and rotate all children
+        const originalGroupRotation = node.transform.rotation
+        node.transform.rotation = originalGroupRotation + deltaAngle
+        editor.document.updateNode(node)
+        this.rotateAllNodes(editor, deltaAngle)
+      } else if (node && shape) {
+        // Single shape rotation: rotate around its own center
         const original = this.originalTransforms.get(node.id)
         if (original) {
           if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
@@ -127,33 +161,40 @@ export class RotateState implements InteractionState {
       }
     } else {
       // Multi-shape rotation: rotate all nodes around selection center
-      selection.forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId)
-        if (node) {
-          const original = this.originalTransforms.get(node.id)
-          if (original) {
-            // Rotate the position around the selection center
-            const rotatedPos = this.rotatePoint(
-              original.x,
-              original.y,
-              this.centerPoint.x,
-              this.centerPoint.y,
-              deltaAngle,
-            )
-
-            node.transform.x = rotatedPos.x
-            node.transform.y = rotatedPos.y
-            node.transform.rotation = original.rotation + deltaAngle
-
-            editor.document.updateNode(node)
-          }
-        }
-      })
+      this.rotateAllNodes(editor, deltaAngle)
     }
 
     editor.renderer?.renderShapes()
     SelectionBoundsHelper.updateSelectionBounds(ctx)
     ctx.renderOverlays()
+  }
+
+  /**
+   * Rotate all nodes that have stored original transforms
+   * Used for multi-select and group rotation
+   * Both position and rotation are updated - shapes rotate around center AND rotate individually
+   */
+  private rotateAllNodes(editor: Editor, deltaAngle: number): void {
+    this.originalTransforms.forEach((original, nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      if (node) {
+        // Rotate the position around the center point
+        const rotatedPos = this.rotatePoint(
+          original.x,
+          original.y,
+          this.centerPoint.x,
+          this.centerPoint.y,
+          deltaAngle,
+        )
+
+        // Update both position and rotation
+        node.transform.x = rotatedPos.x
+        node.transform.y = rotatedPos.y
+        node.transform.rotation = original.rotation + deltaAngle
+
+        editor.document.updateNode(node)
+      }
+    })
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {

@@ -21,11 +21,13 @@ var EditorEngine = (() => {
   // editor-engine/index.ts
   var index_exports = {};
   __export(index_exports, {
+    BoundingBoxService: () => BoundingBoxService,
     CanvasRenderer: () => CanvasRenderer,
     Document: () => Document,
     Editor: () => Editor,
     EditorState: () => EditorState,
     EllipseTool: () => EllipseTool,
+    GroupService: () => GroupService,
     LineTool: () => LineTool,
     NodeType: () => NodeType,
     RectangleTool: () => RectangleTool,
@@ -114,6 +116,20 @@ var EditorEngine = (() => {
     getParent(childId) {
       const child = this.nodes.get(childId);
       return (child == null ? void 0 : child.parentId) ? this.nodes.get(child.parentId) : void 0;
+    }
+    /**
+     * Get the top-level parent (root-level node) for a given node
+     * If the node has no parent, returns the node itself
+     */
+    getTopLevelParent(nodeId) {
+      let current = this.nodes.get(nodeId);
+      if (!current) return void 0;
+      while (current.parentId) {
+        const parent = this.nodes.get(current.parentId);
+        if (!parent) break;
+        current = parent;
+      }
+      return current;
     }
     // ---------------------------------------------
     // Shape Queries
@@ -259,30 +275,6 @@ var EditorEngine = (() => {
      * Last drawn shape appears first (reverse order)
      */
     debugTree() {
-      console.group("\u{1F333} Document Tree (newest first)");
-      const printNode = (nodeId, depth = 0) => {
-        const node = this.nodes.get(nodeId);
-        if (!node) return;
-        const indent = "  ".repeat(depth);
-        const icon = node.type === "GROUP" ? "\u{1F4C1}" : "\u{1F4C4}";
-        const shape = this.shapes.get(nodeId);
-        console.log(
-          `${indent}${icon} ${node.name} | x:${node.transform.x} y:${node.transform.y}`,
-          shape ? `| ${shape.type}` : ""
-        );
-        if (isGroupNode(node)) {
-          const reversedChildren = [...node.children].reverse();
-          reversedChildren.forEach((childId) => printNode(childId, depth + 1));
-        }
-      };
-      const roots = this.getRootNodes();
-      if (roots.length === 0) {
-        console.log("(empty)");
-      } else {
-        const reversedRoots = [...roots].reverse();
-        reversedRoots.forEach((root) => printNode(root.id));
-      }
-      console.groupEnd();
     }
   };
 
@@ -457,155 +449,6 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/Editor.ts
-  var Editor = class {
-    constructor() {
-      this.document = new Document();
-      this.selection = new SelectionManager();
-      this.tools = new ToolManager(this);
-      this.state = new EditorState();
-    }
-    addTools(tools) {
-      this.tools.addTools(tools);
-    }
-    setActiveTool(tool) {
-      var _a;
-      this.tools.setActive(tool);
-      (_a = this.onToolChanged) == null ? void 0 : _a.call(this, tool);
-    }
-    updateToolOptions(options) {
-      this.state.updateToolOptions(options);
-    }
-    getToolOption(key) {
-      return this.state.getToolOption(key);
-    }
-    onPointerDown(e) {
-      this.tools.pointerDown(e);
-    }
-    onPointerMove(e) {
-      this.tools.pointerMove(e);
-    }
-    onPointerUp(e) {
-      this.tools.pointerUp(e);
-      if (this.document.getAllNodes().length > 0) {
-        this.document.debugTree();
-      }
-    }
-    onKeyDown(e) {
-      var _a;
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const handled = this.handleToolSelection(e);
-        if (handled) {
-          e.preventDefault();
-          this.selection.clear();
-          this.state.clearTransient();
-          (_a = this.renderer) == null ? void 0 : _a.clearSelectionBox();
-          return;
-        }
-      }
-      this.tools.keyDown(e);
-    }
-    handleToolSelection(e) {
-      var _a;
-      const key = e.key.toLowerCase();
-      const toolMap = {
-        v: "select",
-        r: "rectangle",
-        o: "ellipse",
-        l: "line"
-      };
-      const toolId = toolMap[key];
-      if (toolId && ((_a = this.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
-        this.setActiveTool(toolId);
-        return true;
-      }
-      return false;
-    }
-    onKeyUp(e) {
-      this.tools.keyUp(e);
-    }
-    setRenderer(renderer) {
-      this.renderer = renderer;
-    }
-    clear() {
-      var _a;
-      this.document.clear();
-      this.selection.clear();
-      this.state.clearTransient();
-      (_a = this.renderer) == null ? void 0 : _a.clear();
-    }
-  };
-
-  // editor-engine/core/model/Shape.ts
-  var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
-    ShapeType2["RECTANGLE"] = "RECTANGLE";
-    ShapeType2["ELLIPSE"] = "ELLIPSE";
-    ShapeType2["LINE"] = "LINE";
-    return ShapeType2;
-  })(ShapeType || {});
-  function isRectangleShape(shape) {
-    return shape.type === "RECTANGLE" /* RECTANGLE */;
-  }
-  function isEllipseShape(shape) {
-    return shape.type === "ELLIPSE" /* ELLIPSE */;
-  }
-  function isLineShape(shape) {
-    return shape.type === "LINE" /* LINE */;
-  }
-  function createRectangleShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "RECTANGLE" /* RECTANGLE */,
-      geometry,
-      style
-    };
-  }
-  function createEllipseShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "ELLIPSE" /* ELLIPSE */,
-      geometry,
-      style
-    };
-  }
-  function createLineShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "LINE" /* LINE */,
-      geometry,
-      style
-    };
-  }
-
-  // editor-engine/core/tools/select/states/IdleState.ts
-  var IdleState = class {
-    onPointerDown(e, ctx) {
-    }
-    onPointerMove(e, { editor }) {
-      var _a, _b;
-      let hoveringOnShape = false;
-      if (editor.state.hoveredShapeId) {
-        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
-        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
-        if (hoveredNode && hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredNode, hoveredShape, e.clientX, e.clientY))) {
-          hoveringOnShape = true;
-        }
-      }
-      if (!hoveringOnShape) {
-        const shapeNodes = editor.document.getShapeNodes();
-        const found = shapeNodes.find(
-          ([node, shape]) => {
-            var _a2, _b2;
-            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(node, shape, e.clientX, e.clientY);
-          }
-        );
-        editor.state.hoveredShapeId = found ? found[0].id : void 0;
-      }
-    }
-    onPointerUp(e, ctx) {
-    }
-  };
-
   // editor-engine/core/services/BoundingBoxService.ts
   var BoundingBoxService = class {
     /**
@@ -723,23 +566,452 @@ var EditorEngine = (() => {
       if (!clip(dy, box.maxY - y1)) return false;
       return t0 <= t1;
     }
+    /**
+     * Convert AABB to OBB (axis-aligned box with rotation = 0)
+     */
+    static aabbToOBB(aabb) {
+      const width = aabb.maxX - aabb.minX;
+      const height = aabb.maxY - aabb.minY;
+      return {
+        centerX: aabb.minX + width / 2,
+        centerY: aabb.minY + height / 2,
+        width,
+        height,
+        rotation: 0
+      };
+    }
+    /**
+     * Convert OBB to AABB (compute axis-aligned bounds of rotated box)
+     */
+    static obbToAABB(obb) {
+      const hw = obb.width / 2;
+      const hh = obb.height / 2;
+      const cos = Math.cos(obb.rotation);
+      const sin = Math.sin(obb.rotation);
+      const corners = [
+        { x: -hw, y: -hh },
+        { x: hw, y: -hh },
+        { x: hw, y: hh },
+        { x: -hw, y: hh }
+      ];
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const p of corners) {
+        const x = p.x * cos - p.y * sin + obb.centerX;
+        const y = p.x * sin + p.y * cos + obb.centerY;
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+      return { minX, minY, maxX, maxY };
+    }
+    /**
+     * Check if bounds is an OBB (has centerX property)
+     */
+    static isOBB(bounds) {
+      return "centerX" in bounds;
+    }
+    /**
+     * Get center point from either AABB or OBB
+     */
+    static getCenter(bounds) {
+      if (this.isOBB(bounds)) {
+        return { x: bounds.centerX, y: bounds.centerY };
+      }
+      const width = bounds.maxX - bounds.minX;
+      const height = bounds.maxY - bounds.minY;
+      return {
+        x: bounds.minX + width / 2,
+        y: bounds.minY + height / 2
+      };
+    }
+    /**
+     * Get rotation from bounds (0 for AABB, actual rotation for OBB)
+     */
+    static getRotation(bounds) {
+      return this.isOBB(bounds) ? bounds.rotation : 0;
+    }
+  };
+
+  // editor-engine/core/services/GroupService.ts
+  var GroupService = class {
+    constructor(document) {
+      this.document = document;
+    }
+    /**
+     * Group multiple nodes into a new group node
+     * Returns the ID of the newly created group
+     */
+    groupNodes(nodeIds) {
+      if (nodeIds.length < 2) {
+        return null;
+      }
+      const nodes = [];
+      for (const id of nodeIds) {
+        const node = this.document.getNode(id);
+        if (!node) {
+          return null;
+        }
+        nodes.push(node);
+      }
+      const parentIds = new Set(nodes.map((n) => {
+        var _a;
+        return (_a = n.parentId) != null ? _a : "root";
+      }));
+      if (parentIds.size > 1) {
+        return null;
+      }
+      const commonParentId = nodes[0].parentId;
+      const bounds = this.calculateBoundingBox(nodeIds);
+      if (!bounds) {
+        return null;
+      }
+      const groupId = `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const groupTransform = {
+        x: bounds.x + bounds.width / 2,
+        y: bounds.y + bounds.height / 2,
+        rotation: 0
+      };
+      const groupNode = createGroupNode(groupId, groupTransform, {
+        name: "Group",
+        parentId: commonParentId
+      });
+      groupNode.boundingBox = {
+        width: bounds.width,
+        height: bounds.height
+      };
+      this.document.addNode(groupNode);
+      for (const node of nodes) {
+        this.document.reparent(node.id, groupId);
+      }
+      return groupId;
+    }
+    /**
+     * Ungroup a group node, moving its children to the group's parent
+     * Returns the IDs of the ungrouped children
+     */
+    ungroupNode(groupId) {
+      const groupNode = this.document.getNode(groupId);
+      if (!groupNode) {
+        return null;
+      }
+      if (!isGroupNode(groupNode)) {
+        return null;
+      }
+      if (groupNode.children.length === 0) {
+        return null;
+      }
+      const parentId = groupNode.parentId;
+      const childIds = [...groupNode.children];
+      for (const childId of childIds) {
+        const child = this.document.getNode(childId);
+        if (!child) continue;
+        this.document.reparent(childId, parentId);
+      }
+      this.document.removeNode(groupId);
+      return childIds;
+    }
+    /**
+     * Check if a node can be ungrouped
+     */
+    canUngroup(nodeId) {
+      const node = this.document.getNode(nodeId);
+      return node !== void 0 && isGroupNode(node) && node.children.length > 0;
+    }
+    /**
+     * Check if multiple nodes can be grouped
+     */
+    canGroup(nodeIds) {
+      if (nodeIds.length < 2) return false;
+      const nodes = [];
+      for (const id of nodeIds) {
+        const node = this.document.getNode(id);
+        if (!node) return false;
+        nodes.push(node);
+      }
+      const parentIds = new Set(nodes.map((n) => {
+        var _a;
+        return (_a = n.parentId) != null ? _a : "root";
+      }));
+      return parentIds.size === 1;
+    }
+    /**
+     * Calculate bounding box for multiple nodes
+     * Returns { x, y, width, height } or null if no valid bounds
+     */
+    calculateBoundingBox(nodeIds) {
+      const aabbs = [];
+      for (const nodeId of nodeIds) {
+        const node = this.document.getNode(nodeId);
+        if (!node) continue;
+        const shape = this.document.getShape(nodeId);
+        if (!shape) continue;
+        const aabb = BoundingBoxService.getAABB(node, shape);
+        aabbs.push(aabb);
+      }
+      if (aabbs.length === 0) return null;
+      const union = BoundingBoxService.unionAABBs(aabbs);
+      return {
+        x: union.minX,
+        y: union.minY,
+        width: union.maxX - union.minX,
+        height: union.maxY - union.minY
+      };
+    }
+  };
+
+  // editor-engine/core/Editor.ts
+  var Editor = class {
+    constructor() {
+      this.document = new Document();
+      this.selection = new SelectionManager();
+      this.tools = new ToolManager(this);
+      this.state = new EditorState();
+      this.groupService = new GroupService(this.document);
+    }
+    addTools(tools) {
+      this.tools.addTools(tools);
+    }
+    setActiveTool(tool) {
+      var _a;
+      this.tools.setActive(tool);
+      (_a = this.onToolChanged) == null ? void 0 : _a.call(this, tool);
+    }
+    updateToolOptions(options) {
+      this.state.updateToolOptions(options);
+    }
+    getToolOption(key) {
+      return this.state.getToolOption(key);
+    }
+    onPointerDown(e) {
+      this.tools.pointerDown(e);
+    }
+    onPointerMove(e) {
+      this.tools.pointerMove(e);
+    }
+    onPointerUp(e) {
+      this.tools.pointerUp(e);
+      if (this.document.getAllNodes().length > 0) {
+        this.document.debugTree();
+      }
+    }
+    onKeyDown(e) {
+      var _a;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
+        e.preventDefault();
+        if (e.shiftKey) {
+          this.ungroupSelection();
+        } else {
+          this.groupSelection();
+        }
+        return;
+      }
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
+        const handled = this.handleToolSelection(e);
+        if (handled) {
+          e.preventDefault();
+          this.selection.clear();
+          this.state.clearTransient();
+          (_a = this.renderer) == null ? void 0 : _a.clearSelectionBox();
+          return;
+        }
+      }
+      this.tools.keyDown(e);
+    }
+    handleToolSelection(e) {
+      var _a;
+      const key = e.key.toLowerCase();
+      const toolMap = {
+        v: "select",
+        r: "rectangle",
+        o: "ellipse",
+        l: "line"
+      };
+      const toolId = toolMap[key];
+      if (toolId && ((_a = this.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
+        this.setActiveTool(toolId);
+        return true;
+      }
+      return false;
+    }
+    onKeyUp(e) {
+      this.tools.keyUp(e);
+    }
+    setRenderer(renderer) {
+      this.renderer = renderer;
+    }
+    clear() {
+      var _a;
+      this.document.clear();
+      this.selection.clear();
+      this.state.clearTransient();
+      (_a = this.renderer) == null ? void 0 : _a.clear();
+    }
+    // ---------------------------------------------
+    // Grouping Operations
+    // ---------------------------------------------
+    /**
+     * Group the currently selected nodes
+     * Returns the ID of the newly created group, or null if grouping failed
+     */
+    groupSelection() {
+      const selectedIds = [...this.selection.getAll()];
+      if (!this.groupService.canGroup(selectedIds)) {
+        return null;
+      }
+      const groupId = this.groupService.groupNodes(selectedIds);
+      if (groupId) {
+        this.selection.setSingle(groupId);
+      }
+      return groupId;
+    }
+    /**
+     * Ungroup the currently selected group nodes
+     * Returns the IDs of the ungrouped children, or null if ungrouping failed
+     */
+    ungroupSelection() {
+      const selectedIds = this.selection.getAll();
+      if (selectedIds.length === 1) {
+        const groupId = selectedIds[0];
+        if (!this.groupService.canUngroup(groupId)) {
+          return null;
+        }
+        const childIds = this.groupService.ungroupNode(groupId);
+        if (childIds) {
+          this.selection.setMany(childIds);
+        }
+        return childIds;
+      }
+      const allUngroupedIds = [];
+      for (const id of selectedIds) {
+        if (this.groupService.canUngroup(id)) {
+          const childIds = this.groupService.ungroupNode(id);
+          if (childIds) {
+            allUngroupedIds.push(...childIds);
+          }
+        }
+      }
+      if (allUngroupedIds.length > 0) {
+        this.selection.setMany(allUngroupedIds);
+        return allUngroupedIds;
+      }
+      return null;
+    }
+  };
+
+  // editor-engine/core/model/Shape.ts
+  var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
+    ShapeType2["RECTANGLE"] = "RECTANGLE";
+    ShapeType2["ELLIPSE"] = "ELLIPSE";
+    ShapeType2["LINE"] = "LINE";
+    return ShapeType2;
+  })(ShapeType || {});
+  function isRectangleShape(shape) {
+    return shape.type === "RECTANGLE" /* RECTANGLE */;
+  }
+  function isEllipseShape(shape) {
+    return shape.type === "ELLIPSE" /* ELLIPSE */;
+  }
+  function isLineShape(shape) {
+    return shape.type === "LINE" /* LINE */;
+  }
+  function createRectangleShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "RECTANGLE" /* RECTANGLE */,
+      geometry,
+      style
+    };
+  }
+  function createEllipseShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "ELLIPSE" /* ELLIPSE */,
+      geometry,
+      style
+    };
+  }
+  function createLineShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "LINE" /* LINE */,
+      geometry,
+      style
+    };
+  }
+
+  // editor-engine/core/tools/select/states/IdleState.ts
+  var IdleState = class {
+    onPointerDown(e, ctx) {
+    }
+    onPointerMove(e, { editor }) {
+      var _a, _b;
+      let hoveringOnShape = false;
+      if (editor.state.hoveredShapeId) {
+        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
+        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
+        if (hoveredNode && hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredNode, hoveredShape, e.clientX, e.clientY))) {
+          hoveringOnShape = true;
+        }
+      }
+      if (!hoveringOnShape) {
+        const shapeNodes = editor.document.getShapeNodes();
+        const found = shapeNodes.find(
+          ([node, shape]) => {
+            var _a2, _b2;
+            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(node, shape, e.clientX, e.clientY);
+          }
+        );
+        editor.state.hoveredShapeId = found ? found[0].id : void 0;
+      }
+    }
+    onPointerUp(e, ctx) {
+    }
   };
 
   // editor-engine/core/tools/select/helpers/SelectionBoundsHelper.ts
   var SelectionBoundsHelper = class {
     static updateSelectionBounds(ctx) {
       const { editor } = ctx;
-      const selectedShapesAABB = [];
+      const selection = editor.selection.getAll();
       editor.state.selectionBounds = void 0;
-      editor.selection.getAll().forEach((nodeId) => {
+      const selectedShapesAABB = [];
+      selection.forEach((nodeId) => {
         const node = editor.document.getNode(nodeId);
-        const shape = editor.document.getShape(nodeId);
-        if (node && shape) {
-          selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape));
+        if (!node) return;
+        if (isGroupNode(node)) {
+          this.collectGroupAABBs(nodeId, editor, selectedShapesAABB);
+        } else {
+          const shape = editor.document.getShape(nodeId);
+          if (shape) {
+            selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape));
+          }
         }
       });
       if (selectedShapesAABB.length > 0) {
         editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
+      }
+    }
+    /**
+     * Recursively collect AABBs from all shape nodes within a group
+     */
+    static collectGroupAABBs(groupId, editor, aabbs) {
+      const group = editor.document.getNode(groupId);
+      if (!group || !isGroupNode(group)) return;
+      for (const childId of group.children) {
+        const child = editor.document.getNode(childId);
+        if (!child) continue;
+        if (isGroupNode(child)) {
+          this.collectGroupAABBs(childId, editor, aabbs);
+        } else {
+          const shape = editor.document.getShape(childId);
+          if (shape) {
+            aabbs.push(BoundingBoxService.getAABB(child, shape));
+          }
+        }
       }
     }
     static clearSelectionBounds(ctx) {
@@ -764,7 +1036,10 @@ var EditorEngine = (() => {
       const deltaY = e.clientY - this.prevMouseY;
       editor.selection.getAll().forEach((nodeId) => {
         const node = editor.document.getNode(nodeId);
-        if (node) {
+        if (!node) return;
+        if (isGroupNode(node)) {
+          this.moveNodeRecursive(nodeId, deltaX, deltaY, editor);
+        } else {
           node.transform.x += deltaX;
           node.transform.y += deltaY;
           editor.document.updateNode(node);
@@ -774,6 +1049,21 @@ var EditorEngine = (() => {
       this.prevMouseY = e.clientY;
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds(ctx);
+    }
+    /**
+     * Move a node and all its children recursively (for groups)
+     */
+    moveNodeRecursive(nodeId, deltaX, deltaY, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      node.transform.x += deltaX;
+      node.transform.y += deltaY;
+      editor.document.updateNode(node);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.moveNodeRecursive(childId, deltaX, deltaY, editor);
+        }
+      }
     }
     onPointerUp(e, ctx) {
     }
@@ -836,15 +1126,25 @@ var EditorEngine = (() => {
     onEnter(ctx) {
       const { editor } = ctx;
       editor.selection.getAll().forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId);
+        this.collectOriginalData(nodeId, editor);
+      });
+    }
+    collectOriginalData(nodeId, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectOriginalData(childId, editor);
+        }
+      } else {
         const shape = editor.document.getShape(nodeId);
-        if (node && shape) {
+        if (shape) {
           this.originalData.set(nodeId, {
             node: JSON.parse(JSON.stringify(node)),
             shape: JSON.parse(JSON.stringify(shape))
           });
         }
-      });
+      }
     }
     onPointerDown(e, ctx) {
       this.startMouse = { x: e.clientX, y: e.clientY };
@@ -857,12 +1157,16 @@ var EditorEngine = (() => {
       const selection = editor.selection.getAll();
       if (selection.length === 1) {
         const node = editor.document.getNode(selection[0]);
-        const shape = editor.document.getShape(selection[0]);
-        const original = this.originalData.get(selection[0]);
-        if (!node || !shape || !original) return;
-        this.resizeSingleShape(node, shape, original, dx, dy, this.handleType);
-        editor.document.updateNode(node);
-        editor.document.updateShape(shape);
+        if (node && isGroupNode(node) && editor.state.selectionBounds) {
+          this.resizeMultipleShapes(editor, dx, dy, this.handleType);
+        } else {
+          const shape = editor.document.getShape(selection[0]);
+          const original = this.originalData.get(selection[0]);
+          if (!node || !shape || !original) return;
+          this.resizeSingleShape(node, shape, original, dx, dy, this.handleType);
+          editor.document.updateNode(node);
+          editor.document.updateShape(shape);
+        }
       } else if (selection.length > 1 && editor.state.selectionBounds) {
         this.resizeMultipleShapes(editor, dx, dy, this.handleType);
       }
@@ -934,7 +1238,6 @@ var EditorEngine = (() => {
       if (shape.geometry.height < 1) shape.geometry.height = 1;
     }
     resizeMultipleShapes(editor, dx, dy, handle) {
-      console.log("Multi-shape resize not yet implemented");
     }
   };
 
@@ -950,33 +1253,49 @@ var EditorEngine = (() => {
     onEnter(ctx) {
       const { editor } = ctx;
       const selection = editor.selection.getAll();
-      if (selection.length === 1) {
-        const node = editor.document.getNode(selection[0]);
-        const shape = editor.document.getShape(selection[0]);
-        if (node && shape) {
-          this.centerPoint = this.getShapeCenter(node, shape);
-          this.originalTransforms.set(node.id, {
-            x: node.transform.x,
-            y: node.transform.y,
-            rotation: node.transform.rotation
+      if (editor.state.selectionBounds) {
+        const bounds = editor.state.selectionBounds;
+        const width = bounds.maxX - bounds.minX;
+        const height = bounds.maxY - bounds.minY;
+        this.centerPoint = {
+          x: bounds.minX + width / 2,
+          y: bounds.minY + height / 2
+        };
+        if (selection.length === 1) {
+          const node = editor.document.getNode(selection[0]);
+          if (node && isGroupNode(node)) {
+            for (const childId of node.children) {
+              this.collectOriginalTransforms(childId, editor);
+            }
+          } else {
+            const shape = editor.document.getShape(selection[0]);
+            if (node && shape) {
+              this.originalTransforms.set(node.id, {
+                x: node.transform.x,
+                y: node.transform.y,
+                rotation: node.transform.rotation
+              });
+            }
+          }
+        } else {
+          selection.forEach((nodeId) => {
+            this.collectOriginalTransforms(nodeId, editor);
           });
         }
-      } else if (editor.state.selectionBounds) {
-        const bounds = editor.state.selectionBounds;
-        this.centerPoint = {
-          x: bounds.minX + (bounds.maxX - bounds.minX) / 2,
-          y: bounds.minY + (bounds.maxY - bounds.minY) / 2
-        };
-        selection.forEach((nodeId) => {
-          const node = editor.document.getNode(nodeId);
-          if (node) {
-            this.originalTransforms.set(node.id, {
-              x: node.transform.x,
-              y: node.transform.y,
-              rotation: node.transform.rotation
-            });
-          }
-        });
+      }
+    }
+    collectOriginalTransforms(nodeId, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      this.originalTransforms.set(node.id, {
+        x: node.transform.x,
+        y: node.transform.y,
+        rotation: node.transform.rotation
+      });
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectOriginalTransforms(childId, editor);
+        }
       }
     }
     onPointerDown(e, ctx) {
@@ -1002,7 +1321,12 @@ var EditorEngine = (() => {
       if (selection.length === 1) {
         const node = editor.document.getNode(selection[0]);
         const shape = editor.document.getShape(selection[0]);
-        if (node && shape) {
+        if (node && !shape && isGroupNode(node)) {
+          const originalGroupRotation = node.transform.rotation;
+          node.transform.rotation = originalGroupRotation + deltaAngle;
+          editor.document.updateNode(node);
+          this.rotateAllNodes(editor, deltaAngle);
+        } else if (node && shape) {
           const original = this.originalTransforms.get(node.id);
           if (original) {
             if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
@@ -1029,29 +1353,34 @@ var EditorEngine = (() => {
           }
         }
       } else {
-        selection.forEach((nodeId) => {
-          const node = editor.document.getNode(nodeId);
-          if (node) {
-            const original = this.originalTransforms.get(node.id);
-            if (original) {
-              const rotatedPos = this.rotatePoint(
-                original.x,
-                original.y,
-                this.centerPoint.x,
-                this.centerPoint.y,
-                deltaAngle
-              );
-              node.transform.x = rotatedPos.x;
-              node.transform.y = rotatedPos.y;
-              node.transform.rotation = original.rotation + deltaAngle;
-              editor.document.updateNode(node);
-            }
-          }
-        });
+        this.rotateAllNodes(editor, deltaAngle);
       }
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds(ctx);
       ctx.renderOverlays();
+    }
+    /**
+     * Rotate all nodes that have stored original transforms
+     * Used for multi-select and group rotation
+     * Both position and rotation are updated - shapes rotate around center AND rotate individually
+     */
+    rotateAllNodes(editor, deltaAngle) {
+      this.originalTransforms.forEach((original, nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        if (node) {
+          const rotatedPos = this.rotatePoint(
+            original.x,
+            original.y,
+            this.centerPoint.x,
+            this.centerPoint.y,
+            deltaAngle
+          );
+          node.transform.x = rotatedPos.x;
+          node.transform.y = rotatedPos.y;
+          node.transform.rotation = original.rotation + deltaAngle;
+          editor.document.updateNode(node);
+        }
+      });
     }
     onPointerUp(e, ctx) {
     }
@@ -1407,17 +1736,26 @@ var EditorEngine = (() => {
         return new ResizeState(handleHit.handle);
       }
       if (editor.state.hoveredShapeId) {
-        const node = editor.document.getNode(editor.state.hoveredShapeId);
-        const shape = editor.document.getShape(editor.state.hoveredShapeId);
-        if (node && shape && editor.state.selectionBounds) {
+        let nodeToSelect = editor.state.hoveredShapeId;
+        if (!e.ctrlKey && !e.metaKey) {
+          const topLevelParent = editor.document.getTopLevelParent(
+            editor.state.hoveredShapeId
+          );
+          if (topLevelParent && topLevelParent.id !== editor.state.hoveredShapeId) {
+            nodeToSelect = topLevelParent.id;
+          }
+        }
+        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
+        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
+        if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
           if (BoundingBoxService.aabbIntersects(
             editor.state.selectionBounds,
-            BoundingBoxService.getAABB(node, shape)
+            BoundingBoxService.getAABB(hoveredNode, hoveredShape)
           ))
             return new DragState();
         }
-        if (e.shiftKey) editor.selection.select(editor.state.hoveredShapeId);
-        else editor.selection.setSingle(editor.state.hoveredShapeId);
+        if (e.shiftKey) editor.selection.select(nodeToSelect);
+        else editor.selection.setSingle(nodeToSelect);
         SelectionBoundsHelper.updateSelectionBounds(ctx);
         return new DragState();
       }
@@ -1447,7 +1785,23 @@ var EditorEngine = (() => {
       if (selection.length === 1) {
         const node = editor.document.getNode(selection[0]);
         const shape = editor.document.getShape(selection[0]);
-        if (node && shape) {
+        if (node && !shape && editor.state.selectionBounds) {
+          const geometry = HandleGeometryService.getAABBHandleGeometry(
+            editor.state.selectionBounds
+          );
+          const center = HandleHitTestService.getAABBCenter(
+            editor.state.selectionBounds
+          );
+          return HandleHitTestService.testHandles(
+            e.clientX,
+            e.clientY,
+            geometry,
+            center.x,
+            center.y,
+            0
+            // AABB has no rotation
+          );
+        } else if (node && shape) {
           const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
           const center = HandleHitTestService.getShapeCenter(node, shape);
           return HandleHitTestService.testHandles(
@@ -1930,42 +2284,62 @@ var EditorEngine = (() => {
           this.editor.state.selectionBounds
         );
         const paths = CanvasPathBuilder.getHandlePaths(geometry);
-        this.drawHandlesForAABB(paths, this.editor.state.selectionBounds);
+        this.drawHandlesForAABB(
+          paths,
+          this.editor.state.selectionBounds,
+          false,
+          true
+        );
       } else if (selection.length === 1) {
         const node = this.editor.document.getNode(selection[0]);
         const shape = this.editor.document.getShape(selection[0]);
-        if (node && shape) {
+        if (node && !shape && this.editor.state.selectionBounds) {
+          const geometry = HandleGeometryService.getAABBHandleGeometry(
+            this.editor.state.selectionBounds
+          );
+          const paths = CanvasPathBuilder.getHandlePaths(geometry);
+          this.drawHandlesForAABB(
+            paths,
+            this.editor.state.selectionBounds,
+            false,
+            true
+          );
+        } else if (node && shape) {
           const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
           const paths = CanvasPathBuilder.getHandlePaths(geometry);
           this.drawHandlesForShape(paths, node, shape);
         }
       }
     }
-    drawHandlesForAABB(paths, aabb) {
+    drawHandlesForAABB(paths, aabb, showCorners = true, showRotation = true) {
       const width = aabb.maxX - aabb.minX;
       const height = aabb.maxY - aabb.minY;
       const centerX = aabb.minX + width / 2;
       const centerY = aabb.minY + height / 2;
       this.ctx.save();
       this.ctx.translate(centerX, centerY);
-      this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor;
-      this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor;
-      this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth;
-      for (const path of Object.values(paths.corners)) {
-        this.ctx.fill(path);
-        this.ctx.stroke(path);
+      if (showCorners) {
+        this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor;
+        this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor;
+        this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth;
+        for (const path of Object.values(paths.corners)) {
+          this.ctx.fill(path);
+          this.ctx.stroke(path);
+        }
       }
       this.ctx.strokeStyle = EditorConfig.handleOptions.edgeStrokeColor;
       this.ctx.lineWidth = EditorConfig.handleOptions.edgeStrokeWidth;
       for (const path of Object.values(paths.edges)) {
         this.ctx.stroke(path);
       }
-      this.ctx.fillStyle = EditorConfig.handleOptions.rotationFillColor;
-      this.ctx.strokeStyle = EditorConfig.handleOptions.rotationStrokeColor;
-      this.ctx.lineWidth = EditorConfig.handleOptions.rotationStrokeWidth;
-      for (const path of Object.values(paths.rotation)) {
-        this.ctx.fill(path);
-        this.ctx.stroke(path);
+      if (showRotation) {
+        this.ctx.fillStyle = EditorConfig.handleOptions.rotationFillColor;
+        this.ctx.strokeStyle = EditorConfig.handleOptions.rotationStrokeColor;
+        this.ctx.lineWidth = EditorConfig.handleOptions.rotationStrokeWidth;
+        for (const path of Object.values(paths.rotation)) {
+          this.ctx.fill(path);
+          this.ctx.stroke(path);
+        }
       }
       this.ctx.restore();
     }

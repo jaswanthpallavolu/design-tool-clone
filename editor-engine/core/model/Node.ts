@@ -28,6 +28,11 @@ export interface GroupNode extends BaseNode {
   type: NodeType.GROUP
   // Groups have no visual properties, only structural
   // Their bounds are computed from children
+  // Store original bounding box dimensions (before rotation)
+  boundingBox?: {
+    width: number
+    height: number
+  }
 }
 
 export interface ShapeNode extends BaseNode {

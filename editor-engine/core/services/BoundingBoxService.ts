@@ -8,6 +8,18 @@ export interface AABB {
   maxY: number
 }
 
+/**
+ * Oriented Bounding Box - a rotated bounding box
+ * Defined by center position, dimensions, and rotation
+ */
+export interface OBB {
+  centerX: number
+  centerY: number
+  width: number
+  height: number
+  rotation: number // in radians
+}
+
 export class BoundingBoxService {
   /**
    * Calculate AABB for a node + shape pair
@@ -164,5 +176,85 @@ export class BoundingBoxService {
     if (!clip(dy, box.maxY - y1)) return false
 
     return t0 <= t1
+  }
+
+  /**
+   * Convert AABB to OBB (axis-aligned box with rotation = 0)
+   */
+  static aabbToOBB(aabb: AABB): OBB {
+    const width = aabb.maxX - aabb.minX
+    const height = aabb.maxY - aabb.minY
+    return {
+      centerX: aabb.minX + width / 2,
+      centerY: aabb.minY + height / 2,
+      width,
+      height,
+      rotation: 0,
+    }
+  }
+
+  /**
+   * Convert OBB to AABB (compute axis-aligned bounds of rotated box)
+   */
+  static obbToAABB(obb: OBB): AABB {
+    const hw = obb.width / 2
+    const hh = obb.height / 2
+    const cos = Math.cos(obb.rotation)
+    const sin = Math.sin(obb.rotation)
+
+    // Define corners relative to center
+    const corners = [
+      { x: -hw, y: -hh },
+      { x: hw, y: -hh },
+      { x: hw, y: hh },
+      { x: -hw, y: hh },
+    ]
+
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+
+    // Rotate each corner and find min/max bounds
+    for (const p of corners) {
+      const x = p.x * cos - p.y * sin + obb.centerX
+      const y = p.x * sin + p.y * cos + obb.centerY
+
+      minX = Math.min(minX, x)
+      minY = Math.min(minY, y)
+      maxX = Math.max(maxX, x)
+      maxY = Math.max(maxY, y)
+    }
+
+    return { minX, minY, maxX, maxY }
+  }
+
+  /**
+   * Check if bounds is an OBB (has centerX property)
+   */
+  static isOBB(bounds: AABB | OBB): bounds is OBB {
+    return "centerX" in bounds
+  }
+
+  /**
+   * Get center point from either AABB or OBB
+   */
+  static getCenter(bounds: AABB | OBB): { x: number; y: number } {
+    if (this.isOBB(bounds)) {
+      return { x: bounds.centerX, y: bounds.centerY }
+    }
+    const width = bounds.maxX - bounds.minX
+    const height = bounds.maxY - bounds.minY
+    return {
+      x: bounds.minX + width / 2,
+      y: bounds.minY + height / 2,
+    }
+  }
+
+  /**
+   * Get rotation from bounds (0 for AABB, actual rotation for OBB)
+   */
+  static getRotation(bounds: AABB | OBB): number {
+    return this.isOBB(bounds) ? bounds.rotation : 0
   }
 }

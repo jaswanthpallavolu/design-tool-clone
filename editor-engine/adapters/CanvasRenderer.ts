@@ -7,7 +7,11 @@ import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
 import { CanvasPathBuilder, HandlePaths } from "./CanvasPathBuilder"
 import { EditorConfig } from "../config/EditorConfig"
 import { HandleGeometryService } from "../core/services/HandleGeometryService"
-import { AABB } from "../core/services/BoundingBoxService"
+import {
+  AABB,
+  OBB,
+  BoundingBoxService,
+} from "../core/services/BoundingBoxService"
 
 export class CanvasRenderer implements RenderPort {
   canvas: HTMLCanvasElement
@@ -165,17 +169,35 @@ export class CanvasRenderer implements RenderPort {
     const selection = this.editor.selection.getAll()
 
     if (this.editor.state.selectionBounds && selection.length > 1) {
-      // Multi-select: Use AABB handles
+      // Multi-select: Use AABB handles (without corner handles, with rotation)
       const geometry = HandleGeometryService.getAABBHandleGeometry(
         this.editor.state.selectionBounds,
       )
       const paths = CanvasPathBuilder.getHandlePaths(geometry)
-      this.drawHandlesForAABB(paths, this.editor.state.selectionBounds)
+      this.drawHandlesForAABB(
+        paths,
+        this.editor.state.selectionBounds,
+        false,
+        true,
+      ) // Hide corners, show rotation for multi-select
     } else if (selection.length === 1) {
-      // Single select: Use shape-specific handles
       const node = this.editor.document.getNode(selection[0])
       const shape = this.editor.document.getShape(selection[0])
-      if (node && shape) {
+
+      // If it's a group (no shape), use AABB handles (without corners, with rotation)
+      if (node && !shape && this.editor.state.selectionBounds) {
+        const geometry = HandleGeometryService.getAABBHandleGeometry(
+          this.editor.state.selectionBounds,
+        )
+        const paths = CanvasPathBuilder.getHandlePaths(geometry)
+        this.drawHandlesForAABB(
+          paths,
+          this.editor.state.selectionBounds,
+          false,
+          true,
+        ) // Hide corners, show rotation for groups
+      } else if (node && shape) {
+        // Single shape: Use shape-specific handles
         const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
         const paths = CanvasPathBuilder.getHandlePaths(geometry)
         this.drawHandlesForShape(paths, node, shape)
@@ -183,7 +205,12 @@ export class CanvasRenderer implements RenderPort {
     }
   }
 
-  private drawHandlesForAABB(paths: HandlePaths, aabb: AABB): void {
+  private drawHandlesForAABB(
+    paths: HandlePaths,
+    aabb: AABB,
+    showCorners: boolean = true,
+    showRotation: boolean = true,
+  ): void {
     const width = aabb.maxX - aabb.minX
     const height = aabb.maxY - aabb.minY
     const centerX = aabb.minX + width / 2
@@ -192,13 +219,15 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.save()
     this.ctx.translate(centerX, centerY)
 
-    // Draw corner handles
-    this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor
-    this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor
-    this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth
-    for (const path of Object.values(paths.corners)) {
-      this.ctx.fill(path)
-      this.ctx.stroke(path)
+    // Draw corner handles (only if showCorners is true)
+    if (showCorners) {
+      this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor
+      this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor
+      this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth
+      for (const path of Object.values(paths.corners)) {
+        this.ctx.fill(path)
+        this.ctx.stroke(path)
+      }
     }
 
     // Draw edge handles
@@ -208,13 +237,15 @@ export class CanvasRenderer implements RenderPort {
       this.ctx.stroke(path)
     }
 
-    // Draw rotation handles
-    this.ctx.fillStyle = EditorConfig.handleOptions.rotationFillColor
-    this.ctx.strokeStyle = EditorConfig.handleOptions.rotationStrokeColor
-    this.ctx.lineWidth = EditorConfig.handleOptions.rotationStrokeWidth
-    for (const path of Object.values(paths.rotation)) {
-      this.ctx.fill(path)
-      this.ctx.stroke(path)
+    // Draw rotation handles (only if showRotation is true)
+    if (showRotation) {
+      this.ctx.fillStyle = EditorConfig.handleOptions.rotationFillColor
+      this.ctx.strokeStyle = EditorConfig.handleOptions.rotationStrokeColor
+      this.ctx.lineWidth = EditorConfig.handleOptions.rotationStrokeWidth
+      for (const path of Object.values(paths.rotation)) {
+        this.ctx.fill(path)
+        this.ctx.stroke(path)
+      }
     }
 
     this.ctx.restore()

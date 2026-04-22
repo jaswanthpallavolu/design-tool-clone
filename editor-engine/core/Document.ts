@@ -36,6 +36,23 @@ export class Document {
     return child?.parentId ? this.nodes.get(child.parentId) : undefined
   }
 
+  /**
+   * Get the top-level parent (root-level node) for a given node
+   * If the node has no parent, returns the node itself
+   */
+  getTopLevelParent(nodeId: string): Node | undefined {
+    let current = this.nodes.get(nodeId)
+    if (!current) return undefined
+
+    while (current.parentId) {
+      const parent = this.nodes.get(current.parentId)
+      if (!parent) break
+      current = parent
+    }
+
+    return current
+  }
+
   // ---------------------------------------------
   // Shape Queries
   // ---------------------------------------------
@@ -221,37 +238,6 @@ export class Document {
    * Last drawn shape appears first (reverse order)
    */
   debugTree(): void {
-    console.group("🌳 Document Tree (newest first)")
-
-    const printNode = (nodeId: string, depth: number = 0) => {
-      const node = this.nodes.get(nodeId)
-      if (!node) return
-
-      const indent = "  ".repeat(depth)
-      const icon = node.type === "GROUP" ? "📁" : "📄"
-      const shape = this.shapes.get(nodeId)
-
-      console.log(
-        `${indent}${icon} ${node.name} | x:${node.transform.x} y:${node.transform.y}`,
-        shape ? `| ${shape.type}` : "",
-      )
-
-      // Print children in reverse order (newest first)
-      if (isGroupNode(node)) {
-        const reversedChildren = [...node.children].reverse()
-        reversedChildren.forEach((childId) => printNode(childId, depth + 1))
-      }
-    }
-
-    const roots = this.getRootNodes()
-    if (roots.length === 0) {
-      console.log("(empty)")
-    } else {
-      // Print roots in reverse order (newest first)
-      const reversedRoots = [...roots].reverse()
-      reversedRoots.forEach((root) => printNode(root.id))
-    }
-
-    console.groupEnd()
+    // Debug tree printing removed
   }
 }
