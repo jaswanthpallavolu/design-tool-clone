@@ -2,25 +2,46 @@
   box-sizing: border-box;
 }
 
+:root {
+  --bg: #f7f9fc;
+  --text: #1f2933;
+  --primary: #4f46e5;
+  --secondary: #14b8a6;
+  --accent: #f59e0b;
+}
+
 .container {
   position: relative;
   width: 100%;
-  height: 80vh;
-  margin-bottom: 0.5rem;
+  height: 95vh;
+}
+
+.container .layers {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+  min-width: 200px;
+  height: 80%;
+  border: 1px solid var(--secondary);
 }
 
 .container #canvas {
   position: absolute;
-  left: 0;
   top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
-  border: 1px dotted;
+  border: 1px solid var(--primary);
 }
 
-.tools-section {
-  width: 100%;
+.container .tools-section {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 0;
+  padding: 0.5rem 0;
+  width: max-content;
   display: flex;
   gap: 0.5rem;
-  justify-content: center;
 }
