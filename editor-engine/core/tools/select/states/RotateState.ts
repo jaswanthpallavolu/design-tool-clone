@@ -28,9 +28,9 @@ export class RotateState implements InteractionState {
       if (shape) {
         this.centerPoint = this.getShapeCenter(shape)
         this.originalTransforms.set(shape.id, {
-          x: shape.transform.x,
-          y: shape.transform.y,
-          rotation: shape.transform.rotation,
+          x: shape.geometry.x,
+          y: shape.geometry.y,
+          rotation: shape.geometry.rotation,
         })
       }
     } else if (editor.state.selectionBounds) {
@@ -45,9 +45,9 @@ export class RotateState implements InteractionState {
         const shape = editor.document.getById(shapeId)
         if (shape) {
           this.originalTransforms.set(shape.id, {
-            x: shape.transform.x,
-            y: shape.transform.y,
-            rotation: shape.transform.rotation,
+            x: shape.geometry.x,
+            y: shape.geometry.y,
+            rotation: shape.geometry.rotation,
           })
         }
       })
@@ -82,20 +82,22 @@ export class RotateState implements InteractionState {
       if (shape) {
         const original = this.originalTransforms.get(shape.id)
         if (original) {
-          if (shape.kind === "rectangle" || shape.kind === "ellipse") {
+          if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
             // For rectangles and ellipses: only update rotation value
-            shape.transform.rotation = original.rotation + deltaAngle
-          } else if (shape.kind === "line") {
+            shape.geometry.rotation = original.rotation + deltaAngle
+          } else if (shape.type === "LINE") {
             // For lines: rotate to follow mouse direction from center
             // Calculate center in world coordinates
             const centerWorldX =
-              shape.transform.x + (shape.local.x1 + shape.local.x2) / 2
+              shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2
             const centerWorldY =
-              shape.transform.y + (shape.local.y1 + shape.local.y2) / 2
+              shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2
 
             // Calculate the radius (distance from center to endpoint in local space)
-            const dx = shape.local.x1 - (shape.local.x1 + shape.local.x2) / 2
-            const dy = shape.local.y1 - (shape.local.y1 + shape.local.y2) / 2
+            const dx =
+              shape.geometry.x1 - (shape.geometry.x1 + shape.geometry.x2) / 2
+            const dy =
+              shape.geometry.y1 - (shape.geometry.y1 + shape.geometry.y2) / 2
             const radius = Math.sqrt(dx * dx + dy * dy)
 
             // Calculate angle from mouse to center (in world space)
@@ -105,14 +107,14 @@ export class RotateState implements InteractionState {
             )
 
             // Calculate center in local space
-            const centerLocalX = (shape.local.x1 + shape.local.x2) / 2
-            const centerLocalY = (shape.local.y1 + shape.local.y2) / 2
+            const centerLocalX = (shape.geometry.x1 + shape.geometry.x2) / 2
+            const centerLocalY = (shape.geometry.y1 + shape.geometry.y2) / 2
 
             // Position endpoints based on mouse angle
-            shape.local.x2 = centerLocalX + radius * Math.cos(angle)
-            shape.local.y2 = centerLocalY + radius * Math.sin(angle)
-            shape.local.x1 = centerLocalX - radius * Math.cos(angle)
-            shape.local.y1 = centerLocalY - radius * Math.sin(angle)
+            shape.geometry.x2 = centerLocalX + radius * Math.cos(angle)
+            shape.geometry.y2 = centerLocalY + radius * Math.sin(angle)
+            shape.geometry.x1 = centerLocalX - radius * Math.cos(angle)
+            shape.geometry.y1 = centerLocalY - radius * Math.sin(angle)
           }
 
           editor.document.update(shape)
@@ -134,9 +136,9 @@ export class RotateState implements InteractionState {
               deltaAngle,
             )
 
-            shape.transform.x = rotatedPos.x
-            shape.transform.y = rotatedPos.y
-            shape.transform.rotation = original.rotation + deltaAngle
+            shape.geometry.x = rotatedPos.x
+            shape.geometry.y = rotatedPos.y
+            shape.geometry.rotation = original.rotation + deltaAngle
 
             editor.document.update(shape)
           }
@@ -181,18 +183,18 @@ export class RotateState implements InteractionState {
   }
 
   private getShapeCenter(shape: Shape): { x: number; y: number } {
-    // Top-left based: calculate center from transform.x/y + dimensions
-    if (shape.kind === "line") {
-      const midX = (shape.local.x1 + shape.local.x2) / 2
-      const midY = (shape.local.y1 + shape.local.y2) / 2
+    // Top-left based: calculate center from geometry.x/y + dimensions
+    if (shape.type === "LINE") {
+      const midX = (shape.geometry.x1 + shape.geometry.x2) / 2
+      const midY = (shape.geometry.y1 + shape.geometry.y2) / 2
       return {
-        x: shape.transform.x + midX,
-        y: shape.transform.y + midY,
+        x: shape.geometry.x + midX,
+        y: shape.geometry.y + midY,
       }
     } else {
       return {
-        x: shape.transform.x + shape.local.width / 2,
-        y: shape.transform.y + shape.local.height / 2,
+        x: shape.geometry.x + shape.geometry.width / 2,
+        y: shape.geometry.y + shape.geometry.height / 2,
       }
     }
   }

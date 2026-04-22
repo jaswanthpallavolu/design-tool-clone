@@ -1,41 +1,47 @@
-interface Transform {
-  x: number
-  y: number
-  rotation: number
+export enum ShapeType {
+  RECTANGLE = "RECTANGLE",
+  ELLIPSE = "ELLIPSE",
+  LINE = "LINE",
 }
 
 interface BaseShape {
   id: string
-  fillStyle: string
-  strokeStyle: string
-  transform: Transform
+  style: {
+    fillColor: string
+    strokeColor: string
+  }
+  geometry: {
+    x: number
+    y: number
+    rotation: number
+  }
 }
 
 export interface RectangleShape extends BaseShape {
-  kind: "rectangle"
-  local: {
+  type: ShapeType.RECTANGLE
+  geometry: BaseShape["geometry"] & {
     width: number
     height: number
   }
 }
 
 export interface EllipseShape extends BaseShape {
-  kind: "ellipse"
-  local: {
+  type: ShapeType.ELLIPSE
+  geometry: BaseShape["geometry"] & {
     width: number
     height: number
   }
 }
 
 export interface LineShape extends BaseShape {
-  kind: "line"
-  local: {
+  type: ShapeType.LINE
+  geometry: BaseShape["geometry"] & {
     x1: number
     y1: number
     x2: number
     y2: number
+    lineWidth: number
   }
-  lineWidth: number
 }
 
 export type Shape = RectangleShape | EllipseShape | LineShape

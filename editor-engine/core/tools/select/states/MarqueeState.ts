@@ -1,7 +1,7 @@
 import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
-import { RectangleShape } from "@/editor-engine/core/model/Shape"
+import { RectangleShape, ShapeType } from "@/editor-engine/core/model/Shape"
 import { BoundingBoxService } from "@/editor-engine/core/services/BoundingBoxService"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
 
@@ -12,11 +12,18 @@ export class MarqueeState implements InteractionState {
     this.mouseStart = { x: e.clientX, y: e.clientY }
     this.draft = {
       id: crypto.randomUUID(),
-      kind: "rectangle",
-      fillStyle: "",
-      strokeStyle: "",
-      transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-      local: { width: 0, height: 0 },
+      type: ShapeType.RECTANGLE,
+      style: {
+        fillColor: "",
+        strokeColor: "",
+      },
+      geometry: {
+        x: this.mouseStart.x,
+        y: this.mouseStart.y,
+        rotation: 0,
+        width: 0,
+        height: 0,
+      },
     }
   }
   onPointerMove(e: PointerEventData, { editor }: ToolContext): void {
@@ -27,10 +34,10 @@ export class MarqueeState implements InteractionState {
       const minY = Math.min(this.mouseStart.y, e.clientY)
       const maxY = Math.max(this.mouseStart.y, e.clientY)
 
-      this.draft.transform.x = minX
-      this.draft.transform.y = minY
-      this.draft.local.width = maxX - minX
-      this.draft.local.height = maxY - minY
+      this.draft.geometry.x = minX
+      this.draft.geometry.y = minY
+      this.draft.geometry.width = maxX - minX
+      this.draft.geometry.height = maxY - minY
       editor.state.marquee = BoundingBoxService.getAABB(this.draft)
     }
   }
@@ -40,12 +47,12 @@ export class MarqueeState implements InteractionState {
       const marquee = editor.state.marquee ?? {}
       editor.document.getAll().forEach((shape) => {
         const intersect =
-          shape.kind === "line"
+          shape.type === "LINE"
             ? BoundingBoxService.lineIntersectsAABB(
-                shape.transform.x + shape.local.x1,
-                shape.transform.y + shape.local.y1,
-                shape.transform.x + shape.local.x2,
-                shape.transform.y + shape.local.y2,
+                shape.geometry.x + shape.geometry.x1,
+                shape.geometry.y + shape.geometry.y1,
+                shape.geometry.x + shape.geometry.x2,
+                shape.geometry.y + shape.geometry.y2,
                 marquee,
               )
             : BoundingBoxService.aabbIntersects(

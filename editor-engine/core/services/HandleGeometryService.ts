@@ -1,4 +1,4 @@
-import { Shape } from "../model/Shape"
+import { Shape, LineShape, RectangleShape, EllipseShape } from "../model/Shape"
 import { AABB } from "./BoundingBoxService"
 import { EditorConfig } from "../../config/EditorConfig"
 
@@ -68,28 +68,26 @@ export class HandleGeometryService {
   }
 
   static getShapeHandleGeometry(shape: Shape): HandleGeometry {
-    if (shape.kind === "line") {
+    if (shape.type === "LINE") {
       return this.getLineHandleGeometry(shape)
     }
     return this.getRectangularHandleGeometry(shape)
   }
 
-  private static getLineHandleGeometry(
-    shape: Shape & { kind: "line" },
-  ): HandleGeometry {
+  private static getLineHandleGeometry(shape: LineShape): HandleGeometry {
     // Calculate relative positions from center (0, 0)
-    const centerX = (shape.local.x1 + shape.local.x2) / 2
-    const centerY = (shape.local.y1 + shape.local.y2) / 2
+    const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2
+    const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2
 
-    const relP1X = shape.local.x1 - centerX
-    const relP1Y = shape.local.y1 - centerY
-    const relP2X = shape.local.x2 - centerX
-    const relP2Y = shape.local.y2 - centerY
+    const relP1X = shape.geometry.x1 - centerX
+    const relP1Y = shape.geometry.y1 - centerY
+    const relP2X = shape.geometry.x2 - centerX
+    const relP2Y = shape.geometry.y2 - centerY
 
     // Calculate line length and direction for rotation handles
     const length = Math.sqrt(
-      Math.pow(shape.local.x2 - shape.local.x1, 2) +
-        Math.pow(shape.local.y2 - shape.local.y1, 2),
+      Math.pow(shape.geometry.x2 - shape.geometry.x1, 2) +
+        Math.pow(shape.geometry.y2 - shape.geometry.y1, 2),
     )
 
     // Normalized direction vectors
@@ -128,10 +126,10 @@ export class HandleGeometryService {
   }
 
   private static getRectangularHandleGeometry(
-    shape: Shape & { kind: "rectangle" | "ellipse" },
+    shape: RectangleShape | EllipseShape,
   ): HandleGeometry {
-    const halfW = shape.local.width / 2
-    const halfH = shape.local.height / 2
+    const halfW = shape.geometry.width / 2
+    const halfH = shape.geometry.height / 2
 
     return {
       corners: {

@@ -30,6 +30,7 @@ var EditorEngine = (() => {
     RectangleTool: () => RectangleTool,
     SelectTool: () => SelectTool,
     SelectionManager: () => SelectionManager,
+    ShapeType: () => ShapeType,
     ToolManager: () => ToolManager
   });
 
@@ -320,6 +321,14 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/model/Shape.ts
+  var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
+    ShapeType2["RECTANGLE"] = "RECTANGLE";
+    ShapeType2["ELLIPSE"] = "ELLIPSE";
+    ShapeType2["LINE"] = "LINE";
+    return ShapeType2;
+  })(ShapeType || {});
+
   // editor-engine/core/tools/select/states/IdleState.ts
   var IdleState = class {
     onPointerDown(e, ctx) {
@@ -349,20 +358,20 @@ var EditorEngine = (() => {
   // editor-engine/core/services/BoundingBoxService.ts
   var BoundingBoxService = class {
     static getAABB(shape) {
-      return shape.kind === "line" ? this.getAABBForLine(shape) : this.getAABBForRectangle(shape);
+      return shape.type === "LINE" ? this.getAABBForLine(shape) : this.getAABBForRectangle(shape);
     }
     /**
      * Calculate AABB for rectangle or ellipse shapes
      * Handles rotation by computing the bounding box of all rotated corners
-     * Top-left based: calculate center from transform.x/y + dimensions
+     * Top-left based: calculate center from geometry.x/y + dimensions
      */
     static getAABBForRectangle(shape) {
-      const hw = shape.local.width / 2;
-      const hh = shape.local.height / 2;
-      const cx = shape.transform.x + hw;
-      const cy = shape.transform.y + hh;
-      const cos = Math.cos(shape.transform.rotation);
-      const sin = Math.sin(shape.transform.rotation);
+      const hw = shape.geometry.width / 2;
+      const hh = shape.geometry.height / 2;
+      const cx = shape.geometry.x + hw;
+      const cy = shape.geometry.y + hh;
+      const cos = Math.cos(shape.geometry.rotation);
+      const sin = Math.sin(shape.geometry.rotation);
       const corners = [
         { x: -hw, y: -hh },
         // Top-left
@@ -390,19 +399,19 @@ var EditorEngine = (() => {
     /**
      * Calculate AABB for line shapes
      * Includes stroke width padding
-     * Top-left based: transform.x/y + local coords
+     * Top-left based: geometry.x/y + local coords
      */
     static getAABBForLine(shape) {
-      const x1 = shape.transform.x + shape.local.x1;
-      const y1 = shape.transform.y + shape.local.y1;
-      const x2 = shape.transform.x + shape.local.x2;
-      const y2 = shape.transform.y + shape.local.y2;
+      const x1 = shape.geometry.x + shape.geometry.x1;
+      const y1 = shape.geometry.y + shape.geometry.y1;
+      const x2 = shape.geometry.x + shape.geometry.x2;
+      const y2 = shape.geometry.y + shape.geometry.y2;
       let minX = Math.min(x1, x2);
       let minY = Math.min(y1, y2);
       let maxX = Math.max(x1, x2);
       let maxY = Math.max(y1, y2);
-      if (shape.lineWidth > 0) {
-        const pad = shape.lineWidth / 2;
+      if (shape.geometry.lineWidth > 0) {
+        const pad = shape.geometry.lineWidth / 2;
         minX -= pad;
         minY -= pad;
         maxX += pad;
@@ -502,8 +511,8 @@ var EditorEngine = (() => {
       editor.selection.getAll().forEach((shapeId) => {
         const shape = editor.document.getById(shapeId);
         if (shape) {
-          shape.transform.x += deltaX;
-          shape.transform.y += deltaY;
+          shape.geometry.x += deltaX;
+          shape.geometry.y += deltaY;
           editor.document.update(shape);
         }
       });
@@ -525,11 +534,18 @@ var EditorEngine = (() => {
       this.mouseStart = { x: e.clientX, y: e.clientY };
       this.draft = {
         id: crypto.randomUUID(),
-        kind: "rectangle",
-        fillStyle: "",
-        strokeStyle: "",
-        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-        local: { width: 0, height: 0 }
+        type: "RECTANGLE" /* RECTANGLE */,
+        style: {
+          fillColor: "",
+          strokeColor: ""
+        },
+        geometry: {
+          x: this.mouseStart.x,
+          y: this.mouseStart.y,
+          rotation: 0,
+          width: 0,
+          height: 0
+        }
       };
     }
     onPointerMove(e, { editor }) {
@@ -539,10 +555,10 @@ var EditorEngine = (() => {
         const maxX = Math.max(this.mouseStart.x, e.clientX);
         const minY = Math.min(this.mouseStart.y, e.clientY);
         const maxY = Math.max(this.mouseStart.y, e.clientY);
-        this.draft.transform.x = minX;
-        this.draft.transform.y = minY;
-        this.draft.local.width = maxX - minX;
-        this.draft.local.height = maxY - minY;
+        this.draft.geometry.x = minX;
+        this.draft.geometry.y = minY;
+        this.draft.geometry.width = maxX - minX;
+        this.draft.geometry.height = maxY - minY;
         editor.state.marquee = BoundingBoxService.getAABB(this.draft);
       }
     }
@@ -552,11 +568,11 @@ var EditorEngine = (() => {
       if (editor.state.marquee) {
         const marquee = (_a = editor.state.marquee) != null ? _a : {};
         editor.document.getAll().forEach((shape) => {
-          const intersect = shape.kind === "line" ? BoundingBoxService.lineIntersectsAABB(
-            shape.transform.x + shape.local.x1,
-            shape.transform.y + shape.local.y1,
-            shape.transform.x + shape.local.x2,
-            shape.transform.y + shape.local.y2,
+          const intersect = shape.type === "LINE" ? BoundingBoxService.lineIntersectsAABB(
+            shape.geometry.x + shape.geometry.x1,
+            shape.geometry.y + shape.geometry.y1,
+            shape.geometry.x + shape.geometry.x2,
+            shape.geometry.y + shape.geometry.y2,
             marquee
           ) : BoundingBoxService.aabbIntersects(
             marquee,
@@ -614,64 +630,64 @@ var EditorEngine = (() => {
     onPointerUp(e, ctx) {
     }
     resizeSingleShape(shape, original, dx, dy, handle) {
-      if (shape.kind === "line" && original.kind === "line") {
+      if (shape.type === "LINE" && original.type === "LINE") {
         this.resizeLine(shape, original, dx, dy, handle);
-      } else if ((shape.kind === "rectangle" || shape.kind === "ellipse") && (original.kind === "rectangle" || original.kind === "ellipse")) {
+      } else if ((shape.type === "RECTANGLE" || shape.type === "ELLIPSE") && (original.type === "RECTANGLE" || original.type === "ELLIPSE")) {
         this.resizeRectangular(shape, original, dx, dy, handle);
       }
     }
     resizeLine(shape, original, dx, dy, handle) {
       if (handle === "p1") {
-        shape.local.x1 = original.local.x1 + dx;
-        shape.local.y1 = original.local.y1 + dy;
+        shape.geometry.x1 = original.geometry.x1 + dx;
+        shape.geometry.y1 = original.geometry.y1 + dy;
       } else if (handle === "p2") {
-        shape.local.x2 = original.local.x2 + dx;
-        shape.local.y2 = original.local.y2 + dy;
+        shape.geometry.x2 = original.geometry.x2 + dx;
+        shape.geometry.y2 = original.geometry.y2 + dy;
       }
     }
     resizeRectangular(shape, original, dx, dy, handle) {
-      const cos = Math.cos(-shape.transform.rotation);
-      const sin = Math.sin(-shape.transform.rotation);
+      const cos = Math.cos(-shape.geometry.rotation);
+      const sin = Math.sin(-shape.geometry.rotation);
       const localDx = dx * cos - dy * sin;
       const localDy = dx * sin + dy * cos;
       switch (handle) {
         case "nw":
-          shape.local.width = original.local.width - localDx;
-          shape.local.height = original.local.height - localDy;
-          shape.transform.x = original.transform.x + dx;
-          shape.transform.y = original.transform.y + dy;
+          shape.geometry.width = original.geometry.width - localDx;
+          shape.geometry.height = original.geometry.height - localDy;
+          shape.geometry.x = original.geometry.x + dx;
+          shape.geometry.y = original.geometry.y + dy;
           break;
         case "ne":
-          shape.local.width = original.local.width + localDx;
-          shape.local.height = original.local.height - localDy;
-          shape.transform.y = original.transform.y + dy;
+          shape.geometry.width = original.geometry.width + localDx;
+          shape.geometry.height = original.geometry.height - localDy;
+          shape.geometry.y = original.geometry.y + dy;
           break;
         case "se":
-          shape.local.width = original.local.width + localDx;
-          shape.local.height = original.local.height + localDy;
+          shape.geometry.width = original.geometry.width + localDx;
+          shape.geometry.height = original.geometry.height + localDy;
           break;
         case "sw":
-          shape.local.width = original.local.width - localDx;
-          shape.local.height = original.local.height + localDy;
-          shape.transform.x = original.transform.x + dx;
+          shape.geometry.width = original.geometry.width - localDx;
+          shape.geometry.height = original.geometry.height + localDy;
+          shape.geometry.x = original.geometry.x + dx;
           break;
         case "n":
-          shape.local.height = original.local.height - localDy;
-          shape.transform.y = original.transform.y + dy;
+          shape.geometry.height = original.geometry.height - localDy;
+          shape.geometry.y = original.geometry.y + dy;
           break;
         case "e":
-          shape.local.width = original.local.width + localDx;
+          shape.geometry.width = original.geometry.width + localDx;
           break;
         case "s":
-          shape.local.height = original.local.height + localDy;
+          shape.geometry.height = original.geometry.height + localDy;
           break;
         case "w":
-          shape.local.width = original.local.width - localDx;
-          shape.transform.x = original.transform.x + dx;
+          shape.geometry.width = original.geometry.width - localDx;
+          shape.geometry.x = original.geometry.x + dx;
           break;
       }
-      if (shape.local.width < 1) shape.local.width = 1;
-      if (shape.local.height < 1) shape.local.height = 1;
+      if (shape.geometry.width < 1) shape.geometry.width = 1;
+      if (shape.geometry.height < 1) shape.geometry.height = 1;
     }
     resizeMultipleShapes(editor, dx, dy, handle) {
       console.log("Multi-shape resize not yet implemented");
@@ -695,9 +711,9 @@ var EditorEngine = (() => {
         if (shape) {
           this.centerPoint = this.getShapeCenter(shape);
           this.originalTransforms.set(shape.id, {
-            x: shape.transform.x,
-            y: shape.transform.y,
-            rotation: shape.transform.rotation
+            x: shape.geometry.x,
+            y: shape.geometry.y,
+            rotation: shape.geometry.rotation
           });
         }
       } else if (editor.state.selectionBounds) {
@@ -710,9 +726,9 @@ var EditorEngine = (() => {
           const shape = editor.document.getById(shapeId);
           if (shape) {
             this.originalTransforms.set(shape.id, {
-              x: shape.transform.x,
-              y: shape.transform.y,
-              rotation: shape.transform.rotation
+              x: shape.geometry.x,
+              y: shape.geometry.y,
+              rotation: shape.geometry.rotation
             });
           }
         });
@@ -743,24 +759,24 @@ var EditorEngine = (() => {
         if (shape) {
           const original = this.originalTransforms.get(shape.id);
           if (original) {
-            if (shape.kind === "rectangle" || shape.kind === "ellipse") {
-              shape.transform.rotation = original.rotation + deltaAngle;
-            } else if (shape.kind === "line") {
-              const centerWorldX = shape.transform.x + (shape.local.x1 + shape.local.x2) / 2;
-              const centerWorldY = shape.transform.y + (shape.local.y1 + shape.local.y2) / 2;
-              const dx = shape.local.x1 - (shape.local.x1 + shape.local.x2) / 2;
-              const dy = shape.local.y1 - (shape.local.y1 + shape.local.y2) / 2;
+            if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
+              shape.geometry.rotation = original.rotation + deltaAngle;
+            } else if (shape.type === "LINE") {
+              const centerWorldX = shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const centerWorldY = shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2;
+              const dx = shape.geometry.x1 - (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const dy = shape.geometry.y1 - (shape.geometry.y1 + shape.geometry.y2) / 2;
               const radius = Math.sqrt(dx * dx + dy * dy);
               const angle = Math.atan2(
                 e.clientY - centerWorldY,
                 e.clientX - centerWorldX
               );
-              const centerLocalX = (shape.local.x1 + shape.local.x2) / 2;
-              const centerLocalY = (shape.local.y1 + shape.local.y2) / 2;
-              shape.local.x2 = centerLocalX + radius * Math.cos(angle);
-              shape.local.y2 = centerLocalY + radius * Math.sin(angle);
-              shape.local.x1 = centerLocalX - radius * Math.cos(angle);
-              shape.local.y1 = centerLocalY - radius * Math.sin(angle);
+              const centerLocalX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const centerLocalY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+              shape.geometry.x2 = centerLocalX + radius * Math.cos(angle);
+              shape.geometry.y2 = centerLocalY + radius * Math.sin(angle);
+              shape.geometry.x1 = centerLocalX - radius * Math.cos(angle);
+              shape.geometry.y1 = centerLocalY - radius * Math.sin(angle);
             }
             editor.document.update(shape);
           }
@@ -778,9 +794,9 @@ var EditorEngine = (() => {
                 this.centerPoint.y,
                 deltaAngle
               );
-              shape.transform.x = rotatedPos.x;
-              shape.transform.y = rotatedPos.y;
-              shape.transform.rotation = original.rotation + deltaAngle;
+              shape.geometry.x = rotatedPos.x;
+              shape.geometry.y = rotatedPos.y;
+              shape.geometry.rotation = original.rotation + deltaAngle;
               editor.document.update(shape);
             }
           }
@@ -806,17 +822,17 @@ var EditorEngine = (() => {
       };
     }
     getShapeCenter(shape) {
-      if (shape.kind === "line") {
-        const midX = (shape.local.x1 + shape.local.x2) / 2;
-        const midY = (shape.local.y1 + shape.local.y2) / 2;
+      if (shape.type === "LINE") {
+        const midX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+        const midY = (shape.geometry.y1 + shape.geometry.y2) / 2;
         return {
-          x: shape.transform.x + midX,
-          y: shape.transform.y + midY
+          x: shape.geometry.x + midX,
+          y: shape.geometry.y + midY
         };
       } else {
         return {
-          x: shape.transform.x + shape.local.width / 2,
-          y: shape.transform.y + shape.local.height / 2
+          x: shape.geometry.x + shape.geometry.width / 2,
+          y: shape.geometry.y + shape.geometry.height / 2
         };
       }
     }
@@ -901,18 +917,18 @@ var EditorEngine = (() => {
     }
     /**
      * Get center position for a shape
-     * Top-left based: calculate center from transform.x/y + dimensions
+     * Top-left based: calculate center from geometry.x/y + dimensions
      */
     static getShapeCenter(shape) {
-      if (shape.kind === "line") {
+      if (shape.type === "LINE") {
         return {
-          x: shape.transform.x + (shape.local.x1 + shape.local.x2) / 2,
-          y: shape.transform.y + (shape.local.y1 + shape.local.y2) / 2
+          x: shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
+          y: shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2
         };
       }
       return {
-        x: shape.transform.x + shape.local.width / 2,
-        y: shape.transform.y + shape.local.height / 2
+        x: shape.geometry.x + shape.geometry.width / 2,
+        y: shape.geometry.y + shape.geometry.height / 2
       };
     }
     /**
@@ -985,20 +1001,20 @@ var EditorEngine = (() => {
       };
     }
     static getShapeHandleGeometry(shape) {
-      if (shape.kind === "line") {
+      if (shape.type === "LINE") {
         return this.getLineHandleGeometry(shape);
       }
       return this.getRectangularHandleGeometry(shape);
     }
     static getLineHandleGeometry(shape) {
-      const centerX = (shape.local.x1 + shape.local.x2) / 2;
-      const centerY = (shape.local.y1 + shape.local.y2) / 2;
-      const relP1X = shape.local.x1 - centerX;
-      const relP1Y = shape.local.y1 - centerY;
-      const relP2X = shape.local.x2 - centerX;
-      const relP2Y = shape.local.y2 - centerY;
+      const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+      const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+      const relP1X = shape.geometry.x1 - centerX;
+      const relP1Y = shape.geometry.y1 - centerY;
+      const relP2X = shape.geometry.x2 - centerX;
+      const relP2Y = shape.geometry.y2 - centerY;
       const length = Math.sqrt(
-        Math.pow(shape.local.x2 - shape.local.x1, 2) + Math.pow(shape.local.y2 - shape.local.y1, 2)
+        Math.pow(shape.geometry.x2 - shape.geometry.x1, 2) + Math.pow(shape.geometry.y2 - shape.geometry.y1, 2)
       );
       const dirP1X = length > 0 ? relP1X / (length / 2) : 0;
       const dirP1Y = length > 0 ? relP1Y / (length / 2) : 0;
@@ -1034,8 +1050,8 @@ var EditorEngine = (() => {
       };
     }
     static getRectangularHandleGeometry(shape) {
-      const halfW = shape.local.width / 2;
-      const halfH = shape.local.height / 2;
+      const halfW = shape.geometry.width / 2;
+      const halfH = shape.geometry.height / 2;
       return {
         corners: {
           nw: {
@@ -1191,7 +1207,7 @@ var EditorEngine = (() => {
             geometry,
             center.x,
             center.y,
-            shape.transform.rotation
+            shape.geometry.rotation
           );
         }
       }
@@ -1203,21 +1219,27 @@ var EditorEngine = (() => {
   var LineTool = class {
     constructor() {
       this.id = "line";
+      this.hasDragged = false;
     }
     onPointerDown(e, { editor }) {
+      this.hasDragged = false;
       this.draft = {
         id: crypto.randomUUID(),
-        kind: this.id,
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: e.clientX, y: e.clientY, rotation: 0 },
-        local: {
+        type: "LINE" /* LINE */,
+        style: {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
+        },
+        geometry: {
+          x: e.clientX,
+          y: e.clientY,
+          rotation: 0,
           x1: 0,
           y1: 0,
           x2: 0,
-          y2: 0
-        },
-        lineWidth: 4
+          y2: 0,
+          lineWidth: 4
+        }
       };
       editor.selection.setSingle(this.draft.id);
       editor.document.add(this.draft);
@@ -1225,16 +1247,32 @@ var EditorEngine = (() => {
     onPointerMove(e, { editor, renderOverlays }) {
       var _a;
       if (!this.draft) return;
-      this.draft.local.x2 = e.clientX - this.draft.transform.x;
-      this.draft.local.y2 = e.clientY - this.draft.transform.y;
+      const nextX2 = e.clientX - this.draft.geometry.x;
+      const nextY2 = e.clientY - this.draft.geometry.y;
+      if (nextX2 === 0 && nextY2 === 0) return;
+      this.hasDragged = true;
+      this.draft.geometry.x2 = nextX2;
+      this.draft.geometry.y2 = nextY2;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
-      this.draft = void 0;
-      editor.setActiveTool("select");
+      var _a;
+      if (this.draft) {
+        if (!this.hasDragged) {
+          editor.document.remove(this.draft.id);
+          editor.selection.clear();
+          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+          this.draft = void 0;
+          this.hasDragged = false;
+          return;
+        }
+        this.draft = void 0;
+        this.hasDragged = false;
+        editor.setActiveTool("select");
+      }
     }
   };
 
@@ -1243,16 +1281,25 @@ var EditorEngine = (() => {
     constructor() {
       this.id = "rectangle";
       this.mouseStart = { x: 0, y: 0 };
+      this.hasDragged = false;
     }
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
+      this.hasDragged = false;
       this.draft = {
         id: crypto.randomUUID(),
-        kind: "rectangle",
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-        local: { width: 0, height: 0 }
+        type: "RECTANGLE" /* RECTANGLE */,
+        style: {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
+        },
+        geometry: {
+          x: this.mouseStart.x,
+          y: this.mouseStart.y,
+          rotation: 0,
+          width: 0,
+          height: 0
+        }
       };
       editor.selection.setSingle(this.draft.id);
       editor.document.add(this.draft);
@@ -1264,18 +1311,34 @@ var EditorEngine = (() => {
       const maxX = Math.max(this.mouseStart.x, e.clientX);
       const minY = Math.min(this.mouseStart.y, e.clientY);
       const maxY = Math.max(this.mouseStart.y, e.clientY);
-      this.draft.transform.x = minX;
-      this.draft.transform.y = minY;
-      this.draft.local.width = maxX - minX;
-      this.draft.local.height = maxY - minY;
+      const width = maxX - minX;
+      const height = maxY - minY;
+      if (width === 0 && height === 0) return;
+      this.hasDragged = true;
+      this.draft.geometry.x = minX;
+      this.draft.geometry.y = minY;
+      this.draft.geometry.width = width;
+      this.draft.geometry.height = height;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
-      this.draft = void 0;
-      editor.setActiveTool("select");
+      var _a;
+      if (this.draft) {
+        if (!this.hasDragged) {
+          editor.document.remove(this.draft.id);
+          editor.selection.clear();
+          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+          this.draft = void 0;
+          this.hasDragged = false;
+          return;
+        }
+        this.draft = void 0;
+        this.hasDragged = false;
+        editor.setActiveTool("select");
+      }
     }
   };
 
@@ -1284,16 +1347,25 @@ var EditorEngine = (() => {
     constructor() {
       this.id = "ellipse";
       this.mouseStart = { x: 0, y: 0 };
+      this.hasDragged = false;
     }
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
+      this.hasDragged = false;
       this.draft = {
         id: crypto.randomUUID(),
-        kind: "ellipse",
-        fillStyle: editor.state.toolOptions.fillColor,
-        strokeStyle: editor.state.toolOptions.strokeColor,
-        transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-        local: { width: 0, height: 0 }
+        type: "ELLIPSE" /* ELLIPSE */,
+        style: {
+          fillColor: editor.state.toolOptions.fillColor,
+          strokeColor: editor.state.toolOptions.strokeColor
+        },
+        geometry: {
+          x: this.mouseStart.x,
+          y: this.mouseStart.y,
+          rotation: 0,
+          width: 0,
+          height: 0
+        }
       };
       editor.selection.setSingle(this.draft.id);
       editor.document.add(this.draft);
@@ -1305,18 +1377,34 @@ var EditorEngine = (() => {
       const minY = Math.min(this.mouseStart.y, e.clientY);
       const maxX = Math.max(this.mouseStart.x, e.clientX);
       const maxY = Math.max(this.mouseStart.y, e.clientY);
-      this.draft.transform.x = minX;
-      this.draft.transform.y = minY;
-      this.draft.local.width = maxX - minX;
-      this.draft.local.height = maxY - minY;
+      const width = maxX - minX;
+      const height = maxY - minY;
+      if (width === 0 && height === 0) return;
+      this.hasDragged = true;
+      this.draft.geometry.x = minX;
+      this.draft.geometry.y = minY;
+      this.draft.geometry.width = width;
+      this.draft.geometry.height = height;
       editor.document.update(this.draft);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
     onPointerUp(e, { editor }) {
-      this.draft = void 0;
-      editor.setActiveTool("select");
+      var _a;
+      if (this.draft) {
+        if (!this.hasDragged) {
+          editor.document.remove(this.draft.id);
+          editor.selection.clear();
+          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+          this.draft = void 0;
+          this.hasDragged = false;
+          return;
+        }
+        this.draft = void 0;
+        this.hasDragged = false;
+        editor.setActiveTool("select");
+      }
     }
   };
 
@@ -1325,13 +1413,16 @@ var EditorEngine = (() => {
     constructor() {
     }
     static getPath(shape) {
-      switch (shape.kind) {
-        case "rectangle":
+      switch (shape.type) {
+        case "RECTANGLE":
           return this.createPathForRectangle(shape);
-        case "ellipse":
+        case "ELLIPSE":
           return this.createPathForEllipse(shape);
-        case "line":
+        case "LINE":
           return this.createPathForLine(shape);
+        default:
+          const _exhaustiveCheck = shape;
+          throw new Error(`Unknown shape type`);
       }
     }
     static getPathFromAABB(box) {
@@ -1343,9 +1434,9 @@ var EditorEngine = (() => {
     }
     static createPathForRectangle(shape) {
       const path = new Path2D();
-      const halfW = shape.local.width / 2;
-      const halfH = shape.local.height / 2;
-      path.rect(-halfW, -halfH, shape.local.width, shape.local.height);
+      const halfW = shape.geometry.width / 2;
+      const halfH = shape.geometry.height / 2;
+      path.rect(-halfW, -halfH, shape.geometry.width, shape.geometry.height);
       return path;
     }
     static createPathForEllipse(shape) {
@@ -1353,8 +1444,8 @@ var EditorEngine = (() => {
       path.ellipse(
         0,
         0,
-        Math.abs(shape.local.width) / 2,
-        Math.abs(shape.local.height) / 2,
+        Math.abs(shape.geometry.width) / 2,
+        Math.abs(shape.geometry.height) / 2,
         0,
         0,
         2 * Math.PI
@@ -1363,10 +1454,10 @@ var EditorEngine = (() => {
     }
     static createPathForLine(shape) {
       const path = new Path2D();
-      const centerX = (shape.local.x1 + shape.local.x2) / 2;
-      const centerY = (shape.local.y1 + shape.local.y2) / 2;
-      path.moveTo(shape.local.x1 - centerX, shape.local.y1 - centerY);
-      path.lineTo(shape.local.x2 - centerX, shape.local.y2 - centerY);
+      const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+      const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+      path.moveTo(shape.geometry.x1 - centerX, shape.geometry.y1 - centerY);
+      path.lineTo(shape.geometry.x2 - centerX, shape.geometry.y2 - centerY);
       return path;
     }
     static getHandlePaths(geometry) {
@@ -1411,10 +1502,10 @@ var EditorEngine = (() => {
       this.ctx.save();
       const center = HandleHitTestService.getShapeCenter(shape);
       this.ctx.translate(center.x, center.y);
-      this.ctx.rotate(shape.transform.rotation);
+      this.ctx.rotate(shape.geometry.rotation);
       this.ctx.lineWidth = 10;
       const path = CanvasPathBuilder.getPath(shape);
-      const hitFound = shape.kind === "line" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
+      const hitFound = shape.type === "LINE" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
       this.ctx.restore();
       return hitFound;
     }
@@ -1467,22 +1558,22 @@ var EditorEngine = (() => {
     }
     renderShape(shape) {
       this.ctx.save();
-      this.ctx.fillStyle = shape.fillStyle;
-      this.ctx.strokeStyle = shape.strokeStyle;
+      this.ctx.fillStyle = shape.style.fillColor;
+      this.ctx.strokeStyle = shape.style.strokeColor;
       const path = CanvasPathBuilder.getPath(shape);
-      let centerX = shape.transform.x;
-      let centerY = shape.transform.y;
-      if (shape.kind === "line") {
-        centerX += (shape.local.x1 + shape.local.x2) / 2;
-        centerY += (shape.local.y1 + shape.local.y2) / 2;
+      let centerX = shape.geometry.x;
+      let centerY = shape.geometry.y;
+      if (shape.type === "LINE") {
+        centerX += (shape.geometry.x1 + shape.geometry.x2) / 2;
+        centerY += (shape.geometry.y1 + shape.geometry.y2) / 2;
       } else {
-        centerX += shape.local.width / 2;
-        centerY += shape.local.height / 2;
+        centerX += shape.geometry.width / 2;
+        centerY += shape.geometry.height / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(shape.transform.rotation);
-      if (shape.kind === "line") {
-        this.ctx.lineWidth = shape.lineWidth;
+      this.ctx.rotate(shape.geometry.rotation);
+      if (shape.type === "LINE") {
+        this.ctx.lineWidth = shape.geometry.lineWidth;
       } else this.ctx.fill(path);
       this.ctx.stroke(path);
       this.ctx.restore();
@@ -1501,17 +1592,17 @@ var EditorEngine = (() => {
       this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor;
       this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth;
       const path = CanvasPathBuilder.getPath(hoveredShape);
-      let centerX = hoveredShape.transform.x;
-      let centerY = hoveredShape.transform.y;
-      if (hoveredShape.kind === "line") {
-        centerX += (hoveredShape.local.x1 + hoveredShape.local.x2) / 2;
-        centerY += (hoveredShape.local.y1 + hoveredShape.local.y2) / 2;
+      let centerX = hoveredShape.geometry.x;
+      let centerY = hoveredShape.geometry.y;
+      if (hoveredShape.type === "LINE") {
+        centerX += (hoveredShape.geometry.x1 + hoveredShape.geometry.x2) / 2;
+        centerY += (hoveredShape.geometry.y1 + hoveredShape.geometry.y2) / 2;
       } else {
-        centerX += hoveredShape.local.width / 2;
-        centerY += hoveredShape.local.height / 2;
+        centerX += hoveredShape.geometry.width / 2;
+        centerY += hoveredShape.geometry.height / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(hoveredShape.transform.rotation);
+      this.ctx.rotate(hoveredShape.geometry.rotation);
       this.ctx.stroke(path);
       this.ctx.restore();
     }
@@ -1585,17 +1676,17 @@ var EditorEngine = (() => {
     }
     drawHandlesForShape(paths, shape) {
       this.ctx.save();
-      let centerX = shape.transform.x;
-      let centerY = shape.transform.y;
-      if (shape.kind === "rectangle" || shape.kind === "ellipse") {
-        centerX += shape.local.width / 2;
-        centerY += shape.local.height / 2;
-      } else if (shape.kind === "line") {
-        centerX += (shape.local.x1 + shape.local.x2) / 2;
-        centerY += (shape.local.y1 + shape.local.y2) / 2;
+      let centerX = shape.geometry.x;
+      let centerY = shape.geometry.y;
+      if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
+        centerX += shape.geometry.width / 2;
+        centerY += shape.geometry.height / 2;
+      } else if (shape.type === "LINE") {
+        centerX += (shape.geometry.x1 + shape.geometry.x2) / 2;
+        centerY += (shape.geometry.y1 + shape.geometry.y2) / 2;
       }
       this.ctx.translate(centerX, centerY);
-      this.ctx.rotate(shape.transform.rotation);
+      this.ctx.rotate(shape.geometry.rotation);
       this.ctx.fillStyle = EditorConfig.handleOptions.cornerFillColor;
       this.ctx.strokeStyle = EditorConfig.handleOptions.cornerStrokeColor;
       this.ctx.lineWidth = EditorConfig.handleOptions.cornerStrokeWidth;

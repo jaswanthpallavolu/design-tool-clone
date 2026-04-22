@@ -142,18 +142,18 @@ export class HandleHitTestService {
 
   /**
    * Get center position for a shape
-   * Top-left based: calculate center from transform.x/y + dimensions
+   * Top-left based: calculate center from geometry.x/y + dimensions
    */
   static getShapeCenter(shape: Shape): { x: number; y: number } {
-    if (shape.kind === "line") {
+    if (shape.type === "LINE") {
       return {
-        x: shape.transform.x + (shape.local.x1 + shape.local.x2) / 2,
-        y: shape.transform.y + (shape.local.y1 + shape.local.y2) / 2,
+        x: shape.geometry.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
+        y: shape.geometry.y + (shape.geometry.y1 + shape.geometry.y2) / 2,
       }
     }
     return {
-      x: shape.transform.x + shape.local.width / 2,
-      y: shape.transform.y + shape.local.height / 2,
+      x: shape.geometry.x + shape.geometry.width / 2,
+      y: shape.geometry.y + shape.geometry.height / 2,
     }
   }
 

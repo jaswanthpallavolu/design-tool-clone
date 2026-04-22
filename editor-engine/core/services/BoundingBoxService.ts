@@ -9,7 +9,7 @@ export interface AABB {
 
 export class BoundingBoxService {
   static getAABB(shape: Shape): AABB {
-    return shape.kind === "line"
+    return shape.type === "LINE"
       ? this.getAABBForLine(shape)
       : this.getAABBForRectangle(shape)
   }
@@ -17,20 +17,20 @@ export class BoundingBoxService {
   /**
    * Calculate AABB for rectangle or ellipse shapes
    * Handles rotation by computing the bounding box of all rotated corners
-   * Top-left based: calculate center from transform.x/y + dimensions
+   * Top-left based: calculate center from geometry.x/y + dimensions
    */
   private static getAABBForRectangle(
     shape: RectangleShape | EllipseShape,
   ): AABB {
-    const hw = shape.local.width / 2
-    const hh = shape.local.height / 2
+    const hw = shape.geometry.width / 2
+    const hh = shape.geometry.height / 2
 
     // Top-left based: calculate center
-    const cx = shape.transform.x + hw
-    const cy = shape.transform.y + hh
+    const cx = shape.geometry.x + hw
+    const cy = shape.geometry.y + hh
 
-    const cos = Math.cos(shape.transform.rotation)
-    const sin = Math.sin(shape.transform.rotation)
+    const cos = Math.cos(shape.geometry.rotation)
+    const sin = Math.sin(shape.geometry.rotation)
 
     // Define corners relative to center
     const corners = [
@@ -62,14 +62,14 @@ export class BoundingBoxService {
   /**
    * Calculate AABB for line shapes
    * Includes stroke width padding
-   * Top-left based: transform.x/y + local coords
+   * Top-left based: geometry.x/y + local coords
    */
   private static getAABBForLine(shape: LineShape): AABB {
-    // Top-left based: add local coords to transform position
-    const x1 = shape.transform.x + shape.local.x1
-    const y1 = shape.transform.y + shape.local.y1
-    const x2 = shape.transform.x + shape.local.x2
-    const y2 = shape.transform.y + shape.local.y2
+    // Top-left based: add local coords to geometry position
+    const x1 = shape.geometry.x + shape.geometry.x1
+    const y1 = shape.geometry.y + shape.geometry.y1
+    const x2 = shape.geometry.x + shape.geometry.x2
+    const y2 = shape.geometry.y + shape.geometry.y2
 
     let minX = Math.min(x1, x2)
     let minY = Math.min(y1, y2)
@@ -77,8 +77,8 @@ export class BoundingBoxService {
     let maxY = Math.max(y1, y2)
 
     // Add padding for stroke width
-    if (shape.lineWidth > 0) {
-      const pad = shape.lineWidth / 2
+    if (shape.geometry.lineWidth > 0) {
+      const pad = shape.geometry.lineWidth / 2
       minX -= pad
       minY -= pad
       maxX += pad

@@ -12,11 +12,11 @@ export class CanvasHitTestAdapter implements HitTestPort {
     this.ctx.save()
     const center = HandleHitTestService.getShapeCenter(shape)
     this.ctx.translate(center.x, center.y)
-    this.ctx.rotate(shape.transform.rotation)
+    this.ctx.rotate(shape.geometry.rotation)
     this.ctx.lineWidth = 10
     const path = CanvasPathBuilder.getPath(shape)
     const hitFound =
-      shape.kind === "line"
+      shape.type === "LINE"
         ? this.ctx.isPointInStroke(path, x, y)
         : this.ctx.isPointInPath(path, x, y)
     this.ctx.restore()

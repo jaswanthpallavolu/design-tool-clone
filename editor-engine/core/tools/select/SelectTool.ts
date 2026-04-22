@@ -150,7 +150,7 @@ export class SelectTool implements Tool {
           geometry,
           center.x,
           center.y,
-          shape.transform.rotation,
+          shape.geometry.rotation,
         )
       }
     }

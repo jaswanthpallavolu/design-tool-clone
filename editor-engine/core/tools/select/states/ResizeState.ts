@@ -2,7 +2,12 @@ import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "../../../types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
-import { Shape } from "../../../model/Shape"
+import {
+  Shape,
+  LineShape,
+  RectangleShape,
+  EllipseShape,
+} from "../../../model/Shape"
 import { Editor } from "../../../Editor"
 
 export class ResizeState implements InteractionState {
@@ -62,89 +67,89 @@ export class ResizeState implements InteractionState {
     dy: number,
     handle: string,
   ): void {
-    if (shape.kind === "line" && original.kind === "line") {
+    if (shape.type === "LINE" && original.type === "LINE") {
       this.resizeLine(shape, original, dx, dy, handle)
     } else if (
-      (shape.kind === "rectangle" || shape.kind === "ellipse") &&
-      (original.kind === "rectangle" || original.kind === "ellipse")
+      (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") &&
+      (original.type === "RECTANGLE" || original.type === "ELLIPSE")
     ) {
       this.resizeRectangular(shape, original, dx, dy, handle)
     }
   }
 
   private resizeLine(
-    shape: Shape & { kind: "line" },
-    original: Shape & { kind: "line" },
+    shape: LineShape,
+    original: LineShape,
     dx: number,
     dy: number,
     handle: string,
   ): void {
-    // Top-left based: transform.x/y stays fixed, adjust local coords
+    // Top-left based: geometry.x/y stays fixed, adjust local coords
     if (handle === "p1") {
       // Move p1 endpoint
-      shape.local.x1 = original.local.x1 + dx
-      shape.local.y1 = original.local.y1 + dy
+      shape.geometry.x1 = original.geometry.x1 + dx
+      shape.geometry.y1 = original.geometry.y1 + dy
     } else if (handle === "p2") {
       // Move p2 endpoint
-      shape.local.x2 = original.local.x2 + dx
-      shape.local.y2 = original.local.y2 + dy
+      shape.geometry.x2 = original.geometry.x2 + dx
+      shape.geometry.y2 = original.geometry.y2 + dy
     }
   }
 
   private resizeRectangular(
-    shape: Shape & { kind: "rectangle" | "ellipse" },
-    original: Shape & { kind: "rectangle" | "ellipse" },
+    shape: RectangleShape | EllipseShape,
+    original: RectangleShape | EllipseShape,
     dx: number,
     dy: number,
     handle: string,
   ): void {
     // Transform delta to local space
-    const cos = Math.cos(-shape.transform.rotation)
-    const sin = Math.sin(-shape.transform.rotation)
+    const cos = Math.cos(-shape.geometry.rotation)
+    const sin = Math.sin(-shape.geometry.rotation)
     const localDx = dx * cos - dy * sin
     const localDy = dx * sin + dy * cos
 
     // Top-left based resize: adjust both position and size
     switch (handle) {
       case "nw": // Top-left corner
-        shape.local.width = original.local.width - localDx
-        shape.local.height = original.local.height - localDy
-        shape.transform.x = original.transform.x + dx
-        shape.transform.y = original.transform.y + dy
+        shape.geometry.width = original.geometry.width - localDx
+        shape.geometry.height = original.geometry.height - localDy
+        shape.geometry.x = original.geometry.x + dx
+        shape.geometry.y = original.geometry.y + dy
         break
       case "ne": // Top-right corner
-        shape.local.width = original.local.width + localDx
-        shape.local.height = original.local.height - localDy
-        shape.transform.y = original.transform.y + dy
+        shape.geometry.width = original.geometry.width + localDx
+        shape.geometry.height = original.geometry.height - localDy
+        shape.geometry.y = original.geometry.y + dy
         break
       case "se": // Bottom-right corner
-        shape.local.width = original.local.width + localDx
-        shape.local.height = original.local.height + localDy
+        shape.geometry.width = original.geometry.width + localDx
+        shape.geometry.height = original.geometry.height + localDy
         break
       case "sw": // Bottom-left corner
-        shape.local.width = original.local.width - localDx
-        shape.local.height = original.local.height + localDy
-        shape.transform.x = original.transform.x + dx
+        shape.geometry.width = original.geometry.width - localDx
+        shape.geometry.height = original.geometry.height + localDy
+        shape.geometry.x = original.geometry.x + dx
         break
       case "n": // Top edge
-        shape.local.height = original.local.height - localDy
-        shape.transform.y = original.transform.y + dy
+        shape.geometry.height = original.geometry.height - localDy
+        shape.geometry.y = original.geometry.y + dy
         break
       case "e": // Right edge
-        shape.local.width = original.local.width + localDx
+        shape.geometry.width = original.geometry.width + localDx
         break
       case "s": // Bottom edge
-        shape.local.height = original.local.height + localDy
+        shape.geometry.height = original.geometry.height + localDy
         break
       case "w": // Left edge
-        shape.local.width = original.local.width - localDx
-        shape.transform.x = original.transform.x + dx
+        shape.geometry.width = original.geometry.width - localDx
+        shape.geometry.x = original.geometry.x + dx
         break
     }
 
     // Prevent negative dimensions
-    if (shape.local.width < 1) shape.local.width = 1
-    if (shape.local.height < 1) shape.local.height = 1
+    if (shape.geometry.width < 1) shape.geometry.width = 1
+    if (shape.geometry.height < 1) shape.geometry.height = 1
   }
 
   private resizeMultipleShapes(

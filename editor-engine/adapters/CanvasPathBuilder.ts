@@ -17,13 +17,16 @@ export class CanvasPathBuilder {
   private constructor() {}
 
   static getPath(shape: Shape): Path2D {
-    switch (shape.kind) {
-      case "rectangle":
+    switch (shape.type) {
+      case "RECTANGLE":
         return this.createPathForRectangle(shape)
-      case "ellipse":
+      case "ELLIPSE":
         return this.createPathForEllipse(shape)
-      case "line":
+      case "LINE":
         return this.createPathForLine(shape)
+      default:
+        const _exhaustiveCheck: never = shape
+        throw new Error(`Unknown shape type`)
     }
   }
 
@@ -38,9 +41,9 @@ export class CanvasPathBuilder {
   private static createPathForRectangle(shape: RectangleShape): Path2D {
     const path = new Path2D()
     // Center-based: draw rectangle centered at origin
-    const halfW = shape.local.width / 2
-    const halfH = shape.local.height / 2
-    path.rect(-halfW, -halfH, shape.local.width, shape.local.height)
+    const halfW = shape.geometry.width / 2
+    const halfH = shape.geometry.height / 2
+    path.rect(-halfW, -halfH, shape.geometry.width, shape.geometry.height)
     return path
   }
 
@@ -50,8 +53,8 @@ export class CanvasPathBuilder {
     path.ellipse(
       0,
       0,
-      Math.abs(shape.local.width) / 2,
-      Math.abs(shape.local.height) / 2,
+      Math.abs(shape.geometry.width) / 2,
+      Math.abs(shape.geometry.height) / 2,
       0,
       0,
       2 * Math.PI,
@@ -62,10 +65,10 @@ export class CanvasPathBuilder {
   private static createPathForLine(shape: LineShape): Path2D {
     const path = new Path2D()
     // Center-based: draw line centered at origin
-    const centerX = (shape.local.x1 + shape.local.x2) / 2
-    const centerY = (shape.local.y1 + shape.local.y2) / 2
-    path.moveTo(shape.local.x1 - centerX, shape.local.y1 - centerY)
-    path.lineTo(shape.local.x2 - centerX, shape.local.y2 - centerY)
+    const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2
+    const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2
+    path.moveTo(shape.geometry.x1 - centerX, shape.geometry.y1 - centerY)
+    path.lineTo(shape.geometry.x2 - centerX, shape.geometry.y2 - centerY)
     return path
   }
 

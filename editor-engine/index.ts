@@ -9,7 +9,7 @@ export { SelectionManager } from "./core/SelectionManager"
 export { ToolManager } from "./core/ToolManager"
 
 // Models
-export { type Shape } from "./core/model/Shape"
+export { type Shape, ShapeType } from "./core/model/Shape"
 
 // Types
 export { type PointerEventData } from "./core/types/InputTypes"

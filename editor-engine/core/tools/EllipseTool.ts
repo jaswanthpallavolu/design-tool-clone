@@ -1,5 +1,5 @@
 import { Tool, ToolContext } from "./Tool"
-import { EllipseShape } from "../model/Shape"
+import { EllipseShape, ShapeType } from "../model/Shape"
 import type { PointerEventData } from "../types/InputTypes"
 import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
 
@@ -14,11 +14,18 @@ export class EllipseTool implements Tool {
     this.hasDragged = false
     this.draft = {
       id: crypto.randomUUID(),
-      kind: "ellipse",
-      fillStyle: editor.state.toolOptions.fillColor,
-      strokeStyle: editor.state.toolOptions.strokeColor,
-      transform: { x: this.mouseStart.x, y: this.mouseStart.y, rotation: 0 },
-      local: { width: 0, height: 0 },
+      type: ShapeType.ELLIPSE,
+      style: {
+        fillColor: editor.state.toolOptions.fillColor,
+        strokeColor: editor.state.toolOptions.strokeColor,
+      },
+      geometry: {
+        x: this.mouseStart.x,
+        y: this.mouseStart.y,
+        rotation: 0,
+        width: 0,
+        height: 0,
+      },
     }
     editor.selection.setSingle(this.draft.id)
     editor.document.add(this.draft)
@@ -37,11 +44,11 @@ export class EllipseTool implements Tool {
 
     this.hasDragged = true
 
-    // Top-left based: transform.x/y is the top-left corner
-    this.draft.transform.x = minX
-    this.draft.transform.y = minY
-    this.draft.local.width = width
-    this.draft.local.height = height
+    // Top-left based: geometry.x/y is the top-left corner
+    this.draft.geometry.x = minX
+    this.draft.geometry.y = minY
+    this.draft.geometry.width = width
+    this.draft.geometry.height = height
     editor.document.update(this.draft)
     editor.renderer?.renderShapes()
     SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays })
