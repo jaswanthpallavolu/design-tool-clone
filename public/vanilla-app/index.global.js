@@ -23,18 +23,24 @@ var EditorEngine = (() => {
   __export(index_exports, {
     BoundingBoxService: () => BoundingBoxService,
     CanvasRenderer: () => CanvasRenderer,
+    ClearCommand: () => ClearCommand,
+    Command: () => Command,
+    CommandManager: () => CommandManager,
     Document: () => Document,
     Editor: () => Editor,
     EditorState: () => EditorState,
     EllipseTool: () => EllipseTool,
+    EventBus: () => EventBus,
     GroupService: () => GroupService,
     LineTool: () => LineTool,
     NodeType: () => NodeType,
     RectangleTool: () => RectangleTool,
     SelectTool: () => SelectTool,
     SelectionManager: () => SelectionManager,
+    SetToolCommand: () => SetToolCommand,
     ShapeType: () => ShapeType,
     ToolManager: () => ToolManager,
+    UpdateToolOptionsCommand: () => UpdateToolOptionsCommand,
     createEllipseShape: () => createEllipseShape,
     createGroupNode: () => createGroupNode,
     createLineShape: () => createLineShape,
@@ -275,6 +281,23 @@ var EditorEngine = (() => {
      * Last drawn shape appears first (reverse order)
      */
     debugTree() {
+      console.log("Document Tree:");
+      const roots = this.getRootNodes();
+      for (const root of roots) {
+        this.printNode(root.id, 0);
+      }
+    }
+    printNode(nodeId, depth) {
+      const node = this.nodes.get(nodeId);
+      if (!node) return;
+      const indent = "  ".repeat(depth);
+      const type = node.type === "GROUP" /* GROUP */ ? "Group" : "Shape";
+      console.log(`${indent}${type} ${node.name} (${node.id})`);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.printNode(childId, depth + 1);
+        }
+      }
     }
   };
 
@@ -646,7 +669,7 @@ var EditorEngine = (() => {
      * Returns the ID of the newly created group
      */
     groupNodes(nodeIds) {
-      if (nodeIds.length < 2) {
+      if (nodeIds.length < 1) {
         return null;
       }
       const nodes = [];
@@ -725,7 +748,7 @@ var EditorEngine = (() => {
      * Check if multiple nodes can be grouped
      */
     canGroup(nodeIds) {
-      if (nodeIds.length < 2) return false;
+      if (nodeIds.length < 1) return false;
       const nodes = [];
       for (const id of nodeIds) {
         const node = this.document.getNode(id);
@@ -763,6 +786,357 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/EventBus.ts
+  var EventBus = class {
+    constructor() {
+      this.listeners = /* @__PURE__ */ new Map();
+    }
+    /**
+     * Subscribe to an event
+     * @param event - Event name to listen for
+     * @param callback - Function to call when event is emitted
+     * @returns Unsubscribe function
+     */
+    on(event, callback) {
+      if (!this.listeners.has(event)) {
+        this.listeners.set(event, /* @__PURE__ */ new Set());
+      }
+      this.listeners.get(event).add(callback);
+      return () => this.off(event, callback);
+    }
+    /**
+     * Subscribe to an event that fires only once
+     * @param event - Event name to listen for
+     * @param callback - Function to call when event is emitted
+     */
+    once(event, callback) {
+      const unsubscribe = this.on(event, (data) => {
+        unsubscribe();
+        callback(data);
+      });
+    }
+    /**
+     * Emit an event to all subscribers
+     * @param event - Event name to emit
+     * @param data - Data to pass to subscribers
+     */
+    emit(event, data) {
+      const callbacks = this.listeners.get(event);
+      if (callbacks) {
+        callbacks.forEach((callback) => {
+          try {
+            callback(data);
+          } catch (error) {
+            console.error(`Error in event listener for "${event}":`, error);
+          }
+        });
+      }
+      const wildcardCallbacks = this.listeners.get("*");
+      if (wildcardCallbacks) {
+        wildcardCallbacks.forEach((callback) => {
+          try {
+            callback({ event, data });
+          } catch (error) {
+            console.error(`Error in wildcard event listener:`, error);
+          }
+        });
+      }
+    }
+    /**
+     * Unsubscribe from an event
+     * @param event - Event name
+     * @param callback - Callback to remove
+     */
+    off(event, callback) {
+      const callbacks = this.listeners.get(event);
+      if (callbacks) {
+        callbacks.delete(callback);
+        if (callbacks.size === 0) {
+          this.listeners.delete(event);
+        }
+      }
+    }
+    /**
+     * Remove all listeners for an event, or all events if no event specified
+     * @param event - Optional event name to clear
+     */
+    clear(event) {
+      if (event) {
+        this.listeners.delete(event);
+      } else {
+        this.listeners.clear();
+      }
+    }
+    /**
+     * Get count of listeners for an event
+     * @param event - Event name
+     * @returns Number of listeners
+     */
+    listenerCount(event) {
+      var _a;
+      return ((_a = this.listeners.get(event)) == null ? void 0 : _a.size) || 0;
+    }
+  };
+
+  // editor-engine/core/commands/CommandManager.ts
+  var CommandManager = class {
+    constructor(eventBus) {
+      this.eventBus = eventBus;
+      this.history = [];
+      this.currentIndex = -1;
+      this.maxHistorySize = 100;
+    }
+    /**
+     * Execute a command and add it to history
+     * @param command - Command to execute
+     */
+    execute(command) {
+      if (!command.canExecute()) {
+        console.warn("Command cannot be executed:", command.describe());
+        return;
+      }
+      try {
+        command.execute();
+        if (command.isUndoable()) {
+          this.history = this.history.slice(0, this.currentIndex + 1);
+          this.history.push(command);
+          this.currentIndex++;
+          if (this.history.length > this.maxHistorySize) {
+            this.history.shift();
+            this.currentIndex--;
+          }
+        }
+        this.eventBus.emit("command:executed", {
+          command: command.describe(),
+          canUndo: this.canUndo(),
+          canRedo: this.canRedo()
+        });
+      } catch (error) {
+        console.error("Error executing command:", command.describe(), error);
+        this.eventBus.emit("command:error", {
+          command: command.describe(),
+          error
+        });
+      }
+    }
+    /**
+     * Undo the last command
+     * @returns true if undo was successful
+     */
+    undo() {
+      if (!this.canUndo()) {
+        return false;
+      }
+      try {
+        const command = this.history[this.currentIndex];
+        if (!command.canUndo()) {
+          console.warn("Command cannot be undone:", command.describe());
+          return false;
+        }
+        command.undo();
+        this.currentIndex--;
+        this.eventBus.emit("command:undone", {
+          command: command.describe(),
+          canUndo: this.canUndo(),
+          canRedo: this.canRedo()
+        });
+        return true;
+      } catch (error) {
+        console.error("Error undoing command:", error);
+        this.eventBus.emit("command:error", { error });
+        return false;
+      }
+    }
+    /**
+     * Redo the next command
+     * @returns true if redo was successful
+     */
+    redo() {
+      if (!this.canRedo()) {
+        return false;
+      }
+      try {
+        this.currentIndex++;
+        const command = this.history[this.currentIndex];
+        command.execute();
+        this.eventBus.emit("command:redone", {
+          command: command.describe(),
+          canUndo: this.canUndo(),
+          canRedo: this.canRedo()
+        });
+        return true;
+      } catch (error) {
+        console.error("Error redoing command:", error);
+        this.currentIndex--;
+        this.eventBus.emit("command:error", { error });
+        return false;
+      }
+    }
+    /**
+     * Check if undo is available
+     */
+    canUndo() {
+      return this.currentIndex >= 0;
+    }
+    /**
+     * Check if redo is available
+     */
+    canRedo() {
+      return this.currentIndex < this.history.length - 1;
+    }
+    /**
+     * Clear command history
+     */
+    clear() {
+      this.history = [];
+      this.currentIndex = -1;
+      this.eventBus.emit("command:history:cleared");
+    }
+    /**
+     * Get command history for debugging
+     */
+    getHistory() {
+      return this.history.map((cmd) => cmd.describe());
+    }
+    /**
+     * Get current position in history
+     */
+    getCurrentIndex() {
+      return this.currentIndex;
+    }
+    /**
+     * Set maximum history size
+     */
+    setMaxHistorySize(size) {
+      this.maxHistorySize = Math.max(1, size);
+    }
+  };
+
+  // editor-engine/core/commands/Command.ts
+  var Command = class {
+    /**
+     * Optional: Check if the command can be executed
+     * @returns true if command can be executed
+     */
+    canExecute() {
+      return true;
+    }
+    /**
+     * Optional: Check if the command can be undone
+     * @returns true if command can be undone
+     */
+    canUndo() {
+      return true;
+    }
+    /**
+     * Optional: Check if the command should be added to undo/redo history
+     * @returns true if command should be stored in history (default: true)
+     */
+    isUndoable() {
+      return true;
+    }
+  };
+
+  // editor-engine/core/commands/SetToolCommand.ts
+  var SetToolCommand = class extends Command {
+    constructor(editor, newToolId) {
+      var _a;
+      super();
+      this.editor = editor;
+      this.newToolId = newToolId;
+      this.oldToolId = ((_a = editor.tools.getActive()) == null ? void 0 : _a.id) || "";
+    }
+    execute() {
+      this.editor.tools.setActive(this.newToolId);
+      this.editor.events.emit("tool:changed", { toolId: this.newToolId });
+    }
+    undo() {
+      if (this.oldToolId) {
+        this.editor.tools.setActive(this.oldToolId);
+        this.editor.events.emit("tool:changed", { toolId: this.oldToolId });
+      }
+    }
+    describe() {
+      return `Set tool to ${this.newToolId}`;
+    }
+    canUndo() {
+      return !!this.oldToolId;
+    }
+    isUndoable() {
+      return false;
+    }
+  };
+
+  // editor-engine/core/commands/UpdateToolOptionsCommand.ts
+  var UpdateToolOptionsCommand = class extends Command {
+    constructor(editor, newOptions) {
+      super();
+      this.editor = editor;
+      this.newOptions = newOptions;
+      this.oldOptions = {};
+      Object.keys(newOptions).forEach((key) => {
+        const optionKey = key;
+        this.oldOptions[optionKey] = this.editor.state.toolOptions[optionKey];
+      });
+    }
+    execute() {
+      this.editor.state.updateToolOptions(this.newOptions);
+      this.editor.events.emit("tool:options:changed", {
+        options: this.newOptions
+      });
+    }
+    undo() {
+      this.editor.state.updateToolOptions(this.oldOptions);
+      this.editor.events.emit("tool:options:changed", {
+        options: this.oldOptions
+      });
+    }
+    describe() {
+      const changes = Object.entries(this.newOptions).map(([key, value]) => `${key}=${value}`).join(", ");
+      return `Update tool options: ${changes}`;
+    }
+    isUndoable() {
+      return false;
+    }
+  };
+
+  // editor-engine/core/commands/ClearCommand.ts
+  var ClearCommand = class extends Command {
+    constructor(editor) {
+      super();
+      this.editor = editor;
+      this.savedNodes = [];
+      this.savedSelection = [];
+    }
+    execute() {
+      var _a;
+      this.savedNodes = [...this.editor.document.getAllNodes()];
+      this.savedSelection = [...this.editor.selection.getAll()];
+      this.editor.document.clear();
+      this.editor.selection.clear();
+      this.editor.state.clearTransient();
+      (_a = this.editor.renderer) == null ? void 0 : _a.clear();
+      this.editor.events.emit("document:cleared");
+    }
+    undo() {
+      this.savedNodes.forEach((node) => {
+        this.editor.document.addNode(node);
+      });
+      if (this.savedSelection.length > 0) {
+        this.editor.selection.setMany(this.savedSelection);
+      }
+      this.editor.events.emit("document:restored", {
+        nodeCount: this.savedNodes.length
+      });
+    }
+    describe() {
+      return `Clear document (${this.savedNodes.length} nodes)`;
+    }
+    canUndo() {
+      return this.savedNodes.length > 0;
+    }
+  };
+
   // editor-engine/core/Editor.ts
   var Editor = class {
     constructor() {
@@ -771,17 +1145,34 @@ var EditorEngine = (() => {
       this.tools = new ToolManager(this);
       this.state = new EditorState();
       this.groupService = new GroupService(this.document);
+      this.events = new EventBus();
+      this.commands = new CommandManager(this.events);
+    }
+    /**
+     * Subscribe to editor events
+     * @param event - Event name
+     * @param callback - Callback function
+     * @returns Unsubscribe function
+     */
+    on(event, callback) {
+      return this.events.on(event, callback);
+    }
+    /**
+     * Emit an event (for internal use)
+     * @param event - Event name
+     * @param data - Event data
+     */
+    emit(event, data) {
+      this.events.emit(event, data);
     }
     addTools(tools) {
       this.tools.addTools(tools);
     }
     setActiveTool(tool) {
-      var _a;
-      this.tools.setActive(tool);
-      (_a = this.onToolChanged) == null ? void 0 : _a.call(this, tool);
+      this.commands.execute(new SetToolCommand(this, tool));
     }
     updateToolOptions(options) {
-      this.state.updateToolOptions(options);
+      this.commands.execute(new UpdateToolOptionsCommand(this, options));
     }
     getToolOption(key) {
       return this.state.getToolOption(key);
@@ -794,9 +1185,7 @@ var EditorEngine = (() => {
     }
     onPointerUp(e) {
       this.tools.pointerUp(e);
-      if (this.document.getAllNodes().length > 0) {
-        this.document.debugTree();
-      }
+      this.emit("document:modified");
     }
     onKeyDown(e) {
       var _a;
@@ -807,6 +1196,7 @@ var EditorEngine = (() => {
         } else {
           this.groupSelection();
         }
+        this.emit("document:modified");
         return;
       }
       if (!e.ctrlKey && !e.metaKey && !e.altKey) {
@@ -844,11 +1234,41 @@ var EditorEngine = (() => {
       this.renderer = renderer;
     }
     clear() {
-      var _a;
-      this.document.clear();
-      this.selection.clear();
-      this.state.clearTransient();
-      (_a = this.renderer) == null ? void 0 : _a.clear();
+      this.commands.execute(new ClearCommand(this));
+    }
+    /**
+     * Undo the last command
+     * @returns true if undo was successful
+     */
+    undo() {
+      const result = this.commands.undo();
+      if (result) {
+        this.emit("document:modified");
+      }
+      return result;
+    }
+    /**
+     * Redo the next command
+     * @returns true if redo was successful
+     */
+    redo() {
+      const result = this.commands.redo();
+      if (result) {
+        this.emit("document:modified");
+      }
+      return result;
+    }
+    /**
+     * Check if undo is available
+     */
+    canUndo() {
+      return this.commands.canUndo();
+    }
+    /**
+     * Check if redo is available
+     */
+    canRedo() {
+      return this.commands.canRedo();
     }
     // ---------------------------------------------
     // Grouping Operations

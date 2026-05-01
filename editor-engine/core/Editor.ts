@@ -7,6 +7,13 @@ import { RenderPort } from "./ports/RenderPort"
 import type { PointerEventData } from "./types/InputTypes"
 import { GroupService } from "./services/GroupService"
 import { BoundingBoxService } from "./services/BoundingBoxService"
+import { EventBus } from "./EventBus"
+import { CommandManager } from "./commands/CommandManager"
+import {
+  SetToolCommand,
+  UpdateToolOptionsCommand,
+  ClearCommand,
+} from "./commands"
 
 export class Editor {
   readonly document = new Document()
@@ -14,20 +21,43 @@ export class Editor {
   readonly tools = new ToolManager(this)
   readonly state = new EditorState()
   readonly groupService = new GroupService(this.document)
+  readonly events = new EventBus()
+  readonly commands: CommandManager
   renderer?: RenderPort
-  onToolChanged?: (toolId: string) => void
+
+  constructor() {
+    this.commands = new CommandManager(this.events)
+  }
+
+  /**
+   * Subscribe to editor events
+   * @param event - Event name
+   * @param callback - Callback function
+   * @returns Unsubscribe function
+   */
+  on(event: string, callback: (data?: unknown) => void): () => void {
+    return this.events.on(event, callback)
+  }
+
+  /**
+   * Emit an event (for internal use)
+   * @param event - Event name
+   * @param data - Event data
+   */
+  private emit(event: string, data?: unknown): void {
+    this.events.emit(event, data)
+  }
 
   addTools(tools: Tool[]) {
     this.tools.addTools(tools)
   }
 
   setActiveTool(tool: string) {
-    this.tools.setActive(tool)
-    this.onToolChanged?.(tool)
+    this.commands.execute(new SetToolCommand(this, tool))
   }
 
   updateToolOptions(options: Partial<ToolOptions>) {
-    this.state.updateToolOptions(options)
+    this.commands.execute(new UpdateToolOptionsCommand(this, options))
   }
 
   getToolOption(key: keyof ToolOptions) {
@@ -44,11 +74,7 @@ export class Editor {
 
   onPointerUp(e: PointerEventData) {
     this.tools.pointerUp(e)
-
-    // Debug: Print document tree after every interaction
-    if (this.document.getAllNodes().length > 0) {
-      this.document.debugTree()
-    }
+    this.emit("document:modified")
   }
 
   onKeyDown(e: KeyboardEvent) {
@@ -60,6 +86,7 @@ export class Editor {
       } else {
         this.groupSelection()
       }
+      this.emit("document:modified")
       return
     }
 
@@ -109,10 +136,45 @@ export class Editor {
   }
 
   clear() {
-    this.document.clear()
-    this.selection.clear()
-    this.state.clearTransient()
-    this.renderer?.clear()
+    this.commands.execute(new ClearCommand(this))
+  }
+
+  /**
+   * Undo the last command
+   * @returns true if undo was successful
+   */
+  undo(): boolean {
+    const result = this.commands.undo()
+    if (result) {
+      this.emit("document:modified")
+    }
+    return result
+  }
+
+  /**
+   * Redo the next command
+   * @returns true if redo was successful
+   */
+  redo(): boolean {
+    const result = this.commands.redo()
+    if (result) {
+      this.emit("document:modified")
+    }
+    return result
+  }
+
+  /**
+   * Check if undo is available
+   */
+  canUndo(): boolean {
+    return this.commands.canUndo()
+  }
+
+  /**
+   * Check if redo is available
+   */
+  canRedo(): boolean {
+    return this.commands.canRedo()
   }
 
   // ---------------------------------------------

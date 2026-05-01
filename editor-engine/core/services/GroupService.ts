@@ -14,7 +14,7 @@ export class GroupService {
    */
   groupNodes(nodeIds: string[]): string | null {
     // Validate input
-    if (nodeIds.length < 2) {
+    if (nodeIds.length < 1) {
       return null
     }
 
@@ -124,7 +124,7 @@ export class GroupService {
    * Check if multiple nodes can be grouped
    */
   canGroup(nodeIds: string[]): boolean {
-    if (nodeIds.length < 2) return false
+    if (nodeIds.length < 1) return false
 
     // Check if all nodes exist
     const nodes: Node[] = []
@@ -137,6 +137,8 @@ export class GroupService {
     // Check if all nodes have the same parent
     const parentIds = new Set(nodes.map((n) => n.parentId ?? "root"))
     return parentIds.size === 1
+
+    // [TODO] handle if all nodes doesn't have the same parent
   }
 
   /**

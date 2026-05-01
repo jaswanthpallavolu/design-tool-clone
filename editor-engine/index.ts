@@ -7,6 +7,16 @@ export { Document } from "./core/Document"
 export { EditorState, type ToolOptions } from "./core/EditorState"
 export { SelectionManager } from "./core/SelectionManager"
 export { ToolManager } from "./core/ToolManager"
+export { EventBus } from "./core/EventBus"
+
+// Commands
+export {
+  Command,
+  CommandManager,
+  SetToolCommand,
+  UpdateToolOptionsCommand,
+  ClearCommand,
+} from "./core/commands"
 
 // Services
 export { GroupService } from "./core/services/GroupService"

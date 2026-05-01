@@ -8,8 +8,8 @@
       "type": "chrome",
       "request": "launch",
       "name": "Launch Chrome against localhost",
-      "url": "http://localhost:3000/vanilla/index.html",
-      "webRoot": "${workspaceFolder}/public/vanilla"
+      "url": "http://localhost:3000/vanilla-app/index.html",
+      "webRoot": "${workspaceFolder}/public/vanilla-app"
     }
   ]
 }

@@ -237,7 +237,28 @@ export class Document {
    * Print document tree in depth-first order
    * Last drawn shape appears first (reverse order)
    */
+
   debugTree(): void {
-    // Debug tree printing removed
+    console.log("Document Tree:")
+    const roots = this.getRootNodes()
+
+    for (const root of roots) {
+      this.printNode(root.id, 0)
+    }
+  }
+
+  private printNode(nodeId: string, depth: number): void {
+    const node = this.nodes.get(nodeId)
+    if (!node) return
+
+    const indent = "  ".repeat(depth)
+    const type = node.type === NodeType.GROUP ? "Group" : "Shape"
+    console.log(`${indent}${type} ${node.name} (${node.id})`)
+
+    if (isGroupNode(node)) {
+      for (const childId of node.children) {
+        this.printNode(childId, depth + 1)
+      }
+    }
   }
 }
