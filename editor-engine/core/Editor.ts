@@ -6,14 +6,16 @@ import { Tool } from "./tools/Tool"
 import { RenderPort } from "./ports/RenderPort"
 import type { PointerEventData } from "./types/InputTypes"
 import { GroupService } from "./services/GroupService"
-import { BoundingBoxService } from "./services/BoundingBoxService"
 import { EventBus } from "./EventBus"
 import { CommandManager } from "./commands/CommandManager"
 import {
   SetToolCommand,
   UpdateToolOptionsCommand,
   ClearCommand,
+  GroupCommand,
+  UngroupCommand,
 } from "./commands"
+import { InputManager } from "./InputManager"
 
 export class Editor {
   readonly document = new Document()
@@ -23,10 +25,12 @@ export class Editor {
   readonly groupService = new GroupService(this.document)
   readonly events = new EventBus()
   readonly commands: CommandManager
+  readonly input: InputManager
   renderer?: RenderPort
 
   constructor() {
     this.commands = new CommandManager(this.events)
+    this.input = new InputManager(this)
   }
 
   /**
@@ -65,70 +69,23 @@ export class Editor {
   }
 
   onPointerDown(e: PointerEventData) {
-    this.tools.pointerDown(e)
+    this.input.handlePointerDown(e)
   }
 
   onPointerMove(e: PointerEventData) {
-    this.tools.pointerMove(e)
+    this.input.handlePointerMove(e)
   }
 
   onPointerUp(e: PointerEventData) {
-    this.tools.pointerUp(e)
-    this.emit("document:modified")
+    this.input.handlePointerUp(e)
   }
 
   onKeyDown(e: KeyboardEvent) {
-    // Handle grouping shortcuts (Cmd/Ctrl+G and Cmd/Ctrl+Shift+G)
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
-      e.preventDefault()
-      if (e.shiftKey) {
-        this.ungroupSelection()
-      } else {
-        this.groupSelection()
-      }
-      this.emit("document:modified")
-      return
-    }
-
-    // Handle global tool shortcuts (when no modifier keys are pressed)
-    if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-      const handled = this.handleToolSelection(e)
-      if (handled) {
-        e.preventDefault()
-        this.selection.clear()
-        this.state.clearTransient()
-        this.renderer?.clearSelectionBox()
-        // [TODO] - Add hover tracking at the Editor level so it persists across tool switches
-        return
-      }
-    }
-
-    // Pass to active tool
-    this.tools.keyDown(e)
-  }
-
-  private handleToolSelection(e: KeyboardEvent): boolean {
-    const key = e.key.toLowerCase()
-
-    // Map keys to tool IDs
-    const toolMap: Record<string, string> = {
-      v: "select",
-      r: "rectangle",
-      o: "ellipse",
-      l: "line",
-    }
-
-    const toolId = toolMap[key]
-    if (toolId && this.tools.getActive()?.id !== toolId) {
-      this.setActiveTool(toolId)
-      return true
-    }
-
-    return false
+    this.input.handleKeyDown(e)
   }
 
   onKeyUp(e: KeyboardEvent) {
-    this.tools.keyUp(e)
+    this.input.handleKeyUp(e)
   }
 
   setRenderer(renderer: RenderPort) {
@@ -144,11 +101,7 @@ export class Editor {
    * @returns true if undo was successful
    */
   undo(): boolean {
-    const result = this.commands.undo()
-    if (result) {
-      this.emit("document:modified")
-    }
-    return result
+    return this.commands.undo()
   }
 
   /**
@@ -156,11 +109,7 @@ export class Editor {
    * @returns true if redo was successful
    */
   redo(): boolean {
-    const result = this.commands.redo()
-    if (result) {
-      this.emit("document:modified")
-    }
-    return result
+    return this.commands.redo()
   }
 
   /**
@@ -183,66 +132,17 @@ export class Editor {
 
   /**
    * Group the currently selected nodes
-   * Returns the ID of the newly created group, or null if grouping failed
+   * Uses GroupCommand for undoable grouping
    */
-  groupSelection(): string | null {
-    const selectedIds = [...this.selection.getAll()]
-
-    if (!this.groupService.canGroup(selectedIds)) {
-      return null
-    }
-
-    const groupId = this.groupService.groupNodes(selectedIds)
-
-    if (groupId) {
-      // Select the newly created group
-      this.selection.setSingle(groupId)
-    }
-
-    return groupId
+  groupSelection(): void {
+    this.commands.execute(new GroupCommand(this))
   }
 
   /**
    * Ungroup the currently selected group nodes
-   * Returns the IDs of the ungrouped children, or null if ungrouping failed
+   * Uses UngroupCommand for undoable ungrouping
    */
-  ungroupSelection(): string[] | null {
-    const selectedIds = this.selection.getAll()
-
-    // Handle single group selection
-    if (selectedIds.length === 1) {
-      const groupId = selectedIds[0]
-
-      if (!this.groupService.canUngroup(groupId)) {
-        return null
-      }
-
-      const childIds = this.groupService.ungroupNode(groupId)
-
-      if (childIds) {
-        // Select the ungrouped children
-        this.selection.setMany(childIds)
-      }
-
-      return childIds
-    }
-
-    // Handle multiple selections - ungroup all groups
-    const allUngroupedIds: string[] = []
-    for (const id of selectedIds) {
-      if (this.groupService.canUngroup(id)) {
-        const childIds = this.groupService.ungroupNode(id)
-        if (childIds) {
-          allUngroupedIds.push(...childIds)
-        }
-      }
-    }
-
-    if (allUngroupedIds.length > 0) {
-      this.selection.setMany(allUngroupedIds)
-      return allUngroupedIds
-    }
-
-    return null
+  ungroupSelection(): void {
+    this.commands.execute(new UngroupCommand(this))
   }
 }

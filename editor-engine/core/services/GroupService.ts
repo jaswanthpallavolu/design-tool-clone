@@ -51,7 +51,7 @@ export class GroupService {
     }
 
     const groupNode = createGroupNode(groupId, groupTransform, {
-      name: "Group",
+      existingNodes: this.document.getAllNodes(),
       parentId: commonParentId,
     })
 

@@ -53,6 +53,47 @@ var EditorEngine = (() => {
     isShapeNode: () => isShapeNode
   });
 
+  // editor-engine/core/model/Shape.ts
+  var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
+    ShapeType2["RECTANGLE"] = "RECTANGLE";
+    ShapeType2["ELLIPSE"] = "ELLIPSE";
+    ShapeType2["LINE"] = "LINE";
+    return ShapeType2;
+  })(ShapeType || {});
+  function isRectangleShape(shape) {
+    return shape.type === "RECTANGLE" /* RECTANGLE */;
+  }
+  function isEllipseShape(shape) {
+    return shape.type === "ELLIPSE" /* ELLIPSE */;
+  }
+  function isLineShape(shape) {
+    return shape.type === "LINE" /* LINE */;
+  }
+  function createRectangleShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "RECTANGLE" /* RECTANGLE */,
+      geometry,
+      style
+    };
+  }
+  function createEllipseShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "ELLIPSE" /* ELLIPSE */,
+      geometry,
+      style
+    };
+  }
+  function createLineShape(nodeId, geometry, style) {
+    return {
+      nodeId,
+      type: "LINE" /* LINE */,
+      geometry,
+      style
+    };
+  }
+
   // editor-engine/core/model/Node.ts
   var NodeType = /* @__PURE__ */ ((NodeType2) => {
     NodeType2["GROUP"] = "GROUP";
@@ -65,12 +106,66 @@ var EditorEngine = (() => {
   function isShapeNode(node) {
     return node.type === "SHAPE" /* SHAPE */;
   }
+  function countShapeNodesByType(existingNodes, existingShapes, shapeType) {
+    const baseNames = {
+      ["RECTANGLE" /* RECTANGLE */]: "Rectangle",
+      ["ELLIPSE" /* ELLIPSE */]: "Ellipse",
+      ["LINE" /* LINE */]: "Line"
+    };
+    const baseName = baseNames[shapeType];
+    let count = 0;
+    for (const node of existingNodes) {
+      if (node.type === "SHAPE" /* SHAPE */) {
+        const shape = existingShapes.get(node.id);
+        if (shape && shape.type === shapeType) {
+          const regex = new RegExp(`^${baseName}\\s*(\\d*)$`);
+          const match = node.name.match(regex);
+          if (match) {
+            count++;
+          }
+        }
+      }
+    }
+    return count;
+  }
+  function generateShapeNodeName(existingNodes, existingShapes, shapeType) {
+    const baseNames = {
+      ["RECTANGLE" /* RECTANGLE */]: "Rectangle",
+      ["ELLIPSE" /* ELLIPSE */]: "Ellipse",
+      ["LINE" /* LINE */]: "Line"
+    };
+    const baseName = baseNames[shapeType];
+    const count = countShapeNodesByType(existingNodes, existingShapes, shapeType);
+    return `${baseName} ${count}`;
+  }
+  function countGroupNodes(existingNodes) {
+    const baseName = "Group";
+    let count = 0;
+    for (const node of existingNodes) {
+      if (node.type === "GROUP" /* GROUP */) {
+        const regex = new RegExp(`^${baseName}\\s*(\\d*)$`);
+        const match = node.name.match(regex);
+        if (match) {
+          count++;
+        }
+      }
+    }
+    return count;
+  }
+  function generateGroupNodeName(existingNodes) {
+    const count = countGroupNodes(existingNodes);
+    return `Group ${count}`;
+  }
   function createGroupNode(id, transform, options) {
     var _a, _b;
+    let name = options == null ? void 0 : options.name;
+    if (!name && (options == null ? void 0 : options.existingNodes)) {
+      name = generateGroupNodeName(options.existingNodes);
+    }
     return {
       id,
       type: "GROUP" /* GROUP */,
-      name: (options == null ? void 0 : options.name) || "Group",
+      name: name || "Group",
       parentId: options == null ? void 0 : options.parentId,
       children: [],
       transform,
@@ -80,10 +175,18 @@ var EditorEngine = (() => {
   }
   function createShapeNode(id, transform, options) {
     var _a, _b;
+    let name = options == null ? void 0 : options.name;
+    if (!name && (options == null ? void 0 : options.existingNodes) && (options == null ? void 0 : options.existingShapes) && (options == null ? void 0 : options.shapeType)) {
+      name = generateShapeNodeName(
+        options.existingNodes,
+        options.existingShapes,
+        options.shapeType
+      );
+    }
     return {
       id,
       type: "SHAPE" /* SHAPE */,
-      name: (options == null ? void 0 : options.name) || "Shape",
+      name: name || "Shape",
       parentId: options == null ? void 0 : options.parentId,
       children: [],
       transform,
@@ -148,6 +251,9 @@ var EditorEngine = (() => {
     }
     hasShape(nodeId) {
       return this.shapes.has(nodeId);
+    }
+    getShapesMap() {
+      return this.shapes;
     }
     // ---------------------------------------------
     // Combined Queries (for convenience)
@@ -699,7 +805,7 @@ var EditorEngine = (() => {
         rotation: 0
       };
       const groupNode = createGroupNode(groupId, groupTransform, {
-        name: "Group",
+        existingNodes: this.document.getAllNodes(),
         parentId: commonParentId
       });
       groupNode.boundingBox = {
@@ -1137,6 +1243,211 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/commands/GroupCommand.ts
+  var GroupCommand = class extends Command {
+    constructor(editor) {
+      super();
+      this.editor = editor;
+      this.groupId = null;
+      this.selectedIds = [];
+      this.selectedIds = [...this.editor.selection.getAll()];
+    }
+    execute() {
+      this.groupId = this.editor.groupService.groupNodes(this.selectedIds);
+      if (this.groupId) {
+        this.editor.selection.setSingle(this.groupId);
+      }
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      if (!this.groupId) return;
+      const childIds = this.editor.groupService.ungroupNode(this.groupId);
+      if (childIds) {
+        this.editor.selection.setMany(this.selectedIds);
+      }
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Group ${this.selectedIds.length} nodes`;
+    }
+    canExecute() {
+      return this.editor.groupService.canGroup(this.selectedIds);
+    }
+    canUndo() {
+      return this.groupId !== null;
+    }
+  };
+
+  // editor-engine/core/commands/UngroupCommand.ts
+  var UngroupCommand = class extends Command {
+    constructor(editor) {
+      super();
+      this.editor = editor;
+      this.ungroupedData = [];
+      this.selectedIds = [];
+      this.selectedIds = [...this.editor.selection.getAll()];
+    }
+    execute() {
+      this.ungroupedData = [];
+      for (const id of this.selectedIds) {
+        if (this.editor.groupService.canUngroup(id)) {
+          const childIds = this.editor.groupService.ungroupNode(id);
+          if (childIds) {
+            this.ungroupedData.push({ groupId: id, childIds });
+          }
+        }
+      }
+      if (this.ungroupedData.length > 0) {
+        const allChildIds = this.ungroupedData.flatMap((data) => data.childIds);
+        this.editor.selection.setMany(allChildIds);
+      }
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      if (this.ungroupedData.length === 0) return;
+      const newGroupIds = [];
+      for (const { childIds } of this.ungroupedData) {
+        const groupId = this.editor.groupService.groupNodes(childIds);
+        if (groupId) {
+          newGroupIds.push(groupId);
+        }
+      }
+      if (newGroupIds.length > 0) {
+        this.editor.selection.setMany(newGroupIds);
+      }
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Ungroup ${this.selectedIds.length} group(s)`;
+    }
+    canExecute() {
+      return this.selectedIds.some(
+        (id) => this.editor.groupService.canUngroup(id)
+      );
+    }
+    canUndo() {
+      return this.ungroupedData.length > 0;
+    }
+  };
+
+  // editor-engine/core/KeyboardShortcutManager.ts
+  var KeyboardShortcutManager = class {
+    constructor() {
+      this.toolMap = {
+        v: "select",
+        r: "rectangle",
+        o: "ellipse",
+        l: "line"
+      };
+    }
+    /**
+     * Check if the event is a grouping shortcut (Cmd/Ctrl+G)
+     */
+    isGroupShortcut(e) {
+      return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && !e.shiftKey;
+    }
+    /**
+     * Check if the event is an ungrouping shortcut (Cmd/Ctrl+Shift+G)
+     */
+    isUngroupShortcut(e) {
+      return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && e.shiftKey;
+    }
+    /**
+     * Get the tool ID for a keyboard shortcut
+     * Returns null if no tool is mapped to the key
+     */
+    getToolForKey(e) {
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return null;
+      }
+      const key = e.key.toLowerCase();
+      return this.toolMap[key] || null;
+    }
+    /**
+     * Register a custom tool shortcut
+     */
+    registerToolShortcut(key, toolId) {
+      this.toolMap[key.toLowerCase()] = toolId;
+    }
+    /**
+     * Unregister a tool shortcut
+     */
+    unregisterToolShortcut(key) {
+      delete this.toolMap[key.toLowerCase()];
+    }
+    /**
+     * Get all registered tool shortcuts
+     */
+    getToolShortcuts() {
+      return { ...this.toolMap };
+    }
+  };
+
+  // editor-engine/core/InputManager.ts
+  var InputManager = class {
+    constructor(editor) {
+      this.editor = editor;
+      this.shortcuts = new KeyboardShortcutManager();
+    }
+    /**
+     * Get the keyboard shortcut manager
+     */
+    getShortcutManager() {
+      return this.shortcuts;
+    }
+    /**
+     * Handle pointer down events
+     */
+    handlePointerDown(e) {
+      this.editor.tools.pointerDown(e);
+    }
+    /**
+     * Handle pointer move events
+     */
+    handlePointerMove(e) {
+      this.editor.tools.pointerMove(e);
+    }
+    /**
+     * Handle pointer up events
+     */
+    handlePointerUp(e) {
+      this.editor.tools.pointerUp(e);
+      this.editor.events.emit("document:modified");
+    }
+    /**
+     * Handle keyboard down events
+     */
+    handleKeyDown(e) {
+      var _a, _b;
+      if (this.shortcuts.isGroupShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new GroupCommand(this.editor));
+        return;
+      }
+      if (this.shortcuts.isUngroupShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new UngroupCommand(this.editor));
+        return;
+      }
+      const toolId = this.shortcuts.getToolForKey(e);
+      if (toolId && ((_a = this.editor.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
+        e.preventDefault();
+        this.editor.setActiveTool(toolId);
+        this.editor.selection.clear();
+        this.editor.state.clearTransient();
+        (_b = this.editor.renderer) == null ? void 0 : _b.clearSelectionBox();
+        return;
+      }
+      this.editor.tools.keyDown(e);
+    }
+    /**
+     * Handle keyboard up events
+     */
+    handleKeyUp(e) {
+      this.editor.tools.keyUp(e);
+    }
+  };
+
   // editor-engine/core/Editor.ts
   var Editor = class {
     constructor() {
@@ -1147,6 +1458,7 @@ var EditorEngine = (() => {
       this.groupService = new GroupService(this.document);
       this.events = new EventBus();
       this.commands = new CommandManager(this.events);
+      this.input = new InputManager(this);
     }
     /**
      * Subscribe to editor events
@@ -1178,57 +1490,19 @@ var EditorEngine = (() => {
       return this.state.getToolOption(key);
     }
     onPointerDown(e) {
-      this.tools.pointerDown(e);
+      this.input.handlePointerDown(e);
     }
     onPointerMove(e) {
-      this.tools.pointerMove(e);
+      this.input.handlePointerMove(e);
     }
     onPointerUp(e) {
-      this.tools.pointerUp(e);
-      this.emit("document:modified");
+      this.input.handlePointerUp(e);
     }
     onKeyDown(e) {
-      var _a;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g") {
-        e.preventDefault();
-        if (e.shiftKey) {
-          this.ungroupSelection();
-        } else {
-          this.groupSelection();
-        }
-        this.emit("document:modified");
-        return;
-      }
-      if (!e.ctrlKey && !e.metaKey && !e.altKey) {
-        const handled = this.handleToolSelection(e);
-        if (handled) {
-          e.preventDefault();
-          this.selection.clear();
-          this.state.clearTransient();
-          (_a = this.renderer) == null ? void 0 : _a.clearSelectionBox();
-          return;
-        }
-      }
-      this.tools.keyDown(e);
-    }
-    handleToolSelection(e) {
-      var _a;
-      const key = e.key.toLowerCase();
-      const toolMap = {
-        v: "select",
-        r: "rectangle",
-        o: "ellipse",
-        l: "line"
-      };
-      const toolId = toolMap[key];
-      if (toolId && ((_a = this.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
-        this.setActiveTool(toolId);
-        return true;
-      }
-      return false;
+      this.input.handleKeyDown(e);
     }
     onKeyUp(e) {
-      this.tools.keyUp(e);
+      this.input.handleKeyUp(e);
     }
     setRenderer(renderer) {
       this.renderer = renderer;
@@ -1241,22 +1515,14 @@ var EditorEngine = (() => {
      * @returns true if undo was successful
      */
     undo() {
-      const result = this.commands.undo();
-      if (result) {
-        this.emit("document:modified");
-      }
-      return result;
+      return this.commands.undo();
     }
     /**
      * Redo the next command
      * @returns true if redo was successful
      */
     redo() {
-      const result = this.commands.redo();
-      if (result) {
-        this.emit("document:modified");
-      }
-      return result;
+      return this.commands.redo();
     }
     /**
      * Check if undo is available
@@ -1275,93 +1541,19 @@ var EditorEngine = (() => {
     // ---------------------------------------------
     /**
      * Group the currently selected nodes
-     * Returns the ID of the newly created group, or null if grouping failed
+     * Uses GroupCommand for undoable grouping
      */
     groupSelection() {
-      const selectedIds = [...this.selection.getAll()];
-      if (!this.groupService.canGroup(selectedIds)) {
-        return null;
-      }
-      const groupId = this.groupService.groupNodes(selectedIds);
-      if (groupId) {
-        this.selection.setSingle(groupId);
-      }
-      return groupId;
+      this.commands.execute(new GroupCommand(this));
     }
     /**
      * Ungroup the currently selected group nodes
-     * Returns the IDs of the ungrouped children, or null if ungrouping failed
+     * Uses UngroupCommand for undoable ungrouping
      */
     ungroupSelection() {
-      const selectedIds = this.selection.getAll();
-      if (selectedIds.length === 1) {
-        const groupId = selectedIds[0];
-        if (!this.groupService.canUngroup(groupId)) {
-          return null;
-        }
-        const childIds = this.groupService.ungroupNode(groupId);
-        if (childIds) {
-          this.selection.setMany(childIds);
-        }
-        return childIds;
-      }
-      const allUngroupedIds = [];
-      for (const id of selectedIds) {
-        if (this.groupService.canUngroup(id)) {
-          const childIds = this.groupService.ungroupNode(id);
-          if (childIds) {
-            allUngroupedIds.push(...childIds);
-          }
-        }
-      }
-      if (allUngroupedIds.length > 0) {
-        this.selection.setMany(allUngroupedIds);
-        return allUngroupedIds;
-      }
-      return null;
+      this.commands.execute(new UngroupCommand(this));
     }
   };
-
-  // editor-engine/core/model/Shape.ts
-  var ShapeType = /* @__PURE__ */ ((ShapeType2) => {
-    ShapeType2["RECTANGLE"] = "RECTANGLE";
-    ShapeType2["ELLIPSE"] = "ELLIPSE";
-    ShapeType2["LINE"] = "LINE";
-    return ShapeType2;
-  })(ShapeType || {});
-  function isRectangleShape(shape) {
-    return shape.type === "RECTANGLE" /* RECTANGLE */;
-  }
-  function isEllipseShape(shape) {
-    return shape.type === "ELLIPSE" /* ELLIPSE */;
-  }
-  function isLineShape(shape) {
-    return shape.type === "LINE" /* LINE */;
-  }
-  function createRectangleShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "RECTANGLE" /* RECTANGLE */,
-      geometry,
-      style
-    };
-  }
-  function createEllipseShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "ELLIPSE" /* ELLIPSE */,
-      geometry,
-      style
-    };
-  }
-  function createLineShape(nodeId, geometry, style) {
-    return {
-      nodeId,
-      type: "LINE" /* LINE */,
-      geometry,
-      style
-    };
-  }
 
   // editor-engine/core/tools/select/states/IdleState.ts
   var IdleState = class {
@@ -2256,7 +2448,9 @@ var EditorEngine = (() => {
           rotation: 0
         },
         {
-          name: "Line"
+          existingNodes: editor.document.getAllNodes(),
+          existingShapes: editor.document.getShapesMap(),
+          shapeType: "LINE" /* LINE */
         }
       );
       const shape = createLineShape(
@@ -2332,7 +2526,9 @@ var EditorEngine = (() => {
           rotation: 0
         },
         {
-          name: "Rectangle"
+          existingNodes: editor.document.getAllNodes(),
+          existingShapes: editor.document.getShapesMap(),
+          shapeType: "RECTANGLE" /* RECTANGLE */
         }
       );
       const shape = createRectangleShape(
@@ -2412,7 +2608,9 @@ var EditorEngine = (() => {
           rotation: 0
         },
         {
-          name: "Ellipse"
+          existingNodes: editor.document.getAllNodes(),
+          existingShapes: editor.document.getShapesMap(),
+          shapeType: "ELLIPSE" /* ELLIPSE */
         }
       );
       const shape = createEllipseShape(

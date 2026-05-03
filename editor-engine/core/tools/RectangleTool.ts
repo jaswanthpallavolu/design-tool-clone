@@ -27,7 +27,9 @@ export class RectangleTool implements Tool {
         rotation: 0,
       },
       {
-        name: "Rectangle",
+        existingNodes: editor.document.getAllNodes(),
+        existingShapes: editor.document.getShapesMap(),
+        shapeType: ShapeType.RECTANGLE,
       },
     )
 

@@ -1,4 +1,5 @@
 import CanvasEventAdapter from "./CanvasEventAdapter.js"
+import { LayerPanel } from "./LayerPanel.js"
 const {
   Editor,
   CanvasRenderer,
@@ -47,7 +48,6 @@ editor.on("tool:changed", (data) => {
 })
 
 editor.on("document:modified", () => {
-  renderLayerTree()
   renderer.renderShapes()
   renderer.renderHoverOutline()
   renderer.renderSelectionBox()
@@ -82,6 +82,8 @@ colorInput.addEventListener("input", (e) => {
 
 // CanvasAdapter
 new CanvasEventAdapter(canvas, editor)
+
+new LayerPanel(editor, layersSection)
 
 const renderer = new CanvasRenderer({ canvas, editor })
 
@@ -149,46 +151,4 @@ document.addEventListener("keydown", (e) => {
     }
     return
   }
-})
-
-// Layer section
-const getNodeItem = (nodeId) => {
-  const node = editor.document.getNode(nodeId)
-  if (!node) return null
-  const li = document.createElement("li")
-  const span = document.createElement("span")
-  span.textContent =
-    (node.type === "GROUP" ? "Group" : "Shape") + "-" + node.id.slice(0, 5)
-  li.appendChild(span)
-
-  const children = node.children.slice().reverse()
-  const ul = document.createElement("ul")
-  for (let child of children) {
-    const listItem = getNodeItem(child)
-    if (listItem) ul.appendChild(listItem)
-  }
-  if (ul.hasChildNodes()) li.appendChild(ul)
-
-  return li
-}
-
-const renderLayerTree = () => {
-  const parent = document.createElement("ul")
-  const roots = editor.document.getRootNodes().slice().reverse()
-  for (let root of roots) {
-    const listItem = getNodeItem(root.id)
-    if (listItem) parent.appendChild(listItem)
-  }
-  while (layersSection.firstChild) {
-    layersSection.removeChild(layersSection.firstChild)
-  }
-  layersSection.appendChild(parent)
-}
-
-// Log editor state for debugging
-console.log("📊 Editor state:", {
-  canUndo: editor.canUndo(),
-  canRedo: editor.canRedo(),
-  tools: tools.map((t) => t.id),
-  activeTool: editor.tools.getActive()?.id,
 })

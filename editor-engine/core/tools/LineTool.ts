@@ -25,7 +25,9 @@ export class LineTool implements Tool {
         rotation: 0,
       },
       {
-        name: "Line",
+        existingNodes: editor.document.getAllNodes(),
+        existingShapes: editor.document.getShapesMap(),
+        shapeType: ShapeType.LINE,
       },
     )
 

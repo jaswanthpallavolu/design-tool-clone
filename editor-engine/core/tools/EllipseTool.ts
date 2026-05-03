@@ -27,7 +27,9 @@ export class EllipseTool implements Tool {
         rotation: 0,
       },
       {
-        name: "Ellipse",
+        existingNodes: editor.document.getAllNodes(),
+        existingShapes: editor.document.getShapesMap(),
+        shapeType: ShapeType.ELLIPSE,
       },
     )
 

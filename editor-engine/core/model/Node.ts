@@ -2,6 +2,8 @@
 // Node represents the hierarchical structure of the document tree
 // Separates structural concerns (hierarchy, transform, visibility) from visual concerns (shape data)
 
+import { ShapeType } from "./Shape"
+
 export enum NodeType {
   GROUP = "GROUP",
   SHAPE = "SHAPE",
@@ -52,6 +54,109 @@ export function isShapeNode(node: Node): node is ShapeNode {
   return node.type === NodeType.SHAPE
 }
 
+// Helper function to count nodes by name prefix
+export function countNodesByNamePrefix(
+  existingNodes: readonly Node[],
+  prefix: string,
+): number {
+  const regex = new RegExp(`^${prefix}\\s*(\\d*)$`)
+  let maxCount = 0
+
+  for (const node of existingNodes) {
+    const match = node.name.match(regex)
+    if (match) {
+      const num = match[1] ? parseInt(match[1], 10) : 1
+      maxCount = Math.max(maxCount, num)
+    }
+  }
+
+  return maxCount
+}
+
+// Helper function to generate unique node name
+export function generateNodeName(
+  existingNodes: readonly Node[],
+  baseName: string,
+): string {
+  const count = countNodesByNamePrefix(existingNodes, baseName)
+  return count === 0 ? baseName : `${baseName} ${count + 1}`
+}
+
+// Helper function to count shape nodes by shape type
+export function countShapeNodesByType(
+  existingNodes: readonly Node[],
+  existingShapes: Map<string, { type: ShapeType }>,
+  shapeType: ShapeType,
+): number {
+  const baseNames: Record<ShapeType, string> = {
+    [ShapeType.RECTANGLE]: "Rectangle",
+    [ShapeType.ELLIPSE]: "Ellipse",
+    [ShapeType.LINE]: "Line",
+  }
+
+  const baseName = baseNames[shapeType]
+  let count = 0
+
+  for (const node of existingNodes) {
+    if (node.type === NodeType.SHAPE) {
+      const shape = existingShapes.get(node.id)
+      if (shape && shape.type === shapeType) {
+        // Check if the node name matches the pattern for this shape type
+        const regex = new RegExp(`^${baseName}\\s*(\\d*)$`)
+        const match = node.name.match(regex)
+        if (match) {
+          count++
+        }
+      }
+    }
+  }
+
+  return count
+}
+
+// Helper function to generate shape node name based on shape type
+export function generateShapeNodeName(
+  existingNodes: readonly Node[],
+  existingShapes: Map<string, { type: ShapeType }>,
+  shapeType: ShapeType,
+): string {
+  const baseNames: Record<ShapeType, string> = {
+    [ShapeType.RECTANGLE]: "Rectangle",
+    [ShapeType.ELLIPSE]: "Ellipse",
+    [ShapeType.LINE]: "Line",
+  }
+
+  const baseName = baseNames[shapeType]
+  const count = countShapeNodesByType(existingNodes, existingShapes, shapeType)
+
+  return `${baseName} ${count}`
+}
+
+// Helper function to count group nodes
+export function countGroupNodes(existingNodes: readonly Node[]): number {
+  const baseName = "Group"
+  let count = 0
+
+  for (const node of existingNodes) {
+    if (node.type === NodeType.GROUP) {
+      // Check if the node name matches the pattern for groups
+      const regex = new RegExp(`^${baseName}\\s*(\\d*)$`)
+      const match = node.name.match(regex)
+      if (match) {
+        count++
+      }
+    }
+  }
+
+  return count
+}
+
+// Helper function to generate group node name
+export function generateGroupNodeName(existingNodes: readonly Node[]): string {
+  const count = countGroupNodes(existingNodes)
+  return `Group ${count}`
+}
+
 // Factory functions for creating nodes
 export function createGroupNode(
   id: string,
@@ -61,12 +166,18 @@ export function createGroupNode(
     parentId?: string
     visible?: boolean
     locked?: boolean
+    existingNodes?: readonly Node[] // Pass existing nodes to generate unique name
   },
 ): GroupNode {
+  let name = options?.name
+  if (!name && options?.existingNodes) {
+    name = generateGroupNodeName(options.existingNodes)
+  }
+
   return {
     id,
     type: NodeType.GROUP,
-    name: options?.name || "Group",
+    name: name || "Group",
     parentId: options?.parentId,
     children: [],
     transform,
@@ -83,12 +194,29 @@ export function createShapeNode(
     parentId?: string
     visible?: boolean
     locked?: boolean
+    existingNodes?: readonly Node[] // Pass existing nodes to generate unique name
+    existingShapes?: Map<string, { type: ShapeType }> // Pass existing shapes to count by type
+    shapeType?: ShapeType // Pass shape type to generate appropriate name
   },
 ): ShapeNode {
+  let name = options?.name
+  if (
+    !name &&
+    options?.existingNodes &&
+    options?.existingShapes &&
+    options?.shapeType
+  ) {
+    name = generateShapeNodeName(
+      options.existingNodes,
+      options.existingShapes,
+      options.shapeType,
+    )
+  }
+
   return {
     id,
     type: NodeType.SHAPE,
-    name: options?.name || "Shape",
+    name: name || "Shape",
     parentId: options?.parentId,
     children: [],
     transform,

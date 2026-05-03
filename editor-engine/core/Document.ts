@@ -69,6 +69,10 @@ export class Document {
     return this.shapes.has(nodeId)
   }
 
+  getShapesMap(): Map<string, Shape> {
+    return this.shapes
+  }
+
   // ---------------------------------------------
   // Combined Queries (for convenience)
   // ---------------------------------------------
