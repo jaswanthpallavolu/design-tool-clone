@@ -1,14 +1,14 @@
-import { Tool, ToolContext } from "./Tool"
+import { ToolContext } from "./Tool"
 import { RectangleShape, ShapeType, createRectangleShape } from "../model/Shape"
 import { createShapeNode } from "../model/Node"
 import type { PointerEventData } from "../types/InputTypes"
 import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
+import { BaseShapeTool } from "./BaseShapeTool"
+import { TOOL_IDS } from "./ToolConstants"
 
-export class RectangleTool implements Tool {
-  readonly id = "rectangle"
-  draftNodeId?: string
-  mouseStart: { x: number; y: number } = { x: 0, y: 0 }
-  hasDragged = false
+export class RectangleTool extends BaseShapeTool {
+  readonly id = TOOL_IDS.RECTANGLE
+  private mouseStart: { x: number; y: number } = { x: 0, y: 0 }
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
     this.mouseStart = { x: e.clientX, y: e.clientY }
@@ -60,8 +60,8 @@ export class RectangleTool implements Tool {
     if (!node || !shape || shape.type !== ShapeType.RECTANGLE) return
 
     const minX = Math.min(this.mouseStart.x, e.clientX)
-    const maxX = Math.max(this.mouseStart.x, e.clientX)
     const minY = Math.min(this.mouseStart.y, e.clientY)
+    const maxX = Math.max(this.mouseStart.x, e.clientX)
     const maxY = Math.max(this.mouseStart.y, e.clientY)
     const width = maxX - minX
     const height = maxY - minY
@@ -86,19 +86,5 @@ export class RectangleTool implements Tool {
     renderOverlays()
   }
 
-  onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    if (this.draftNodeId) {
-      if (!this.hasDragged) {
-        editor.document.removeNode(this.draftNodeId)
-        editor.selection.clear()
-        editor.renderer?.renderShapes()
-        this.draftNodeId = undefined
-        this.hasDragged = false
-        return
-      }
-      this.draftNodeId = undefined
-      this.hasDragged = false
-      editor.setActiveTool("select")
-    }
-  }
+  // onPointerUp inherited from BaseShapeTool
 }

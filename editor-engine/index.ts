@@ -25,6 +25,19 @@ export {
   type AABB,
   type OBB,
 } from "./core/services/BoundingBoxService"
+export {
+  SpatialIndexService,
+  type SpatialIndexConfig,
+} from "./core/services/SpatialIndexService"
+export { ShapeQueryService } from "./core/services/ShapeQueryService"
+
+// Spatial
+export {
+  SpatialGrid,
+  type SpatialGridConfig,
+  type SpatialQueryResult,
+  type BoundingBoxProvider,
+} from "./core/spatial/SpatialGrid"
 
 // Models
 export {

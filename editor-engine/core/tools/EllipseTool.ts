@@ -1,14 +1,14 @@
-import { Tool, ToolContext } from "./Tool"
+import { ToolContext } from "./Tool"
 import { ShapeType, createEllipseShape } from "../model/Shape"
 import { createShapeNode } from "../model/Node"
 import type { PointerEventData } from "../types/InputTypes"
 import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
+import { BaseShapeTool } from "./BaseShapeTool"
+import { TOOL_IDS } from "./ToolConstants"
 
-export class EllipseTool implements Tool {
-  readonly id = "ellipse"
-  draftNodeId?: string
-  mouseStart: { x: number; y: number } = { x: 0, y: 0 }
-  hasDragged = false
+export class EllipseTool extends BaseShapeTool {
+  readonly id = TOOL_IDS.ELLIPSE
+  private mouseStart: { x: number; y: number } = { x: 0, y: 0 }
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
     this.mouseStart = { x: e.clientX, y: e.clientY }
@@ -85,21 +85,5 @@ export class EllipseTool implements Tool {
     renderOverlays()
   }
 
-  onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    if (this.draftNodeId) {
-      if (!this.hasDragged) {
-        editor.document.removeNode(this.draftNodeId)
-        editor.selection.clear()
-        editor.renderer?.renderShapes()
-        this.draftNodeId = undefined
-        this.hasDragged = false
-        return
-      }
-      this.draftNodeId = undefined
-      this.hasDragged = false
-      editor.setActiveTool("select")
-    }
-  }
+  // onPointerUp inherited from BaseShapeTool
 }
-
-// Made with Bob

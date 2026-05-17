@@ -38,7 +38,10 @@ var EditorEngine = (() => {
     SelectTool: () => SelectTool,
     SelectionManager: () => SelectionManager,
     SetToolCommand: () => SetToolCommand,
+    ShapeQueryService: () => ShapeQueryService,
     ShapeType: () => ShapeType,
+    SpatialGrid: () => SpatialGrid,
+    SpatialIndexService: () => SpatialIndexService,
     ToolManager: () => ToolManager,
     UpdateToolOptionsCommand: () => UpdateToolOptionsCommand,
     createEllipseShape: () => createEllipseShape,
@@ -892,6 +895,662 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/spatial/SpatialGrid.ts
+  var SpatialGrid = class {
+    constructor(config, getBounds) {
+      this.cells = /* @__PURE__ */ new Map();
+      this.nodeToKeys = /* @__PURE__ */ new Map();
+      // Track grid bounds for dynamic expansion
+      this.minX = 0;
+      this.minY = 0;
+      this.maxX = 0;
+      this.maxY = 0;
+      this.cellSize = config.cellSize;
+      this.getBounds = getBounds;
+      if (config.initialBounds) {
+        this.minX = config.initialBounds.minX;
+        this.minY = config.initialBounds.minY;
+        this.maxX = config.initialBounds.maxX;
+        this.maxY = config.initialBounds.maxY;
+      }
+    }
+    /**
+     * Generate a unique key for a grid cell
+     */
+    getCellKey(cellX, cellY) {
+      return `${cellX},${cellY}`;
+    }
+    /**
+     * Convert world coordinates to grid cell coordinates
+     */
+    worldToCell(x, y) {
+      return {
+        cellX: Math.floor(x / this.cellSize),
+        cellY: Math.floor(y / this.cellSize)
+      };
+    }
+    /**
+     * Get or create a cell at the given grid coordinates
+     */
+    getOrCreateCell(cellX, cellY) {
+      const key = this.getCellKey(cellX, cellY);
+      let cell = this.cells.get(key);
+      if (!cell) {
+        cell = { nodeIds: /* @__PURE__ */ new Set() };
+        this.cells.set(key, cell);
+      }
+      return cell;
+    }
+    /**
+     * Get all grid cells that overlap with the given AABB
+     */
+    getCellsForAABB(aabb) {
+      const minCell = this.worldToCell(aabb.minX, aabb.minY);
+      const maxCell = this.worldToCell(aabb.maxX, aabb.maxY);
+      const cells = [];
+      for (let x = minCell.cellX; x <= maxCell.cellX; x++) {
+        for (let y = minCell.cellY; y <= maxCell.cellY; y++) {
+          cells.push({ cellX: x, cellY: y });
+        }
+      }
+      return cells;
+    }
+    /**
+     * Insert a node into the spatial grid
+     * The node will be added to all cells its bounding box overlaps
+     */
+    insert(nodeId) {
+      const aabb = this.getBounds(nodeId);
+      if (!aabb) {
+        return;
+      }
+      this.minX = Math.min(this.minX, aabb.minX);
+      this.minY = Math.min(this.minY, aabb.minY);
+      this.maxX = Math.max(this.maxX, aabb.maxX);
+      this.maxY = Math.max(this.maxY, aabb.maxY);
+      const cells = this.getCellsForAABB(aabb);
+      const cellKeys = /* @__PURE__ */ new Set();
+      for (const { cellX, cellY } of cells) {
+        const cell = this.getOrCreateCell(cellX, cellY);
+        cell.nodeIds.add(nodeId);
+        cellKeys.add(this.getCellKey(cellX, cellY));
+      }
+      this.nodeToKeys.set(nodeId, cellKeys);
+    }
+    /**
+     * Remove a node from the spatial grid
+     */
+    remove(nodeId) {
+      const cellKeys = this.nodeToKeys.get(nodeId);
+      if (!cellKeys) {
+        return;
+      }
+      for (const key of cellKeys) {
+        const cell = this.cells.get(key);
+        if (cell) {
+          cell.nodeIds.delete(nodeId);
+          if (cell.nodeIds.size === 0) {
+            this.cells.delete(key);
+          }
+        }
+      }
+      this.nodeToKeys.delete(nodeId);
+    }
+    /**
+     * Update a node's position in the grid
+     * More efficient than remove + insert as it only updates changed cells
+     */
+    update(nodeId) {
+      this.remove(nodeId);
+      this.insert(nodeId);
+    }
+    /**
+     * Query all nodes at a specific point in world space
+     * Returns nodes whose bounding boxes contain the point
+     */
+    queryPoint(x, y) {
+      const { cellX, cellY } = this.worldToCell(x, y);
+      const cell = this.cells.get(this.getCellKey(cellX, cellY));
+      if (!cell) {
+        return [];
+      }
+      const results = [];
+      for (const nodeId of cell.nodeIds) {
+        const aabb = this.getBounds(nodeId);
+        if (!aabb) continue;
+        if (x >= aabb.minX && x <= aabb.maxX && y >= aabb.minY && y <= aabb.maxY) {
+          results.push({ nodeId, bounds: aabb });
+        }
+      }
+      return results;
+    }
+    /**
+     * Query all nodes that overlap with a rectangular region
+     * Returns nodes whose bounding boxes intersect the query region
+     */
+    queryRegion(minX, minY, maxX, maxY) {
+      const queryAABB = { minX, minY, maxX, maxY };
+      const cells = this.getCellsForAABB(queryAABB);
+      const candidateNodeIds = /* @__PURE__ */ new Set();
+      for (const { cellX, cellY } of cells) {
+        const cell = this.cells.get(this.getCellKey(cellX, cellY));
+        if (cell) {
+          for (const nodeId of cell.nodeIds) {
+            candidateNodeIds.add(nodeId);
+          }
+        }
+      }
+      const results = [];
+      for (const nodeId of candidateNodeIds) {
+        const aabb = this.getBounds(nodeId);
+        if (!aabb) continue;
+        if (this.aabbIntersects(aabb, queryAABB)) {
+          results.push({ nodeId, bounds: aabb });
+        }
+      }
+      return results;
+    }
+    /**
+     * Query all nodes within a circular region
+     */
+    queryCircle(centerX, centerY, radius) {
+      const queryAABB = {
+        minX: centerX - radius,
+        minY: centerY - radius,
+        maxX: centerX + radius,
+        maxY: centerY + radius
+      };
+      const cells = this.getCellsForAABB(queryAABB);
+      const candidateNodeIds = /* @__PURE__ */ new Set();
+      for (const { cellX, cellY } of cells) {
+        const cell = this.cells.get(this.getCellKey(cellX, cellY));
+        if (cell) {
+          for (const nodeId of cell.nodeIds) {
+            candidateNodeIds.add(nodeId);
+          }
+        }
+      }
+      const results = [];
+      const radiusSquared = radius * radius;
+      for (const nodeId of candidateNodeIds) {
+        const aabb = this.getBounds(nodeId);
+        if (!aabb) continue;
+        const closestX = Math.max(aabb.minX, Math.min(centerX, aabb.maxX));
+        const closestY = Math.max(aabb.minY, Math.min(centerY, aabb.maxY));
+        const dx = closestX - centerX;
+        const dy = closestY - centerY;
+        const distanceSquared = dx * dx + dy * dy;
+        if (distanceSquared <= radiusSquared) {
+          results.push({ nodeId, bounds: aabb });
+        }
+      }
+      return results;
+    }
+    /**
+     * Get all nodes in the grid
+     */
+    getAllNodes() {
+      const results = [];
+      const processedIds = /* @__PURE__ */ new Set();
+      for (const cell of this.cells.values()) {
+        for (const nodeId of cell.nodeIds) {
+          if (processedIds.has(nodeId)) continue;
+          processedIds.add(nodeId);
+          const aabb = this.getBounds(nodeId);
+          if (aabb) {
+            results.push({ nodeId, bounds: aabb });
+          }
+        }
+      }
+      return results;
+    }
+    /**
+     * Check if a node exists in the grid
+     */
+    has(nodeId) {
+      return this.nodeToKeys.has(nodeId);
+    }
+    /**
+     * Get the number of nodes in the grid
+     */
+    size() {
+      return this.nodeToKeys.size;
+    }
+    /**
+     * Clear all nodes from the grid
+     */
+    clear() {
+      this.cells.clear();
+      this.nodeToKeys.clear();
+    }
+    /**
+     * Check if two AABBs intersect
+     */
+    aabbIntersects(a, b) {
+      return !(a.maxX < b.minX || a.minX > b.maxX || a.maxY < b.minY || a.minY > b.maxY);
+    }
+    /**
+     * Get statistics about the grid
+     */
+    getStats() {
+      let totalNodes = 0;
+      for (const cell of this.cells.values()) {
+        totalNodes += cell.nodeIds.size;
+      }
+      return {
+        cellCount: this.cells.size,
+        nodeCount: this.nodeToKeys.size,
+        averageNodesPerCell: this.cells.size > 0 ? totalNodes / this.cells.size : 0,
+        cellSize: this.cellSize,
+        bounds: {
+          minX: this.minX,
+          minY: this.minY,
+          maxX: this.maxX,
+          maxY: this.maxY
+        }
+      };
+    }
+    /**
+     * Rebuild the entire grid from a collection of node IDs
+     * Useful after bulk operations or when grid becomes fragmented
+     */
+    rebuild(nodeIds) {
+      this.clear();
+      for (const nodeId of nodeIds) {
+        this.insert(nodeId);
+      }
+    }
+    /**
+     * Get the cell size
+     */
+    getCellSize() {
+      return this.cellSize;
+    }
+    /**
+     * Update the cell size and rebuild the grid
+     * Warning: This is an expensive operation
+     */
+    setCellSize(cellSize, nodeIds) {
+      this.cellSize = cellSize;
+      this.rebuild(nodeIds);
+    }
+  };
+
+  // editor-engine/core/services/SpatialIndexService.ts
+  var SpatialIndexService = class {
+    constructor(document, events) {
+      this.document = document;
+      this.events = events;
+      this.autoSync = true;
+      this.unsubscribers = [];
+    }
+    /**
+     * Check if spatial indexing is enabled
+     */
+    isEnabled() {
+      return this.grid !== void 0;
+    }
+    /**
+     * Enable spatial indexing with the given configuration
+     * If already enabled, this will rebuild the index with new settings
+     */
+    enable(config = {}) {
+      var _a, _b, _c;
+      const cellSize = (_a = config.cellSize) != null ? _a : 100;
+      this.autoSync = (_b = config.autoSync) != null ? _b : true;
+      const getBounds = (nodeId) => {
+        const node = this.document.getNode(nodeId);
+        const shape = this.document.getShape(nodeId);
+        if (!node || !shape || !isShapeNode(node)) {
+          return null;
+        }
+        return BoundingBoxService.getAABB(node, shape);
+      };
+      const gridConfig = {
+        cellSize,
+        initialBounds: config.initialBounds
+      };
+      this.grid = new SpatialGrid(gridConfig, getBounds);
+      this.rebuild();
+      if (this.autoSync && this.events) {
+        this.setupAutoSync();
+      }
+      (_c = this.events) == null ? void 0 : _c.emit("spatialIndex:enabled", { cellSize });
+    }
+    /**
+     * Disable spatial indexing and clean up resources
+     */
+    disable() {
+      var _a;
+      if (!this.grid) return;
+      this.unsubscribers.forEach((unsub) => unsub());
+      this.unsubscribers = [];
+      this.grid.clear();
+      this.grid = void 0;
+      (_a = this.events) == null ? void 0 : _a.emit("spatialIndex:disabled");
+    }
+    /**
+     * Rebuild the entire spatial index from current document state
+     * Useful after bulk operations or when index becomes stale
+     */
+    rebuild() {
+      var _a;
+      if (!this.grid) return;
+      const nodeIds = [];
+      for (const node of this.document.getAllNodes()) {
+        if (isShapeNode(node)) {
+          nodeIds.push(node.id);
+        }
+      }
+      this.grid.rebuild(nodeIds);
+      (_a = this.events) == null ? void 0 : _a.emit("spatialIndex:rebuilt", { nodeCount: nodeIds.length });
+    }
+    /**
+     * Manually update a node in the spatial index
+     * Only needed if autoSync is disabled
+     */
+    updateNode(nodeId) {
+      if (!this.grid) return;
+      this.grid.update(nodeId);
+    }
+    /**
+     * Manually insert a node into the spatial index
+     * Only needed if autoSync is disabled
+     */
+    insertNode(nodeId) {
+      if (!this.grid) return;
+      this.grid.insert(nodeId);
+    }
+    /**
+     * Manually remove a node from the spatial index
+     * Only needed if autoSync is disabled
+     */
+    removeNode(nodeId) {
+      if (!this.grid) return;
+      this.grid.remove(nodeId);
+    }
+    /**
+     * Query all shape nodes at a specific point in world space
+     * Returns empty array if spatial indexing is disabled
+     */
+    queryPoint(x, y) {
+      if (!this.grid) return [];
+      const results = this.grid.queryPoint(x, y);
+      const nodes = [];
+      for (const { nodeId } of results) {
+        const node = this.document.getNode(nodeId);
+        if (node && isShapeNode(node)) {
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+    /**
+     * Query all shape nodes in a rectangular region
+     * Returns empty array if spatial indexing is disabled
+     */
+    queryRegion(minX, minY, maxX, maxY) {
+      if (!this.grid) return [];
+      const results = this.grid.queryRegion(minX, minY, maxX, maxY);
+      const nodes = [];
+      for (const { nodeId } of results) {
+        const node = this.document.getNode(nodeId);
+        if (node && isShapeNode(node)) {
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+    /**
+     * Query all shape nodes within a circular region
+     * Returns empty array if spatial indexing is disabled
+     */
+    queryCircle(centerX, centerY, radius) {
+      if (!this.grid) return [];
+      const results = this.grid.queryCircle(centerX, centerY, radius);
+      const nodes = [];
+      for (const { nodeId } of results) {
+        const node = this.document.getNode(nodeId);
+        if (node && isShapeNode(node)) {
+          nodes.push(node);
+        }
+      }
+      return nodes;
+    }
+    /**
+     * Query all shape nodes with their bounding boxes at a point
+     * Useful when you need both the node and its bounds
+     */
+    queryPointWithBounds(x, y) {
+      if (!this.grid) return [];
+      const results = this.grid.queryPoint(x, y);
+      const output = [];
+      for (const { nodeId, bounds } of results) {
+        const node = this.document.getNode(nodeId);
+        if (node && isShapeNode(node)) {
+          output.push({ node, bounds });
+        }
+      }
+      return output;
+    }
+    /**
+     * Get statistics about the spatial index
+     * Returns null if spatial indexing is disabled
+     */
+    getStats() {
+      if (!this.grid) return null;
+      return this.grid.getStats();
+    }
+    /**
+     * Change the cell size and rebuild the index
+     * Warning: This is an expensive operation
+     */
+    setCellSize(cellSize) {
+      var _a;
+      if (!this.grid) return;
+      const nodeIds = [];
+      for (const node of this.document.getAllNodes()) {
+        if (isShapeNode(node)) {
+          nodeIds.push(node.id);
+        }
+      }
+      this.grid.setCellSize(cellSize, nodeIds);
+      (_a = this.events) == null ? void 0 : _a.emit("spatialIndex:cellSizeChanged", { cellSize });
+    }
+    /**
+     * Set up automatic synchronization with document changes
+     * This listens to document events and updates the spatial index accordingly
+     */
+    setupAutoSync() {
+      if (!this.events) return;
+      const unsubAdd = this.events.on("document:nodeAdded", (data) => {
+        const eventData = data;
+        if ((eventData == null ? void 0 : eventData.nodeId) && this.grid) {
+          const node = this.document.getNode(eventData.nodeId);
+          if (node && isShapeNode(node)) {
+            this.grid.insert(eventData.nodeId);
+          }
+        }
+      });
+      const unsubRemove = this.events.on(
+        "document:nodeRemoved",
+        (data) => {
+          const eventData = data;
+          if ((eventData == null ? void 0 : eventData.nodeId) && this.grid) {
+            this.grid.remove(eventData.nodeId);
+          }
+        }
+      );
+      const unsubUpdate = this.events.on(
+        "document:nodeUpdated",
+        (data) => {
+          const eventData = data;
+          if ((eventData == null ? void 0 : eventData.nodeId) && this.grid) {
+            const node = this.document.getNode(eventData.nodeId);
+            if (node && isShapeNode(node)) {
+              this.grid.update(eventData.nodeId);
+            }
+          }
+        }
+      );
+      const unsubShapeUpdate = this.events.on(
+        "document:shapeUpdated",
+        (data) => {
+          const eventData = data;
+          if ((eventData == null ? void 0 : eventData.nodeId) && this.grid) {
+            this.grid.update(eventData.nodeId);
+          }
+        }
+      );
+      const unsubClear = this.events.on("document:cleared", () => {
+        if (this.grid) {
+          this.grid.clear();
+        }
+      });
+      this.unsubscribers.push(
+        unsubAdd,
+        unsubRemove,
+        unsubUpdate,
+        unsubShapeUpdate,
+        unsubClear
+      );
+    }
+  };
+
+  // editor-engine/core/services/ShapeQueryService.ts
+  var ShapeQueryService = class {
+    constructor(document, spatialIndex) {
+      this.document = document;
+      this.spatialIndex = spatialIndex;
+    }
+    /**
+     * Find the first shape at a given point using hit testing
+     * @param x - X coordinate in world space
+     * @param y - Y coordinate in world space
+     * @param hitTestAdapter - Hit test adapter for precise shape testing
+     * @returns The shape node at the point, or undefined if none found
+     */
+    findShapeAtPoint(x, y, hitTestAdapter) {
+      if (!hitTestAdapter) {
+        return void 0;
+      }
+      if (this.spatialIndex.isEnabled()) {
+        const candidates = this.spatialIndex.queryPoint(x, y);
+        for (let i = candidates.length - 1; i >= 0; i--) {
+          const candidate = candidates[i];
+          const shape = this.document.getShape(candidate.id);
+          if (shape && hitTestAdapter.testShape(candidate, shape, x, y)) {
+            return candidate;
+          }
+        }
+        return void 0;
+      }
+      const shapeNodes = this.document.getShapeNodes();
+      for (let i = shapeNodes.length - 1; i >= 0; i--) {
+        const [node, shape] = shapeNodes[i];
+        if (isShapeNode(node) && hitTestAdapter.testShape(node, shape, x, y)) {
+          return node;
+        }
+      }
+      return void 0;
+    }
+    /**
+     * Find all shapes that intersect with a rectangular region
+     * @param minX - Minimum X coordinate
+     * @param minY - Minimum Y coordinate
+     * @param maxX - Maximum X coordinate
+     * @param maxY - Maximum Y coordinate
+     * @returns Array of shape nodes that intersect the region
+     */
+    findShapesInRegion(minX, minY, maxX, maxY) {
+      const marquee = { minX, minY, maxX, maxY };
+      const results = [];
+      if (this.spatialIndex.isEnabled()) {
+        const candidates = this.spatialIndex.queryRegion(minX, minY, maxX, maxY);
+        for (const candidate of candidates) {
+          const shape = this.document.getShape(candidate.id);
+          if (!shape) continue;
+          const intersects = shape.type === "LINE" ? BoundingBoxService.lineIntersectsAABB(
+            candidate.transform.x + shape.geometry.x1,
+            candidate.transform.y + shape.geometry.y1,
+            candidate.transform.x + shape.geometry.x2,
+            candidate.transform.y + shape.geometry.y2,
+            marquee
+          ) : BoundingBoxService.aabbIntersects(
+            marquee,
+            BoundingBoxService.getAABB(candidate, shape)
+          );
+          if (intersects) {
+            results.push(candidate);
+          }
+        }
+        return results;
+      }
+      const shapeNodes = this.document.getShapeNodes();
+      for (const [node, shape] of shapeNodes) {
+        if (!isShapeNode(node)) continue;
+        const intersects = shape.type === "LINE" ? BoundingBoxService.lineIntersectsAABB(
+          node.transform.x + shape.geometry.x1,
+          node.transform.y + shape.geometry.y1,
+          node.transform.x + shape.geometry.x2,
+          node.transform.y + shape.geometry.y2,
+          marquee
+        ) : BoundingBoxService.aabbIntersects(
+          marquee,
+          BoundingBoxService.getAABB(node, shape)
+        );
+        if (intersects) {
+          results.push(node);
+        }
+      }
+      return results;
+    }
+    /**
+     * Find all shapes within a circular region
+     * @param centerX - Center X coordinate
+     * @param centerY - Center Y coordinate
+     * @param radius - Radius of the circle
+     * @returns Array of shape nodes within the circle
+     */
+    findShapesInCircle(centerX, centerY, radius) {
+      if (this.spatialIndex.isEnabled()) {
+        return this.spatialIndex.queryCircle(centerX, centerY, radius);
+      }
+      const results = [];
+      const shapeNodes = this.document.getShapeNodes();
+      const radiusSquared = radius * radius;
+      for (const [node, shape] of shapeNodes) {
+        if (!isShapeNode(node)) continue;
+        const aabb = BoundingBoxService.getAABB(node, shape);
+        const closestX = Math.max(aabb.minX, Math.min(centerX, aabb.maxX));
+        const closestY = Math.max(aabb.minY, Math.min(centerY, aabb.maxY));
+        const distanceSquared = (closestX - centerX) ** 2 + (closestY - centerY) ** 2;
+        if (distanceSquared <= radiusSquared) {
+          results.push(node);
+        }
+      }
+      return results;
+    }
+    /**
+     * Check if spatial indexing is currently enabled
+     */
+    isSpatialIndexEnabled() {
+      return this.spatialIndex.isEnabled();
+    }
+    /**
+     * Get statistics about the current query strategy
+     */
+    getQueryStats() {
+      const totalShapes = this.document.getShapeNodes().length;
+      const usingSpatialIndex = this.spatialIndex.isEnabled();
+      return {
+        usingSpatialIndex,
+        totalShapes,
+        spatialIndexStats: usingSpatialIndex ? this.spatialIndex.getStats() : void 0
+      };
+    }
+  };
+
   // editor-engine/core/EventBus.ts
   var EventBus = class {
     constructor() {
@@ -1459,6 +2118,8 @@ var EditorEngine = (() => {
       this.events = new EventBus();
       this.commands = new CommandManager(this.events);
       this.input = new InputManager(this);
+      this.spatialIndex = new SpatialIndexService(this.document, this.events);
+      this.shapeQuery = new ShapeQueryService(this.document, this.spatialIndex);
     }
     /**
      * Subscribe to editor events
@@ -1560,7 +2221,7 @@ var EditorEngine = (() => {
     onPointerDown(e, ctx) {
     }
     onPointerMove(e, { editor }) {
-      var _a, _b;
+      var _a, _b, _c;
       let hoveringOnShape = false;
       if (editor.state.hoveredNodeId) {
         const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId);
@@ -1570,17 +2231,42 @@ var EditorEngine = (() => {
         }
       }
       if (!hoveringOnShape) {
-        const shapeNodes = editor.document.getShapeNodes();
-        const found = shapeNodes.find(
-          ([node, shape]) => {
-            var _a2, _b2;
-            return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(node, shape, e.clientX, e.clientY);
-          }
+        const found = editor.shapeQuery.findShapeAtPoint(
+          e.clientX,
+          e.clientY,
+          (_c = editor.renderer) == null ? void 0 : _c.getHitTestAdapter()
         );
-        editor.state.hoveredNodeId = found ? found[0].id : void 0;
+        editor.state.hoveredNodeId = found == null ? void 0 : found.id;
       }
     }
     onPointerUp(e, ctx) {
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/StateResolver.ts
+  var StateResolver = class {
+    constructor() {
+      this.nextResolver = null;
+    }
+    /**
+     * Set the next resolver in the chain
+     */
+    setNext(resolver) {
+      this.nextResolver = resolver;
+      return resolver;
+    }
+    /**
+     * Handle the request - try to resolve state, or pass to next in chain
+     */
+    resolve(e, ctx) {
+      const state = this.tryResolve(e, ctx);
+      if (state !== null) {
+        return state;
+      }
+      if (this.nextResolver) {
+        return this.nextResolver.resolve(e, ctx);
+      }
+      return null;
     }
   };
 
@@ -1628,103 +2314,6 @@ var EditorEngine = (() => {
     }
     static clearSelectionBounds(ctx) {
       ctx.editor.state.selectionBounds = void 0;
-    }
-  };
-
-  // editor-engine/core/tools/select/states/DragState.ts
-  var DragState = class {
-    constructor() {
-      this.prevMouseX = 0;
-      this.prevMouseY = 0;
-    }
-    onPointerDown(e, ctx) {
-      this.prevMouseX = e.clientX;
-      this.prevMouseY = e.clientY;
-    }
-    onPointerMove(e, ctx) {
-      var _a;
-      const { editor } = ctx;
-      const deltaX = e.clientX - this.prevMouseX;
-      const deltaY = e.clientY - this.prevMouseY;
-      editor.selection.getAll().forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        if (!node) return;
-        if (isGroupNode(node)) {
-          this.moveNodeRecursive(nodeId, deltaX, deltaY, editor);
-        } else {
-          node.transform.x += deltaX;
-          node.transform.y += deltaY;
-          editor.document.updateNode(node);
-        }
-      });
-      this.prevMouseX = e.clientX;
-      this.prevMouseY = e.clientY;
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-      SelectionBoundsHelper.updateSelectionBounds(ctx);
-    }
-    /**
-     * Move a node and all its children recursively (for groups)
-     */
-    moveNodeRecursive(nodeId, deltaX, deltaY, editor) {
-      const node = editor.document.getNode(nodeId);
-      if (!node) return;
-      node.transform.x += deltaX;
-      node.transform.y += deltaY;
-      editor.document.updateNode(node);
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.moveNodeRecursive(childId, deltaX, deltaY, editor);
-        }
-      }
-    }
-    onPointerUp(e, ctx) {
-    }
-  };
-
-  // editor-engine/core/tools/select/states/MarqueeState.ts
-  var MarqueeState = class {
-    constructor() {
-      this.mouseStart = { x: 0, y: 0 };
-    }
-    onPointerDown(e, ctx) {
-      this.mouseStart = { x: e.clientX, y: e.clientY };
-    }
-    onPointerMove(e, { editor }) {
-      const minX = Math.min(this.mouseStart.x, e.clientX);
-      const maxX = Math.max(this.mouseStart.x, e.clientX);
-      const minY = Math.min(this.mouseStart.y, e.clientY);
-      const maxY = Math.max(this.mouseStart.y, e.clientY);
-      this.marqueeBox = {
-        minX,
-        minY,
-        maxX,
-        maxY
-      };
-      editor.state.marquee = this.marqueeBox;
-    }
-    onPointerUp(e, ctx) {
-      const { editor } = ctx;
-      if (editor.state.marquee) {
-        const marquee = editor.state.marquee;
-        editor.document.getShapeNodes().forEach(([node, shape]) => {
-          const intersect = shape.type === "LINE" ? BoundingBoxService.lineIntersectsAABB(
-            node.transform.x + shape.geometry.x1,
-            node.transform.y + shape.geometry.y1,
-            node.transform.x + shape.geometry.x2,
-            node.transform.y + shape.geometry.y2,
-            marquee
-          ) : BoundingBoxService.aabbIntersects(
-            marquee,
-            BoundingBoxService.getAABB(node, shape)
-          );
-          if (intersect) {
-            editor.selection.select(node.id);
-          }
-        });
-      }
-      this.marqueeBox = void 0;
-      editor.state.marquee = void 0;
-      SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
   };
 
@@ -1850,179 +2439,6 @@ var EditorEngine = (() => {
       if (shape.geometry.height < 1) shape.geometry.height = 1;
     }
     resizeMultipleShapes(editor, dx, dy, handle) {
-    }
-  };
-
-  // editor-engine/core/tools/select/states/RotateState.ts
-  var RotateState = class {
-    constructor(handleType) {
-      this.handleType = handleType;
-      this.startMouse = { x: 0, y: 0 };
-      this.centerPoint = { x: 0, y: 0 };
-      this.startAngle = 0;
-      this.originalTransforms = /* @__PURE__ */ new Map();
-    }
-    onEnter(ctx) {
-      const { editor } = ctx;
-      const selection = editor.selection.getAll();
-      if (editor.state.selectionBounds) {
-        const bounds = editor.state.selectionBounds;
-        const width = bounds.maxX - bounds.minX;
-        const height = bounds.maxY - bounds.minY;
-        this.centerPoint = {
-          x: bounds.minX + width / 2,
-          y: bounds.minY + height / 2
-        };
-        if (selection.length === 1) {
-          const node = editor.document.getNode(selection[0]);
-          if (node && isGroupNode(node)) {
-            for (const childId of node.children) {
-              this.collectOriginalTransforms(childId, editor);
-            }
-          } else {
-            const shape = editor.document.getShape(selection[0]);
-            if (node && shape) {
-              this.originalTransforms.set(node.id, {
-                x: node.transform.x,
-                y: node.transform.y,
-                rotation: node.transform.rotation
-              });
-            }
-          }
-        } else {
-          selection.forEach((nodeId) => {
-            this.collectOriginalTransforms(nodeId, editor);
-          });
-        }
-      }
-    }
-    collectOriginalTransforms(nodeId, editor) {
-      const node = editor.document.getNode(nodeId);
-      if (!node) return;
-      this.originalTransforms.set(node.id, {
-        x: node.transform.x,
-        y: node.transform.y,
-        rotation: node.transform.rotation
-      });
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.collectOriginalTransforms(childId, editor);
-        }
-      }
-    }
-    onPointerDown(e, ctx) {
-      this.startMouse = { x: e.clientX, y: e.clientY };
-      this.startAngle = this.calculateAngle(
-        this.startMouse.x,
-        this.startMouse.y,
-        this.centerPoint.x,
-        this.centerPoint.y
-      );
-    }
-    onPointerMove(e, ctx) {
-      var _a;
-      const { editor } = ctx;
-      const currentAngle = this.calculateAngle(
-        e.clientX,
-        e.clientY,
-        this.centerPoint.x,
-        this.centerPoint.y
-      );
-      const deltaAngle = currentAngle - this.startAngle;
-      const selection = editor.selection.getAll();
-      if (selection.length === 1) {
-        const node = editor.document.getNode(selection[0]);
-        const shape = editor.document.getShape(selection[0]);
-        if (node && !shape && isGroupNode(node)) {
-          const originalGroupRotation = node.transform.rotation;
-          node.transform.rotation = originalGroupRotation + deltaAngle;
-          editor.document.updateNode(node);
-          this.rotateAllNodes(editor, deltaAngle);
-        } else if (node && shape) {
-          const original = this.originalTransforms.get(node.id);
-          if (original) {
-            if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
-              node.transform.rotation = original.rotation + deltaAngle;
-            } else if (shape.type === "LINE") {
-              const centerWorldX = node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2;
-              const centerWorldY = node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2;
-              const dx = shape.geometry.x1 - (shape.geometry.x1 + shape.geometry.x2) / 2;
-              const dy = shape.geometry.y1 - (shape.geometry.y1 + shape.geometry.y2) / 2;
-              const radius = Math.sqrt(dx * dx + dy * dy);
-              const angle = Math.atan2(
-                e.clientY - centerWorldY,
-                e.clientX - centerWorldX
-              );
-              const centerLocalX = (shape.geometry.x1 + shape.geometry.x2) / 2;
-              const centerLocalY = (shape.geometry.y1 + shape.geometry.y2) / 2;
-              shape.geometry.x2 = centerLocalX + radius * Math.cos(angle);
-              shape.geometry.y2 = centerLocalY + radius * Math.sin(angle);
-              shape.geometry.x1 = centerLocalX - radius * Math.cos(angle);
-              shape.geometry.y1 = centerLocalY - radius * Math.sin(angle);
-              editor.document.updateShape(shape);
-            }
-            editor.document.updateNode(node);
-          }
-        }
-      } else {
-        this.rotateAllNodes(editor, deltaAngle);
-      }
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-      SelectionBoundsHelper.updateSelectionBounds(ctx);
-      ctx.renderOverlays();
-    }
-    /**
-     * Rotate all nodes that have stored original transforms
-     * Used for multi-select and group rotation
-     * Both position and rotation are updated - shapes rotate around center AND rotate individually
-     */
-    rotateAllNodes(editor, deltaAngle) {
-      this.originalTransforms.forEach((original, nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        if (node) {
-          const rotatedPos = this.rotatePoint(
-            original.x,
-            original.y,
-            this.centerPoint.x,
-            this.centerPoint.y,
-            deltaAngle
-          );
-          node.transform.x = rotatedPos.x;
-          node.transform.y = rotatedPos.y;
-          node.transform.rotation = original.rotation + deltaAngle;
-          editor.document.updateNode(node);
-        }
-      });
-    }
-    onPointerUp(e, ctx) {
-    }
-    calculateAngle(x, y, centerX, centerY) {
-      return Math.atan2(y - centerY, x - centerX);
-    }
-    rotatePoint(x, y, centerX, centerY, angle) {
-      const cos = Math.cos(angle);
-      const sin = Math.sin(angle);
-      const dx = x - centerX;
-      const dy = y - centerY;
-      return {
-        x: centerX + dx * cos - dy * sin,
-        y: centerY + dx * sin + dy * cos
-      };
-    }
-    getShapeCenter(node, shape) {
-      if (shape.type === "LINE") {
-        const midX = (shape.geometry.x1 + shape.geometry.x2) / 2;
-        const midY = (shape.geometry.y1 + shape.geometry.y2) / 2;
-        return {
-          x: node.transform.x + midX,
-          y: node.transform.y + midY
-        };
-      } else {
-        return {
-          x: node.transform.x + shape.geometry.width / 2,
-          y: node.transform.y + shape.geometry.height / 2
-        };
-      }
     }
   };
 
@@ -2291,14 +2707,520 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/tools/select/resolvers/ResizeHandleResolver.ts
+  var ResizeHandleResolver = class extends StateResolver {
+    tryResolve(e, ctx) {
+      const handleHit = this.testResizeHandles(e, ctx.editor);
+      if ((handleHit.type === "corner" || handleHit.type === "edge") && handleHit.handle) {
+        return new ResizeState(handleHit.handle);
+      }
+      return null;
+    }
+    /**
+     * Test if pointer hits any resize handle (corner or edge)
+     */
+    testResizeHandles(e, editor) {
+      const selection = editor.selection.getAll();
+      if (editor.state.selectionBounds && selection.length > 1) {
+        return this.testAABBHandles(e, editor);
+      }
+      if (selection.length === 1) {
+        return this.testSingleSelectionHandles(e, editor, selection[0]);
+      }
+      return { type: null, handle: null };
+    }
+    /**
+     * Test AABB handles for multi-selection or groups
+     */
+    testAABBHandles(e, editor) {
+      if (!editor.state.selectionBounds) {
+        return { type: null, handle: null };
+      }
+      const geometry = HandleGeometryService.getAABBHandleGeometry(
+        editor.state.selectionBounds
+      );
+      const center = HandleHitTestService.getAABBCenter(
+        editor.state.selectionBounds
+      );
+      return HandleHitTestService.testHandles(
+        e.clientX,
+        e.clientY,
+        geometry,
+        center.x,
+        center.y,
+        0
+        // AABB has no rotation
+      );
+    }
+    /**
+     * Test handles for a single selected node (shape or group)
+     */
+    testSingleSelectionHandles(e, editor, nodeId) {
+      const node = editor.document.getNode(nodeId);
+      const shape = editor.document.getShape(nodeId);
+      if (node && !shape && editor.state.selectionBounds) {
+        return this.testAABBHandles(e, editor);
+      }
+      if (node && shape) {
+        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
+        const center = HandleHitTestService.getShapeCenter(node, shape);
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          node.transform.rotation
+        );
+      }
+      return { type: null, handle: null };
+    }
+  };
+
+  // editor-engine/core/tools/select/states/RotateState.ts
+  var RotateState = class {
+    constructor(handleType) {
+      this.handleType = handleType;
+      this.startMouse = { x: 0, y: 0 };
+      this.centerPoint = { x: 0, y: 0 };
+      this.startAngle = 0;
+      this.originalTransforms = /* @__PURE__ */ new Map();
+    }
+    onEnter(ctx) {
+      const { editor } = ctx;
+      const selection = editor.selection.getAll();
+      if (editor.state.selectionBounds) {
+        const bounds = editor.state.selectionBounds;
+        const width = bounds.maxX - bounds.minX;
+        const height = bounds.maxY - bounds.minY;
+        this.centerPoint = {
+          x: bounds.minX + width / 2,
+          y: bounds.minY + height / 2
+        };
+        if (selection.length === 1) {
+          const node = editor.document.getNode(selection[0]);
+          if (node && isGroupNode(node)) {
+            for (const childId of node.children) {
+              this.collectOriginalTransforms(childId, editor);
+            }
+          } else {
+            const shape = editor.document.getShape(selection[0]);
+            if (node && shape) {
+              this.originalTransforms.set(node.id, {
+                x: node.transform.x,
+                y: node.transform.y,
+                rotation: node.transform.rotation
+              });
+            }
+          }
+        } else {
+          selection.forEach((nodeId) => {
+            this.collectOriginalTransforms(nodeId, editor);
+          });
+        }
+      }
+    }
+    collectOriginalTransforms(nodeId, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      this.originalTransforms.set(node.id, {
+        x: node.transform.x,
+        y: node.transform.y,
+        rotation: node.transform.rotation
+      });
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectOriginalTransforms(childId, editor);
+        }
+      }
+    }
+    onPointerDown(e, ctx) {
+      this.startMouse = { x: e.clientX, y: e.clientY };
+      this.startAngle = this.calculateAngle(
+        this.startMouse.x,
+        this.startMouse.y,
+        this.centerPoint.x,
+        this.centerPoint.y
+      );
+    }
+    onPointerMove(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const currentAngle = this.calculateAngle(
+        e.clientX,
+        e.clientY,
+        this.centerPoint.x,
+        this.centerPoint.y
+      );
+      const deltaAngle = currentAngle - this.startAngle;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const node = editor.document.getNode(selection[0]);
+        const shape = editor.document.getShape(selection[0]);
+        if (node && !shape && isGroupNode(node)) {
+          const originalGroupRotation = node.transform.rotation;
+          node.transform.rotation = originalGroupRotation + deltaAngle;
+          editor.document.updateNode(node);
+          this.rotateAllNodes(editor, deltaAngle);
+        } else if (node && shape) {
+          const original = this.originalTransforms.get(node.id);
+          if (original) {
+            if (shape.type === "RECTANGLE" || shape.type === "ELLIPSE") {
+              node.transform.rotation = original.rotation + deltaAngle;
+            } else if (shape.type === "LINE") {
+              const centerWorldX = node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const centerWorldY = node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2;
+              const dx = shape.geometry.x1 - (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const dy = shape.geometry.y1 - (shape.geometry.y1 + shape.geometry.y2) / 2;
+              const radius = Math.sqrt(dx * dx + dy * dy);
+              const angle = Math.atan2(
+                e.clientY - centerWorldY,
+                e.clientX - centerWorldX
+              );
+              const centerLocalX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+              const centerLocalY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+              shape.geometry.x2 = centerLocalX + radius * Math.cos(angle);
+              shape.geometry.y2 = centerLocalY + radius * Math.sin(angle);
+              shape.geometry.x1 = centerLocalX - radius * Math.cos(angle);
+              shape.geometry.y1 = centerLocalY - radius * Math.sin(angle);
+              editor.document.updateShape(shape);
+            }
+            editor.document.updateNode(node);
+          }
+        }
+      } else {
+        this.rotateAllNodes(editor, deltaAngle);
+      }
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+      ctx.renderOverlays();
+    }
+    /**
+     * Rotate all nodes that have stored original transforms
+     * Used for multi-select and group rotation
+     * Both position and rotation are updated - shapes rotate around center AND rotate individually
+     */
+    rotateAllNodes(editor, deltaAngle) {
+      this.originalTransforms.forEach((original, nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        if (node) {
+          const rotatedPos = this.rotatePoint(
+            original.x,
+            original.y,
+            this.centerPoint.x,
+            this.centerPoint.y,
+            deltaAngle
+          );
+          node.transform.x = rotatedPos.x;
+          node.transform.y = rotatedPos.y;
+          node.transform.rotation = original.rotation + deltaAngle;
+          editor.document.updateNode(node);
+        }
+      });
+    }
+    onPointerUp(e, ctx) {
+    }
+    calculateAngle(x, y, centerX, centerY) {
+      return Math.atan2(y - centerY, x - centerX);
+    }
+    rotatePoint(x, y, centerX, centerY, angle) {
+      const cos = Math.cos(angle);
+      const sin = Math.sin(angle);
+      const dx = x - centerX;
+      const dy = y - centerY;
+      return {
+        x: centerX + dx * cos - dy * sin,
+        y: centerY + dx * sin + dy * cos
+      };
+    }
+    getShapeCenter(node, shape) {
+      if (shape.type === "LINE") {
+        const midX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+        const midY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+        return {
+          x: node.transform.x + midX,
+          y: node.transform.y + midY
+        };
+      } else {
+        return {
+          x: node.transform.x + shape.geometry.width / 2,
+          y: node.transform.y + shape.geometry.height / 2
+        };
+      }
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/RotationHandleResolver.ts
+  var RotationHandleResolver = class extends StateResolver {
+    tryResolve(e, ctx) {
+      const handleHit = this.testRotationHandles(e, ctx.editor);
+      if (handleHit.type === "rotation" && handleHit.handle) {
+        return new RotateState(handleHit.handle);
+      }
+      return null;
+    }
+    /**
+     * Test if pointer hits any rotation handle
+     */
+    testRotationHandles(e, editor) {
+      const selection = editor.selection.getAll();
+      if (editor.state.selectionBounds && selection.length > 1) {
+        return this.testAABBHandles(e, editor);
+      }
+      if (selection.length === 1) {
+        return this.testSingleSelectionHandles(e, editor, selection[0]);
+      }
+      return { type: null, handle: null };
+    }
+    /**
+     * Test AABB handles for multi-selection or groups
+     */
+    testAABBHandles(e, editor) {
+      if (!editor.state.selectionBounds) {
+        return { type: null, handle: null };
+      }
+      const geometry = HandleGeometryService.getAABBHandleGeometry(
+        editor.state.selectionBounds
+      );
+      const center = HandleHitTestService.getAABBCenter(
+        editor.state.selectionBounds
+      );
+      return HandleHitTestService.testHandles(
+        e.clientX,
+        e.clientY,
+        geometry,
+        center.x,
+        center.y,
+        0
+        // AABB has no rotation
+      );
+    }
+    /**
+     * Test handles for a single selected node (shape or group)
+     */
+    testSingleSelectionHandles(e, editor, nodeId) {
+      const node = editor.document.getNode(nodeId);
+      const shape = editor.document.getShape(nodeId);
+      if (node && !shape && editor.state.selectionBounds) {
+        return this.testAABBHandles(e, editor);
+      }
+      if (node && shape) {
+        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
+        const center = HandleHitTestService.getShapeCenter(node, shape);
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          node.transform.rotation
+        );
+      }
+      return { type: null, handle: null };
+    }
+  };
+
+  // editor-engine/core/tools/select/states/DragState.ts
+  var DragState = class {
+    constructor() {
+      this.prevMouseX = 0;
+      this.prevMouseY = 0;
+    }
+    onPointerDown(e, ctx) {
+      this.prevMouseX = e.clientX;
+      this.prevMouseY = e.clientY;
+    }
+    onPointerMove(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const deltaX = e.clientX - this.prevMouseX;
+      const deltaY = e.clientY - this.prevMouseY;
+      editor.selection.getAll().forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        if (!node) return;
+        if (isGroupNode(node)) {
+          this.moveNodeRecursive(nodeId, deltaX, deltaY, editor);
+        } else {
+          node.transform.x += deltaX;
+          node.transform.y += deltaY;
+          editor.document.updateNode(node);
+        }
+      });
+      this.prevMouseX = e.clientX;
+      this.prevMouseY = e.clientY;
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+    }
+    /**
+     * Move a node and all its children recursively (for groups)
+     */
+    moveNodeRecursive(nodeId, deltaX, deltaY, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      node.transform.x += deltaX;
+      node.transform.y += deltaY;
+      editor.document.updateNode(node);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.moveNodeRecursive(childId, deltaX, deltaY, editor);
+        }
+      }
+    }
+    onPointerUp(e, ctx) {
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/SelectedObjectResolver.ts
+  var SelectedObjectResolver = class extends StateResolver {
+    tryResolve(e, ctx) {
+      const { editor } = ctx;
+      if (!editor.state.hoveredNodeId) {
+        return null;
+      }
+      if (this.isHoveredShapeInSelection(editor)) {
+        return new DragState();
+      }
+      return null;
+    }
+    /**
+     * Check if the hovered shape is within the current selection bounds
+     * This allows dragging without changing the selection
+     */
+    isHoveredShapeInSelection(editor) {
+      const hoveredNodeId = editor.state.hoveredNodeId;
+      if (!hoveredNodeId) return false;
+      const hoveredNode = editor.document.getNode(hoveredNodeId);
+      const hoveredShape = editor.document.getShape(hoveredNodeId);
+      if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
+        return BoundingBoxService.aabbIntersects(
+          editor.state.selectionBounds,
+          BoundingBoxService.getAABB(hoveredNode, hoveredShape)
+        );
+      }
+      return false;
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/HoveredObjectResolver.ts
+  var HoveredObjectResolver = class extends StateResolver {
+    tryResolve(e, ctx) {
+      const { editor } = ctx;
+      if (!editor.state.hoveredNodeId) {
+        return null;
+      }
+      const nodeToSelect = this.determineNodeToSelect(e, editor);
+      this.applySelection(e, editor, nodeToSelect);
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+      return new DragState();
+    }
+    /**
+     * Determine which node to select based on modifier keys and hierarchy
+     */
+    determineNodeToSelect(e, editor) {
+      const hoveredNodeId = editor.state.hoveredNodeId;
+      if (e.ctrlKey || e.metaKey) {
+        return hoveredNodeId;
+      }
+      const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId);
+      if (topLevelParent && topLevelParent.id !== hoveredNodeId) {
+        return topLevelParent.id;
+      }
+      return hoveredNodeId;
+    }
+    /**
+     * Apply selection based on modifier keys
+     * - Shift: Add to selection
+     * - No modifier: Replace selection
+     */
+    applySelection(e, editor, nodeId) {
+      if (e.shiftKey) {
+        editor.selection.select(nodeId);
+      } else {
+        editor.selection.setSingle(nodeId);
+      }
+    }
+  };
+
+  // editor-engine/core/tools/select/states/MarqueeState.ts
+  var MarqueeState = class {
+    constructor() {
+      this.mouseStart = { x: 0, y: 0 };
+    }
+    onPointerDown(e, ctx) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
+    }
+    onPointerMove(e, { editor }) {
+      const minX = Math.min(this.mouseStart.x, e.clientX);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
+      const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxY = Math.max(this.mouseStart.y, e.clientY);
+      this.marqueeBox = {
+        minX,
+        minY,
+        maxX,
+        maxY
+      };
+      editor.state.marquee = this.marqueeBox;
+    }
+    onPointerUp(e, ctx) {
+      const { editor } = ctx;
+      if (editor.state.marquee) {
+        const marquee = editor.state.marquee;
+        const shapesInRegion = editor.shapeQuery.findShapesInRegion(
+          marquee.minX,
+          marquee.minY,
+          marquee.maxX,
+          marquee.maxY
+        );
+        shapesInRegion.forEach((node) => {
+          editor.selection.select(node.id);
+        });
+      }
+      this.marqueeBox = void 0;
+      editor.state.marquee = void 0;
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/BackgroundResolver.ts
+  var BackgroundResolver = class extends StateResolver {
+    tryResolve(e, ctx) {
+      ctx.editor.selection.clear();
+      ctx.editor.state.clearTransient();
+      return new MarqueeState();
+    }
+  };
+
+  // editor-engine/core/tools/select/strategies/StateTransitionResolver.ts
+  var StateTransitionResolver = class {
+    constructor() {
+      const resizeResolver = new ResizeHandleResolver();
+      const rotationResolver = new RotationHandleResolver();
+      const selectedObjectResolver = new SelectedObjectResolver();
+      const hoveredObjectResolver = new HoveredObjectResolver();
+      const backgroundResolver = new BackgroundResolver();
+      resizeResolver.setNext(rotationResolver).setNext(selectedObjectResolver).setNext(hoveredObjectResolver).setNext(backgroundResolver);
+      this.chainHead = resizeResolver;
+    }
+    /**
+     * Resolve the next interaction state based on pointer event and context
+     * Delegates to the chain of resolvers
+     */
+    resolve(e, ctx) {
+      const state = this.chainHead.resolve(e, ctx);
+      return state != null ? state : new IdleState();
+    }
+  };
+
   // editor-engine/core/tools/select/SelectTool.ts
   var SelectTool = class {
     constructor() {
       this.id = "select";
       this.currentState = new IdleState();
+      this.stateResolver = new StateTransitionResolver();
     }
     onPointerDown(e, ctx) {
-      const nextState = this.determineNextState(e, ctx);
+      const nextState = this.stateResolver.resolve(e, ctx);
       this.transitionTo(nextState, ctx);
       this.currentState.onPointerDown(e, ctx);
       ctx.renderOverlays();
@@ -2309,9 +3231,7 @@ var EditorEngine = (() => {
     }
     onPointerUp(e, ctx) {
       this.currentState.onPointerUp(e, ctx);
-      const next = new IdleState();
-      this.transitionTo(next, ctx);
-      this.currentState.onPointerUp(e, ctx);
+      this.transitionTo(new IdleState(), ctx);
       ctx.renderOverlays();
     }
     onKeyDown(e, ctx) {
@@ -2338,105 +3258,55 @@ var EditorEngine = (() => {
       this.currentState = state;
       (_d = (_c = this.currentState).onEnter) == null ? void 0 : _d.call(_c, ctx);
     }
-    determineNextState(e, ctx) {
-      const { editor } = ctx;
-      const handleHit = this.testHandleHit(e, editor);
-      if (handleHit.type === "rotation" && handleHit.handle) {
-        return new RotateState(handleHit.handle);
-      }
-      if ((handleHit.type === "corner" || handleHit.type === "edge") && handleHit.handle) {
-        return new ResizeState(handleHit.handle);
-      }
-      if (editor.state.hoveredNodeId) {
-        let nodeToSelect = editor.state.hoveredNodeId;
-        if (!e.ctrlKey && !e.metaKey) {
-          const topLevelParent = editor.document.getTopLevelParent(
-            editor.state.hoveredNodeId
-          );
-          if (topLevelParent && topLevelParent.id !== editor.state.hoveredNodeId) {
-            nodeToSelect = topLevelParent.id;
-          }
-        }
-        const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId);
-        const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId);
-        if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
-          if (BoundingBoxService.aabbIntersects(
-            editor.state.selectionBounds,
-            BoundingBoxService.getAABB(hoveredNode, hoveredShape)
-          ))
-            return new DragState();
-        }
-        if (e.shiftKey) editor.selection.select(nodeToSelect);
-        else editor.selection.setSingle(nodeToSelect);
-        SelectionBoundsHelper.updateSelectionBounds(ctx);
-        return new DragState();
-      }
-      editor.selection.clear();
-      editor.state.clearTransient();
-      return new MarqueeState();
+  };
+
+  // editor-engine/core/tools/ToolConstants.ts
+  var TOOL_IDS = {
+    SELECT: "select",
+    RECTANGLE: "rectangle",
+    ELLIPSE: "ellipse",
+    LINE: "line"
+  };
+
+  // editor-engine/core/tools/BaseShapeTool.ts
+  var BaseShapeTool = class {
+    constructor() {
+      this.hasDragged = false;
     }
-    testHandleHit(e, editor) {
-      const selection = editor.selection.getAll();
-      if (editor.state.selectionBounds && selection.length > 1) {
-        const geometry = HandleGeometryService.getAABBHandleGeometry(
-          editor.state.selectionBounds
-        );
-        const center = HandleHitTestService.getAABBCenter(
-          editor.state.selectionBounds
-        );
-        return HandleHitTestService.testHandles(
-          e.clientX,
-          e.clientY,
-          geometry,
-          center.x,
-          center.y,
-          0
-          // AABB has no rotation
-        );
-      }
-      if (selection.length === 1) {
-        const node = editor.document.getNode(selection[0]);
-        const shape = editor.document.getShape(selection[0]);
-        if (node && !shape && editor.state.selectionBounds) {
-          const geometry = HandleGeometryService.getAABBHandleGeometry(
-            editor.state.selectionBounds
-          );
-          const center = HandleHitTestService.getAABBCenter(
-            editor.state.selectionBounds
-          );
-          return HandleHitTestService.testHandles(
-            e.clientX,
-            e.clientY,
-            geometry,
-            center.x,
-            center.y,
-            0
-            // AABB has no rotation
-          );
-        } else if (node && shape) {
-          const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
-          const center = HandleHitTestService.getShapeCenter(node, shape);
-          return HandleHitTestService.testHandles(
-            e.clientX,
-            e.clientY,
-            geometry,
-            center.x,
-            center.y,
-            node.transform.rotation
-          );
+    onPointerUp(e, { editor }) {
+      var _a;
+      if (this.draftNodeId) {
+        if (!this.hasDragged) {
+          editor.document.removeNode(this.draftNodeId);
+          editor.selection.clear();
+          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+          this.draftNodeId = void 0;
+          this.hasDragged = false;
+          return;
         }
+        this.draftNodeId = void 0;
+        this.hasDragged = false;
+        editor.setActiveTool(TOOL_IDS.SELECT);
       }
-      return { type: null, handle: null };
+    }
+    /**
+     * Reset tool state
+     */
+    resetState() {
+      this.draftNodeId = void 0;
+      this.hasDragged = false;
     }
   };
 
   // editor-engine/core/tools/LineTool.ts
-  var LineTool = class {
+  var LineTool = class extends BaseShapeTool {
     constructor() {
-      this.id = "line";
-      this.hasDragged = false;
+      super(...arguments);
+      this.id = TOOL_IDS.LINE;
+      this.mouseStart = { x: 0, y: 0 };
     }
     onPointerDown(e, { editor }) {
+      this.mouseStart = { x: e.clientX, y: e.clientY };
       this.hasDragged = false;
       const nodeId = crypto.randomUUID();
       this.draftNodeId = nodeId;
@@ -2483,35 +3353,21 @@ var EditorEngine = (() => {
       this.hasDragged = true;
       shape.geometry.x2 = nextX2;
       shape.geometry.y2 = nextY2;
+      editor.document.updateNode(node);
       editor.document.updateShape(shape);
       (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
-    onPointerUp(e, { editor }) {
-      var _a;
-      if (this.draftNodeId) {
-        if (!this.hasDragged) {
-          editor.document.removeNode(this.draftNodeId);
-          editor.selection.clear();
-          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draftNodeId = void 0;
-          this.hasDragged = false;
-          return;
-        }
-        this.draftNodeId = void 0;
-        this.hasDragged = false;
-        editor.setActiveTool("select");
-      }
-    }
+    // onPointerUp inherited from BaseShapeTool
   };
 
   // editor-engine/core/tools/RectangleTool.ts
-  var RectangleTool = class {
+  var RectangleTool = class extends BaseShapeTool {
     constructor() {
-      this.id = "rectangle";
+      super(...arguments);
+      this.id = TOOL_IDS.RECTANGLE;
       this.mouseStart = { x: 0, y: 0 };
-      this.hasDragged = false;
     }
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
@@ -2553,8 +3409,8 @@ var EditorEngine = (() => {
       const shape = editor.document.getShape(this.draftNodeId);
       if (!node || !shape || shape.type !== "RECTANGLE" /* RECTANGLE */) return;
       const minX = Math.min(this.mouseStart.x, e.clientX);
-      const maxX = Math.max(this.mouseStart.x, e.clientX);
       const minY = Math.min(this.mouseStart.y, e.clientY);
+      const maxX = Math.max(this.mouseStart.x, e.clientX);
       const maxY = Math.max(this.mouseStart.y, e.clientY);
       const width = maxX - minX;
       const height = maxY - minY;
@@ -2570,30 +3426,15 @@ var EditorEngine = (() => {
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
-    onPointerUp(e, { editor }) {
-      var _a;
-      if (this.draftNodeId) {
-        if (!this.hasDragged) {
-          editor.document.removeNode(this.draftNodeId);
-          editor.selection.clear();
-          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draftNodeId = void 0;
-          this.hasDragged = false;
-          return;
-        }
-        this.draftNodeId = void 0;
-        this.hasDragged = false;
-        editor.setActiveTool("select");
-      }
-    }
+    // onPointerUp inherited from BaseShapeTool
   };
 
   // editor-engine/core/tools/EllipseTool.ts
-  var EllipseTool = class {
+  var EllipseTool = class extends BaseShapeTool {
     constructor() {
-      this.id = "ellipse";
+      super(...arguments);
+      this.id = TOOL_IDS.ELLIPSE;
       this.mouseStart = { x: 0, y: 0 };
-      this.hasDragged = false;
     }
     onPointerDown(e, { editor }) {
       this.mouseStart = { x: e.clientX, y: e.clientY };
@@ -2652,22 +3493,7 @@ var EditorEngine = (() => {
       SelectionBoundsHelper.updateSelectionBounds({ editor, renderOverlays });
       renderOverlays();
     }
-    onPointerUp(e, { editor }) {
-      var _a;
-      if (this.draftNodeId) {
-        if (!this.hasDragged) {
-          editor.document.removeNode(this.draftNodeId);
-          editor.selection.clear();
-          (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-          this.draftNodeId = void 0;
-          this.hasDragged = false;
-          return;
-        }
-        this.draftNodeId = void 0;
-        this.hasDragged = false;
-        editor.setActiveTool("select");
-      }
-    }
+    // onPointerUp inherited from BaseShapeTool
   };
 
   // editor-engine/adapters/CanvasPathBuilder.ts

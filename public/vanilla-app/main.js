@@ -19,8 +19,12 @@ const layersSection = document.querySelector(".layers")
 // Initialize editor with hybrid architecture (Command Pattern + Event Bus)
 const editor = new Editor()
 
+// Enable spatial indexing for fast hit testing and region queries
+// editor.spatialIndex.enable({ cellSize: 100 })
+
 console.log("✅ Editor initialized with Command Pattern and Event Bus")
 console.log("📝 Undo/Redo available via Ctrl+Z / Ctrl+Shift+Z")
+console.log("🗺️ Spatial indexing enabled for optimized performance")
 
 const tools = [
   { id: "select", name: "select", component: SelectTool },

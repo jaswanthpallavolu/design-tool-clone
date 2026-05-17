@@ -1,15 +1,17 @@
-import { Tool, ToolContext } from "./Tool"
+import { ToolContext } from "./Tool"
 import { ShapeType, createLineShape } from "../model/Shape"
 import { createShapeNode } from "../model/Node"
 import type { PointerEventData } from "../types/InputTypes"
 import { SelectionBoundsHelper } from "./select/helpers/SelectionBoundsHelper"
+import { BaseShapeTool } from "./BaseShapeTool"
+import { TOOL_IDS } from "./ToolConstants"
 
-export class LineTool implements Tool {
-  readonly id = "line"
-  draftNodeId?: string
-  hasDragged = false
+export class LineTool extends BaseShapeTool {
+  readonly id = TOOL_IDS.LINE
+  private mouseStart: { x: number; y: number } = { x: 0, y: 0 }
 
   onPointerDown(e: PointerEventData, { editor }: ToolContext) {
+    this.mouseStart = { x: e.clientX, y: e.clientY }
     this.hasDragged = false
 
     // Create node ID
@@ -71,6 +73,7 @@ export class LineTool implements Tool {
     shape.geometry.x2 = nextX2
     shape.geometry.y2 = nextY2
 
+    editor.document.updateNode(node)
     editor.document.updateShape(shape)
     editor.renderer?.renderShapes()
 
@@ -78,21 +81,5 @@ export class LineTool implements Tool {
     renderOverlays()
   }
 
-  onPointerUp(e: PointerEventData, { editor }: ToolContext) {
-    if (this.draftNodeId) {
-      if (!this.hasDragged) {
-        editor.document.removeNode(this.draftNodeId)
-        editor.selection.clear()
-        editor.renderer?.renderShapes()
-        this.draftNodeId = undefined
-        this.hasDragged = false
-        return
-      }
-      this.draftNodeId = undefined
-      this.hasDragged = false
-      editor.setActiveTool("select")
-    }
-  }
+  // onPointerUp inherited from BaseShapeTool
 }
-
-// Made with Bob

@@ -21,13 +21,13 @@ export class IdleState implements InteractionState {
       }
     }
     if (!hoveringOnShape) {
-      const shapeNodes = editor.document.getShapeNodes()
-      const found = shapeNodes.find(([node, shape]) =>
-        editor.renderer
-          ?.getHitTestAdapter()
-          ?.testShape(node, shape, e.clientX, e.clientY),
+      // Use ShapeQueryService for automatic spatial index optimization
+      const found = editor.shapeQuery.findShapeAtPoint(
+        e.clientX,
+        e.clientY,
+        editor.renderer?.getHitTestAdapter(),
       )
-      editor.state.hoveredNodeId = found ? found[0].id : undefined
+      editor.state.hoveredNodeId = found?.id
     }
   }
 

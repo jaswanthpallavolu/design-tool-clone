@@ -1,10 +1,7 @@
 import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
-import {
-  BoundingBoxService,
-  AABB,
-} from "@/editor-engine/core/services/BoundingBoxService"
+import { AABB } from "@/editor-engine/core/services/BoundingBoxService"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
 
 export class MarqueeState implements InteractionState {
@@ -34,23 +31,18 @@ export class MarqueeState implements InteractionState {
     const { editor } = ctx
     if (editor.state.marquee) {
       const marquee = editor.state.marquee
-      editor.document.getShapeNodes().forEach(([node, shape]) => {
-        const intersect =
-          shape.type === "LINE"
-            ? BoundingBoxService.lineIntersectsAABB(
-                node.transform.x + shape.geometry.x1,
-                node.transform.y + shape.geometry.y1,
-                node.transform.x + shape.geometry.x2,
-                node.transform.y + shape.geometry.y2,
-                marquee,
-              )
-            : BoundingBoxService.aabbIntersects(
-                marquee,
-                BoundingBoxService.getAABB(node, shape),
-              )
-        if (intersect) {
-          editor.selection.select(node.id)
-        }
+
+      // Use ShapeQueryService for automatic spatial index optimization
+      const shapesInRegion = editor.shapeQuery.findShapesInRegion(
+        marquee.minX,
+        marquee.minY,
+        marquee.maxX,
+        marquee.maxY,
+      )
+
+      // Select all shapes found in the region
+      shapesInRegion.forEach((node) => {
+        editor.selection.select(node.id)
       })
     }
     this.marqueeBox = undefined

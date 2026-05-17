@@ -6,6 +6,8 @@ import { Tool } from "./tools/Tool"
 import { RenderPort } from "./ports/RenderPort"
 import type { PointerEventData } from "./types/InputTypes"
 import { GroupService } from "./services/GroupService"
+import { SpatialIndexService } from "./services/SpatialIndexService"
+import { ShapeQueryService } from "./services/ShapeQueryService"
 import { EventBus } from "./EventBus"
 import { CommandManager } from "./commands/CommandManager"
 import {
@@ -23,6 +25,8 @@ export class Editor {
   readonly tools = new ToolManager(this)
   readonly state = new EditorState()
   readonly groupService = new GroupService(this.document)
+  readonly spatialIndex: SpatialIndexService
+  readonly shapeQuery: ShapeQueryService
   readonly events = new EventBus()
   readonly commands: CommandManager
   readonly input: InputManager
@@ -31,6 +35,8 @@ export class Editor {
   constructor() {
     this.commands = new CommandManager(this.events)
     this.input = new InputManager(this)
+    this.spatialIndex = new SpatialIndexService(this.document, this.events)
+    this.shapeQuery = new ShapeQueryService(this.document, this.spatialIndex)
   }
 
   /**
