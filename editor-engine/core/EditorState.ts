@@ -7,8 +7,8 @@ export interface ToolOptions {
 }
 
 export class EditorState {
-  marquee?: AABB
-  hoveredShapeId?: string
+  marquee?: AABB // used by renderer
+  hoveredNodeId?: string
   selectionBounds?: AABB
 
   toolOptions: ToolOptions = {
@@ -18,7 +18,7 @@ export class EditorState {
 
   clearTransient() {
     this.marquee = undefined
-    this.hoveredShapeId = undefined
+    this.hoveredNodeId = undefined
     this.selectionBounds = undefined
   }
 

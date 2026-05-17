@@ -562,7 +562,7 @@ var EditorEngine = (() => {
     }
     clearTransient() {
       this.marquee = void 0;
-      this.hoveredShapeId = void 0;
+      this.hoveredNodeId = void 0;
       this.selectionBounds = void 0;
     }
     updateToolOptions(options) {
@@ -1562,9 +1562,9 @@ var EditorEngine = (() => {
     onPointerMove(e, { editor }) {
       var _a, _b;
       let hoveringOnShape = false;
-      if (editor.state.hoveredShapeId) {
-        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
-        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
+      if (editor.state.hoveredNodeId) {
+        const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId);
+        const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId);
         if (hoveredNode && hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredNode, hoveredShape, e.clientX, e.clientY))) {
           hoveringOnShape = true;
         }
@@ -1577,7 +1577,7 @@ var EditorEngine = (() => {
             return (_b2 = (_a2 = editor.renderer) == null ? void 0 : _a2.getHitTestAdapter()) == null ? void 0 : _b2.testShape(node, shape, e.clientX, e.clientY);
           }
         );
-        editor.state.hoveredShapeId = found ? found[0].id : void 0;
+        editor.state.hoveredNodeId = found ? found[0].id : void 0;
       }
     }
     onPointerUp(e, ctx) {
@@ -2347,18 +2347,18 @@ var EditorEngine = (() => {
       if ((handleHit.type === "corner" || handleHit.type === "edge") && handleHit.handle) {
         return new ResizeState(handleHit.handle);
       }
-      if (editor.state.hoveredShapeId) {
-        let nodeToSelect = editor.state.hoveredShapeId;
+      if (editor.state.hoveredNodeId) {
+        let nodeToSelect = editor.state.hoveredNodeId;
         if (!e.ctrlKey && !e.metaKey) {
           const topLevelParent = editor.document.getTopLevelParent(
-            editor.state.hoveredShapeId
+            editor.state.hoveredNodeId
           );
-          if (topLevelParent && topLevelParent.id !== editor.state.hoveredShapeId) {
+          if (topLevelParent && topLevelParent.id !== editor.state.hoveredNodeId) {
             nodeToSelect = topLevelParent.id;
           }
         }
-        const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId);
-        const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId);
+        const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId);
+        const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId);
         if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
           if (BoundingBoxService.aabbIntersects(
             editor.state.selectionBounds,
@@ -2846,12 +2846,12 @@ var EditorEngine = (() => {
       this.ctx.rotate(rotation);
     }
     renderHoverOutline() {
-      if (!this.editor.state.hoveredShapeId) return;
+      if (!this.editor.state.hoveredNodeId) return;
       const hoveredNode = this.editor.document.getNode(
-        this.editor.state.hoveredShapeId
+        this.editor.state.hoveredNodeId
       );
       const hoveredShape = this.editor.document.getShape(
-        this.editor.state.hoveredShapeId
+        this.editor.state.hoveredNodeId
       );
       if (!hoveredNode || !hoveredShape) return;
       this.ctx.save();

@@ -90,18 +90,18 @@ export class SelectTool implements Tool {
     }
 
     // 2. Check shape hit (existing logic)
-    if (editor.state.hoveredShapeId) {
+    if (editor.state.hoveredNodeId) {
       // Determine what to select: group or individual shape
-      let nodeToSelect = editor.state.hoveredShapeId
+      let nodeToSelect = editor.state.hoveredNodeId
 
       // If Cmd/Ctrl is NOT held, select the top-level parent (group if exists)
       if (!e.ctrlKey && !e.metaKey) {
         const topLevelParent = editor.document.getTopLevelParent(
-          editor.state.hoveredShapeId,
+          editor.state.hoveredNodeId,
         )
         if (
           topLevelParent &&
-          topLevelParent.id !== editor.state.hoveredShapeId
+          topLevelParent.id !== editor.state.hoveredNodeId
         ) {
           // The shape is inside a group, select the group instead
           nodeToSelect = topLevelParent.id
@@ -109,8 +109,8 @@ export class SelectTool implements Tool {
       }
 
       // Check if the hovered shape is in selectionBounds (for drag detection)
-      const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId)
-      const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId)
+      const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId)
+      const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId)
       if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
         if (
           BoundingBoxService.aabbIntersects(

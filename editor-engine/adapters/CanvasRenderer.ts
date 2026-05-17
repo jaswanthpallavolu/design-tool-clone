@@ -109,12 +109,12 @@ export class CanvasRenderer implements RenderPort {
   }
 
   renderHoverOutline(): void {
-    if (!this.editor.state.hoveredShapeId) return
+    if (!this.editor.state.hoveredNodeId) return
     const hoveredNode = this.editor.document.getNode(
-      this.editor.state.hoveredShapeId,
+      this.editor.state.hoveredNodeId,
     )
     const hoveredShape = this.editor.document.getShape(
-      this.editor.state.hoveredShapeId,
+      this.editor.state.hoveredNodeId,
     )
     if (!hoveredNode || !hoveredShape) return
 

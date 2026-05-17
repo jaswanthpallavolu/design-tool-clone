@@ -7,9 +7,9 @@ export class IdleState implements InteractionState {
 
   onPointerMove(e: PointerEventData, { editor }: ToolContext): void {
     let hoveringOnShape = false
-    if (editor.state.hoveredShapeId) {
-      const hoveredNode = editor.document.getNode(editor.state.hoveredShapeId)
-      const hoveredShape = editor.document.getShape(editor.state.hoveredShapeId)
+    if (editor.state.hoveredNodeId) {
+      const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId)
+      const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId)
       if (
         hoveredNode &&
         hoveredShape &&
@@ -27,7 +27,7 @@ export class IdleState implements InteractionState {
           ?.getHitTestAdapter()
           ?.testShape(node, shape, e.clientX, e.clientY),
       )
-      editor.state.hoveredShapeId = found ? found[0].id : undefined
+      editor.state.hoveredNodeId = found ? found[0].id : undefined
     }
   }
 
