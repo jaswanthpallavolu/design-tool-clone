@@ -27,15 +27,32 @@ export class ShapeQueryService {
    * @param x - X coordinate in world space
    * @param y - Y coordinate in world space
    * @param hitTestAdapter - Hit test adapter for precise shape testing
+   * @param priorityNodeId - Optional node ID to check first (optimization for hover tracking)
    * @returns The shape node at the point, or undefined if none found
    */
   findShapeAtPoint(
     x: number,
     y: number,
     hitTestAdapter?: HitTestPort | null,
+    priorityNodeId?: string,
   ): ShapeNode | undefined {
     if (!hitTestAdapter) {
       return undefined
+    }
+
+    // Fast path: check priority node first (currently hovered shape)
+    // This avoids expensive spatial queries when mouse stays on the same shape
+    if (priorityNodeId) {
+      const node = this.document.getNode(priorityNodeId)
+      const shape = this.document.getShape(priorityNodeId)
+      if (
+        node &&
+        shape &&
+        isShapeNode(node) &&
+        hitTestAdapter.testShape(node, shape, x, y)
+      ) {
+        return node
+      }
     }
 
     // Use spatial index if enabled (optimized path)

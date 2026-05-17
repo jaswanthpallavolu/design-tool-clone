@@ -1428,11 +1428,19 @@ var EditorEngine = (() => {
      * @param x - X coordinate in world space
      * @param y - Y coordinate in world space
      * @param hitTestAdapter - Hit test adapter for precise shape testing
+     * @param priorityNodeId - Optional node ID to check first (optimization for hover tracking)
      * @returns The shape node at the point, or undefined if none found
      */
-    findShapeAtPoint(x, y, hitTestAdapter) {
+    findShapeAtPoint(x, y, hitTestAdapter, priorityNodeId) {
       if (!hitTestAdapter) {
         return void 0;
+      }
+      if (priorityNodeId) {
+        const node = this.document.getNode(priorityNodeId);
+        const shape = this.document.getShape(priorityNodeId);
+        if (node && shape && isShapeNode(node) && hitTestAdapter.testShape(node, shape, x, y)) {
+          return node;
+        }
       }
       if (this.spatialIndex.isEnabled()) {
         const candidates = this.spatialIndex.queryPoint(x, y);
@@ -2221,23 +2229,15 @@ var EditorEngine = (() => {
     onPointerDown(e, ctx) {
     }
     onPointerMove(e, { editor }) {
-      var _a, _b, _c;
-      let hoveringOnShape = false;
-      if (editor.state.hoveredNodeId) {
-        const hoveredNode = editor.document.getNode(editor.state.hoveredNodeId);
-        const hoveredShape = editor.document.getShape(editor.state.hoveredNodeId);
-        if (hoveredNode && hoveredShape && ((_b = (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()) == null ? void 0 : _b.testShape(hoveredNode, hoveredShape, e.clientX, e.clientY))) {
-          hoveringOnShape = true;
-        }
-      }
-      if (!hoveringOnShape) {
-        const found = editor.shapeQuery.findShapeAtPoint(
-          e.clientX,
-          e.clientY,
-          (_c = editor.renderer) == null ? void 0 : _c.getHitTestAdapter()
-        );
-        editor.state.hoveredNodeId = found == null ? void 0 : found.id;
-      }
+      var _a;
+      const found = editor.shapeQuery.findShapeAtPoint(
+        e.clientX,
+        e.clientY,
+        (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter(),
+        editor.state.hoveredNodeId
+        // Check current hover first to avoid recomputation
+      );
+      editor.state.hoveredNodeId = found == null ? void 0 : found.id;
     }
     onPointerUp(e, ctx) {
     }
@@ -2267,178 +2267,6 @@ var EditorEngine = (() => {
         return this.nextResolver.resolve(e, ctx);
       }
       return null;
-    }
-  };
-
-  // editor-engine/core/tools/select/helpers/SelectionBoundsHelper.ts
-  var SelectionBoundsHelper = class {
-    static updateSelectionBounds(ctx) {
-      const { editor } = ctx;
-      const selection = editor.selection.getAll();
-      editor.state.selectionBounds = void 0;
-      const selectedShapesAABB = [];
-      selection.forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        if (!node) return;
-        if (isGroupNode(node)) {
-          this.collectGroupAABBs(nodeId, editor, selectedShapesAABB);
-        } else {
-          const shape = editor.document.getShape(nodeId);
-          if (shape) {
-            selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape));
-          }
-        }
-      });
-      if (selectedShapesAABB.length > 0) {
-        editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
-      }
-    }
-    /**
-     * Recursively collect AABBs from all shape nodes within a group
-     */
-    static collectGroupAABBs(groupId, editor, aabbs) {
-      const group = editor.document.getNode(groupId);
-      if (!group || !isGroupNode(group)) return;
-      for (const childId of group.children) {
-        const child = editor.document.getNode(childId);
-        if (!child) continue;
-        if (isGroupNode(child)) {
-          this.collectGroupAABBs(childId, editor, aabbs);
-        } else {
-          const shape = editor.document.getShape(childId);
-          if (shape) {
-            aabbs.push(BoundingBoxService.getAABB(child, shape));
-          }
-        }
-      }
-    }
-    static clearSelectionBounds(ctx) {
-      ctx.editor.state.selectionBounds = void 0;
-    }
-  };
-
-  // editor-engine/core/tools/select/states/ResizeState.ts
-  var ResizeState = class {
-    constructor(handleType) {
-      this.handleType = handleType;
-      this.startMouse = { x: 0, y: 0 };
-      this.originalData = /* @__PURE__ */ new Map();
-    }
-    onEnter(ctx) {
-      const { editor } = ctx;
-      editor.selection.getAll().forEach((nodeId) => {
-        this.collectOriginalData(nodeId, editor);
-      });
-    }
-    collectOriginalData(nodeId, editor) {
-      const node = editor.document.getNode(nodeId);
-      if (!node) return;
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.collectOriginalData(childId, editor);
-        }
-      } else {
-        const shape = editor.document.getShape(nodeId);
-        if (shape) {
-          this.originalData.set(nodeId, {
-            node: JSON.parse(JSON.stringify(node)),
-            shape: JSON.parse(JSON.stringify(shape))
-          });
-        }
-      }
-    }
-    onPointerDown(e, ctx) {
-      this.startMouse = { x: e.clientX, y: e.clientY };
-    }
-    onPointerMove(e, ctx) {
-      var _a;
-      const { editor } = ctx;
-      const dx = e.clientX - this.startMouse.x;
-      const dy = e.clientY - this.startMouse.y;
-      const selection = editor.selection.getAll();
-      if (selection.length === 1) {
-        const node = editor.document.getNode(selection[0]);
-        if (node && isGroupNode(node) && editor.state.selectionBounds) {
-          this.resizeMultipleShapes(editor, dx, dy, this.handleType);
-        } else {
-          const shape = editor.document.getShape(selection[0]);
-          const original = this.originalData.get(selection[0]);
-          if (!node || !shape || !original) return;
-          this.resizeSingleShape(node, shape, original, dx, dy, this.handleType);
-          editor.document.updateNode(node);
-          editor.document.updateShape(shape);
-        }
-      } else if (selection.length > 1 && editor.state.selectionBounds) {
-        this.resizeMultipleShapes(editor, dx, dy, this.handleType);
-      }
-      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
-      SelectionBoundsHelper.updateSelectionBounds(ctx);
-      ctx.renderOverlays();
-    }
-    onPointerUp(e, ctx) {
-    }
-    resizeSingleShape(node, shape, original, dx, dy, handle) {
-      if (shape.type === "LINE" && original.shape.type === "LINE") {
-        this.resizeLine(shape, original.shape, dx, dy, handle);
-      } else if ((shape.type === "RECTANGLE" || shape.type === "ELLIPSE") && (original.shape.type === "RECTANGLE" || original.shape.type === "ELLIPSE")) {
-        this.resizeRectangular(node, shape, original, dx, dy, handle);
-      }
-    }
-    resizeLine(shape, original, dx, dy, handle) {
-      if (handle === "p1") {
-        shape.geometry.x1 = original.geometry.x1 + dx;
-        shape.geometry.y1 = original.geometry.y1 + dy;
-      } else if (handle === "p2") {
-        shape.geometry.x2 = original.geometry.x2 + dx;
-        shape.geometry.y2 = original.geometry.y2 + dy;
-      }
-    }
-    resizeRectangular(node, shape, original, dx, dy, handle) {
-      const originalShape = original.shape;
-      const cos = Math.cos(-node.transform.rotation);
-      const sin = Math.sin(-node.transform.rotation);
-      const localDx = dx * cos - dy * sin;
-      const localDy = dx * sin + dy * cos;
-      switch (handle) {
-        case "nw":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.x = original.node.transform.x + dx;
-          node.transform.y = original.node.transform.y + dy;
-          break;
-        case "ne":
-          shape.geometry.width = originalShape.geometry.width + localDx;
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.y = original.node.transform.y + dy;
-          break;
-        case "se":
-          shape.geometry.width = originalShape.geometry.width + localDx;
-          shape.geometry.height = originalShape.geometry.height + localDy;
-          break;
-        case "sw":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          shape.geometry.height = originalShape.geometry.height + localDy;
-          node.transform.x = original.node.transform.x + dx;
-          break;
-        case "n":
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.y = original.node.transform.y + dy;
-          break;
-        case "e":
-          shape.geometry.width = originalShape.geometry.width + localDx;
-          break;
-        case "s":
-          shape.geometry.height = originalShape.geometry.height + localDy;
-          break;
-        case "w":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          node.transform.x = original.node.transform.x + dx;
-          break;
-      }
-      if (shape.geometry.width < 1) shape.geometry.width = 1;
-      if (shape.geometry.height < 1) shape.geometry.height = 1;
-    }
-    resizeMultipleShapes(editor, dx, dy, handle) {
     }
   };
 
@@ -2707,19 +2535,19 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/tools/select/resolvers/ResizeHandleResolver.ts
-  var ResizeHandleResolver = class extends StateResolver {
+  // editor-engine/core/tools/select/resolvers/BaseHandleResolver.ts
+  var BaseHandleResolver = class extends StateResolver {
     tryResolve(e, ctx) {
-      const handleHit = this.testResizeHandles(e, ctx.editor);
-      if ((handleHit.type === "corner" || handleHit.type === "edge") && handleHit.handle) {
-        return new ResizeState(handleHit.handle);
+      const handleHit = this.testHandles(e, ctx.editor);
+      if (this.isValidHandleType(handleHit.type) && handleHit.handle) {
+        return this.createState(handleHit.handle);
       }
       return null;
     }
     /**
-     * Test if pointer hits any resize handle (corner or edge)
+     * Test if pointer hits any handle of the appropriate type
      */
-    testResizeHandles(e, editor) {
+    testHandles(e, editor) {
       const selection = editor.selection.getAll();
       if (editor.state.selectionBounds && selection.length > 1) {
         return this.testAABBHandles(e, editor);
@@ -2774,6 +2602,194 @@ var EditorEngine = (() => {
         );
       }
       return { type: null, handle: null };
+    }
+  };
+
+  // editor-engine/core/tools/select/helpers/SelectionBoundsHelper.ts
+  var SelectionBoundsHelper = class {
+    static updateSelectionBounds(ctx) {
+      const { editor } = ctx;
+      const selection = editor.selection.getAll();
+      editor.state.selectionBounds = void 0;
+      const selectedShapesAABB = [];
+      selection.forEach((nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        if (!node) return;
+        if (isGroupNode(node)) {
+          this.collectGroupAABBs(nodeId, editor, selectedShapesAABB);
+        } else {
+          const shape = editor.document.getShape(nodeId);
+          if (shape) {
+            selectedShapesAABB.push(BoundingBoxService.getAABB(node, shape));
+          }
+        }
+      });
+      if (selectedShapesAABB.length > 0) {
+        editor.state.selectionBounds = BoundingBoxService.unionAABBs(selectedShapesAABB);
+      }
+    }
+    /**
+     * Recursively collect AABBs from all shape nodes within a group
+     */
+    static collectGroupAABBs(groupId, editor, aabbs) {
+      const group = editor.document.getNode(groupId);
+      if (!group || !isGroupNode(group)) return;
+      for (const childId of group.children) {
+        const child = editor.document.getNode(childId);
+        if (!child) continue;
+        if (isGroupNode(child)) {
+          this.collectGroupAABBs(childId, editor, aabbs);
+        } else {
+          const shape = editor.document.getShape(childId);
+          if (shape) {
+            aabbs.push(BoundingBoxService.getAABB(child, shape));
+          }
+        }
+      }
+    }
+    static clearSelectionBounds(ctx) {
+      ctx.editor.state.selectionBounds = void 0;
+    }
+  };
+
+  // editor-engine/core/tools/select/states/ResizeState.ts
+  var ResizeState = class {
+    constructor(handleType) {
+      this.handleType = handleType;
+      this.startMouse = { x: 0, y: 0 };
+      this.originalData = /* @__PURE__ */ new Map();
+    }
+    onEnter(ctx) {
+      const { editor } = ctx;
+      editor.selection.getAll().forEach((nodeId) => {
+        this.collectOriginalData(nodeId, editor);
+      });
+    }
+    collectOriginalData(nodeId, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectOriginalData(childId, editor);
+        }
+      } else {
+        const shape = editor.document.getShape(nodeId);
+        if (shape) {
+          this.originalData.set(nodeId, {
+            node: JSON.parse(JSON.stringify(node)),
+            shape: JSON.parse(JSON.stringify(shape))
+          });
+        }
+      }
+    }
+    onPointerDown(e, ctx) {
+      this.startMouse = { x: e.clientX, y: e.clientY };
+    }
+    onPointerMove(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const dx = e.clientX - this.startMouse.x;
+      const dy = e.clientY - this.startMouse.y;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const node = editor.document.getNode(selection[0]);
+        if (node && isGroupNode(node) && editor.state.selectionBounds) {
+          this.resizeMultipleShapes(editor, dx, dy, this.handleType);
+        } else {
+          const shape = editor.document.getShape(selection[0]);
+          const original = this.originalData.get(selection[0]);
+          if (!node || !shape || !original) return;
+          this.resizeSingleShape(node, shape, original, dx, dy, this.handleType);
+          editor.document.updateNode(node);
+          editor.document.updateShape(shape);
+        }
+      } else if (selection.length > 1 && editor.state.selectionBounds) {
+        this.resizeMultipleShapes(editor, dx, dy, this.handleType);
+      }
+      (_a = editor.renderer) == null ? void 0 : _a.renderShapes();
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+      ctx.renderOverlays();
+    }
+    onPointerUp(e, ctx) {
+    }
+    resizeSingleShape(node, shape, original, dx, dy, handle) {
+      if (shape.type === "LINE" && original.shape.type === "LINE") {
+        this.resizeLine(shape, original.shape, dx, dy, handle);
+      } else if ((shape.type === "RECTANGLE" || shape.type === "ELLIPSE") && (original.shape.type === "RECTANGLE" || original.shape.type === "ELLIPSE")) {
+        this.resizeRectangular(node, shape, original, dx, dy, handle);
+      }
+    }
+    resizeLine(shape, original, dx, dy, handle) {
+      if (handle === "p1") {
+        shape.geometry.x1 = original.geometry.x1 + dx;
+        shape.geometry.y1 = original.geometry.y1 + dy;
+      } else if (handle === "p2") {
+        shape.geometry.x2 = original.geometry.x2 + dx;
+        shape.geometry.y2 = original.geometry.y2 + dy;
+      }
+    }
+    resizeRectangular(node, shape, original, dx, dy, handle) {
+      const originalShape = original.shape;
+      const cos = Math.cos(-node.transform.rotation);
+      const sin = Math.sin(-node.transform.rotation);
+      const localDx = dx * cos - dy * sin;
+      const localDy = dx * sin + dy * cos;
+      switch (handle) {
+        case "nw":
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.x = original.node.transform.x + dx;
+          node.transform.y = original.node.transform.y + dy;
+          break;
+        case "ne":
+          shape.geometry.width = originalShape.geometry.width + localDx;
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.y = original.node.transform.y + dy;
+          break;
+        case "se":
+          shape.geometry.width = originalShape.geometry.width + localDx;
+          shape.geometry.height = originalShape.geometry.height + localDy;
+          break;
+        case "sw":
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          shape.geometry.height = originalShape.geometry.height + localDy;
+          node.transform.x = original.node.transform.x + dx;
+          break;
+        case "n":
+          shape.geometry.height = originalShape.geometry.height - localDy;
+          node.transform.y = original.node.transform.y + dy;
+          break;
+        case "e":
+          shape.geometry.width = originalShape.geometry.width + localDx;
+          break;
+        case "s":
+          shape.geometry.height = originalShape.geometry.height + localDy;
+          break;
+        case "w":
+          shape.geometry.width = originalShape.geometry.width - localDx;
+          node.transform.x = original.node.transform.x + dx;
+          break;
+      }
+      if (shape.geometry.width < 1) shape.geometry.width = 1;
+      if (shape.geometry.height < 1) shape.geometry.height = 1;
+    }
+    resizeMultipleShapes(editor, dx, dy, handle) {
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/ResizeHandleResolver.ts
+  var ResizeHandleResolver = class extends BaseHandleResolver {
+    /**
+     * Accept corner and edge handle types for resize operations
+     */
+    isValidHandleType(type) {
+      return type === "corner" || type === "edge";
+    }
+    /**
+     * Create a ResizeState with the detected handle
+     */
+    createState(handle) {
+      return new ResizeState(handle);
     }
   };
 
@@ -2951,84 +2967,49 @@ var EditorEngine = (() => {
   };
 
   // editor-engine/core/tools/select/resolvers/RotationHandleResolver.ts
-  var RotationHandleResolver = class extends StateResolver {
-    tryResolve(e, ctx) {
-      const handleHit = this.testRotationHandles(e, ctx.editor);
-      if (handleHit.type === "rotation" && handleHit.handle) {
-        return new RotateState(handleHit.handle);
-      }
-      return null;
+  var RotationHandleResolver = class extends BaseHandleResolver {
+    /**
+     * Accept rotation handle type for rotate operations
+     */
+    isValidHandleType(type) {
+      return type === "rotation";
     }
     /**
-     * Test if pointer hits any rotation handle
+     * Create a RotateState with the detected handle
      */
-    testRotationHandles(e, editor) {
-      const selection = editor.selection.getAll();
-      if (editor.state.selectionBounds && selection.length > 1) {
-        return this.testAABBHandles(e, editor);
-      }
-      if (selection.length === 1) {
-        return this.testSingleSelectionHandles(e, editor, selection[0]);
-      }
-      return { type: null, handle: null };
-    }
-    /**
-     * Test AABB handles for multi-selection or groups
-     */
-    testAABBHandles(e, editor) {
-      if (!editor.state.selectionBounds) {
-        return { type: null, handle: null };
-      }
-      const geometry = HandleGeometryService.getAABBHandleGeometry(
-        editor.state.selectionBounds
-      );
-      const center = HandleHitTestService.getAABBCenter(
-        editor.state.selectionBounds
-      );
-      return HandleHitTestService.testHandles(
-        e.clientX,
-        e.clientY,
-        geometry,
-        center.x,
-        center.y,
-        0
-        // AABB has no rotation
-      );
-    }
-    /**
-     * Test handles for a single selected node (shape or group)
-     */
-    testSingleSelectionHandles(e, editor, nodeId) {
-      const node = editor.document.getNode(nodeId);
-      const shape = editor.document.getShape(nodeId);
-      if (node && !shape && editor.state.selectionBounds) {
-        return this.testAABBHandles(e, editor);
-      }
-      if (node && shape) {
-        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
-        const center = HandleHitTestService.getShapeCenter(node, shape);
-        return HandleHitTestService.testHandles(
-          e.clientX,
-          e.clientY,
-          geometry,
-          center.x,
-          center.y,
-          node.transform.rotation
-        );
-      }
-      return { type: null, handle: null };
+    createState(handle) {
+      return new RotateState(handle);
     }
   };
 
   // editor-engine/core/tools/select/states/DragState.ts
   var DragState = class {
-    constructor() {
+    constructor(selectionContext) {
       this.prevMouseX = 0;
       this.prevMouseY = 0;
+      this.selectionContext = selectionContext;
     }
     onPointerDown(e, ctx) {
+      if (this.selectionContext) {
+        this.applySelection(ctx);
+      }
       this.prevMouseX = e.clientX;
       this.prevMouseY = e.clientY;
+    }
+    /**
+     * Apply selection based on the provided context
+     * This separates the concern of selection from the resolver
+     */
+    applySelection(ctx) {
+      if (!this.selectionContext) return;
+      const { nodeToSelect, shouldAddToSelection } = this.selectionContext;
+      const { editor } = ctx;
+      if (shouldAddToSelection) {
+        editor.selection.select(nodeToSelect);
+      } else {
+        editor.selection.setSingle(nodeToSelect);
+      }
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
     onPointerMove(e, ctx) {
       var _a;
@@ -3109,9 +3090,10 @@ var EditorEngine = (() => {
         return null;
       }
       const nodeToSelect = this.determineNodeToSelect(e, editor);
-      this.applySelection(e, editor, nodeToSelect);
-      SelectionBoundsHelper.updateSelectionBounds(ctx);
-      return new DragState();
+      return new DragState({
+        nodeToSelect,
+        shouldAddToSelection: e.shiftKey
+      });
     }
     /**
      * Determine which node to select based on modifier keys and hierarchy
@@ -3126,18 +3108,6 @@ var EditorEngine = (() => {
         return topLevelParent.id;
       }
       return hoveredNodeId;
-    }
-    /**
-     * Apply selection based on modifier keys
-     * - Shift: Add to selection
-     * - No modifier: Replace selection
-     */
-    applySelection(e, editor, nodeId) {
-      if (e.shiftKey) {
-        editor.selection.select(nodeId);
-      } else {
-        editor.selection.setSingle(nodeId);
-      }
     }
   };
 

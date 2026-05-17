@@ -6,6 +6,7 @@
  */
 
 export { StateResolver } from "./StateResolver"
+export { BaseHandleResolver } from "./BaseHandleResolver"
 export { ResizeHandleResolver } from "./ResizeHandleResolver"
 export { RotationHandleResolver } from "./RotationHandleResolver"
 export { SelectedObjectResolver } from "./SelectedObjectResolver"

@@ -3,7 +3,6 @@ import type { ToolContext } from "../../Tool"
 import type { InteractionState } from "../states/InteractionState"
 import { StateResolver } from "./StateResolver"
 import { DragState } from "../states/DragState"
-import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
 import type { Editor } from "../../../Editor"
 
 /**
@@ -26,13 +25,11 @@ export class HoveredObjectResolver extends StateResolver {
     // Determine what to select: group or individual shape
     const nodeToSelect = this.determineNodeToSelect(e, editor)
 
-    // Apply selection based on modifier keys
-    this.applySelection(e, editor, nodeToSelect)
-
-    // Update selection bounds
-    SelectionBoundsHelper.updateSelectionBounds(ctx)
-
-    return new DragState()
+    // Return DragState with selection context - let the state handle the selection
+    return new DragState({
+      nodeToSelect,
+      shouldAddToSelection: e.shiftKey,
+    })
   }
 
   /**
@@ -55,23 +52,6 @@ export class HoveredObjectResolver extends StateResolver {
     }
 
     return hoveredNodeId
-  }
-
-  /**
-   * Apply selection based on modifier keys
-   * - Shift: Add to selection
-   * - No modifier: Replace selection
-   */
-  private applySelection(
-    e: PointerEventData,
-    editor: Editor,
-    nodeId: string,
-  ): void {
-    if (e.shiftKey) {
-      editor.selection.select(nodeId)
-    } else {
-      editor.selection.setSingle(nodeId)
-    }
   }
 }
 
