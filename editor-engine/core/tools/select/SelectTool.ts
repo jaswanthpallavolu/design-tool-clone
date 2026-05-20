@@ -3,6 +3,7 @@ import type { PointerEventData } from "../../types/InputTypes"
 import type { InteractionState } from "./states/InteractionState"
 import { IdleState } from "./states/IdleState"
 import { StateTransitionResolver } from "./strategies/StateTransitionResolver"
+import { DeleteShapesCommand } from "../../commands"
 
 /**
  * SelectTool - Main tool for selecting, moving, resizing, and rotating shapes
@@ -59,17 +60,12 @@ export class SelectTool implements Tool {
 
     if (selectedIds.length === 0) return
 
-    // Remove all selected nodes (and their shapes) from document
-    selectedIds.forEach((id) => {
-      ctx.editor.document.removeNode(id)
-    })
+    // Execute delete command (enables undo/redo)
+    ctx.editor.commands.execute(
+      new DeleteShapesCommand(ctx.editor, [...selectedIds]),
+    )
 
-    // Clear selection and transient state
-    ctx.editor.selection.clear()
-    ctx.editor.state.clearTransient()
-
-    // Re-render
-    ctx.editor.renderer?.renderShapes()
+    // Re-render overlays
     ctx.renderOverlays()
   }
 

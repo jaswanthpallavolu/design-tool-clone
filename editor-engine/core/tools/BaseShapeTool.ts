@@ -1,6 +1,7 @@
 import { Tool, ToolContext } from "./Tool"
 import type { PointerEventData } from "../types/InputTypes"
 import { TOOL_IDS } from "./ToolConstants"
+import { CreateShapeCommand } from "../commands"
 
 /**
  * Base class for shape creation tools that share common draft management logic
@@ -24,6 +25,19 @@ export abstract class BaseShapeTool implements Tool {
         this.hasDragged = false
         return
       }
+
+      // Get the completed shape and node
+      const node = editor.document.getNode(this.draftNodeId)
+      const shape = editor.document.getShape(this.draftNodeId)
+
+      if (node && shape) {
+        // Remove from document (will be re-added via command)
+        editor.document.removeNode(this.draftNodeId)
+
+        // Execute command to create the shape (enables undo/redo)
+        editor.commands.execute(new CreateShapeCommand(editor, node, shape))
+      }
+
       // Complete the shape and switch to select tool
       this.draftNodeId = undefined
       this.hasDragged = false

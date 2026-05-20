@@ -40,7 +40,6 @@ export class InputManager {
    */
   handlePointerUp(e: PointerEventData): void {
     this.editor.tools.pointerUp(e)
-    this.editor.events.emit("document:modified")
   }
 
   /**

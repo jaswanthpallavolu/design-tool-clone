@@ -2,7 +2,9 @@ import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
-import { isGroupNode } from "../../../model/Node"
+import { isGroupNode, Node } from "../../../model/Node"
+import { TransformShapesCommand } from "../../../commands"
+import { Shape } from "../../../model/Shape"
 
 /**
  * Selection context for DragState
@@ -17,6 +19,8 @@ export class DragState implements InteractionState {
   prevMouseX: number = 0
   prevMouseY: number = 0
   private selectionContext?: SelectionContext
+  private movedNodes: Map<string, { node: Node; shape?: Shape }> = new Map()
+  private hasMoved = false
 
   constructor(selectionContext?: SelectionContext) {
     this.selectionContext = selectionContext
@@ -55,6 +59,8 @@ export class DragState implements InteractionState {
     const { editor } = ctx
     const deltaX = e.clientX - this.prevMouseX
     const deltaY = e.clientY - this.prevMouseY
+
+    this.hasMoved = true
 
     editor.selection.getAll().forEach((nodeId) => {
       const node = editor.document.getNode(nodeId)
@@ -102,5 +108,54 @@ export class DragState implements InteractionState {
     }
   }
 
-  onPointerUp(e: PointerEventData, ctx: ToolContext): void {}
+  onPointerUp(e: PointerEventData, ctx: ToolContext): void {
+    // If shapes were moved, create a command for undo/redo
+    if (this.hasMoved) {
+      const { editor } = ctx
+      const transforms: Array<{
+        nodeId: string
+        newNode: Node
+        newShape?: Shape
+      }> = []
+
+      // Collect all moved nodes and their current state
+      editor.selection.getAll().forEach((nodeId) => {
+        this.collectTransformedNodes(nodeId, editor, transforms)
+      })
+
+      if (transforms.length > 0) {
+        // Execute command with final state (enables undo/redo)
+        editor.commands.execute(
+          new TransformShapesCommand(editor, transforms, "move"),
+        )
+      }
+    }
+  }
+
+  /**
+   * Collect all transformed nodes recursively (including group children)
+   */
+  private collectTransformedNodes(
+    nodeId: string,
+    editor: ToolContext["editor"],
+    transforms: Array<{ nodeId: string; newNode: Node; newShape?: Shape }>,
+  ): void {
+    const node = editor.document.getNode(nodeId)
+    if (!node) return
+
+    if (isGroupNode(node)) {
+      // For groups, collect all children recursively
+      for (const childId of node.children) {
+        this.collectTransformedNodes(childId, editor, transforms)
+      }
+    } else {
+      // For shapes, add to transforms
+      const shape = editor.document.getShape(nodeId)
+      transforms.push({
+        nodeId,
+        newNode: JSON.parse(JSON.stringify(node)),
+        newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
+      })
+    }
+  }
 }

@@ -1997,6 +1997,145 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/commands/CreateShapeCommand.ts
+  var CreateShapeCommand = class extends Command {
+    constructor(editor, node, shape) {
+      super();
+      this.editor = editor;
+      this.nodeId = node.id;
+      this.node = node;
+      this.shape = shape;
+    }
+    execute() {
+      var _a;
+      this.editor.document.addNode(this.node);
+      this.editor.document.addShape(this.shape);
+      this.editor.selection.setSingle(this.nodeId);
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      var _a;
+      this.editor.document.removeNode(this.nodeId);
+      if (this.editor.selection.isSelected(this.nodeId)) {
+        this.editor.selection.clear();
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Create ${this.shape.type} shape`;
+    }
+    canUndo() {
+      return true;
+    }
+  };
+
+  // editor-engine/core/commands/DeleteShapesCommand.ts
+  var DeleteShapesCommand = class extends Command {
+    constructor(editor, nodeIds) {
+      super();
+      this.editor = editor;
+      this.deletedItems = [];
+      this.deletedIds = [...nodeIds];
+    }
+    execute() {
+      var _a;
+      this.deletedItems = [];
+      this.deletedIds.forEach((id) => {
+        const node = this.editor.document.getNode(id);
+        const shape = this.editor.document.getShape(id);
+        if (node) {
+          this.deletedItems.push({
+            node: JSON.parse(JSON.stringify(node)),
+            shape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
+          });
+          this.editor.document.removeNode(id);
+        }
+      });
+      this.editor.selection.clear();
+      this.editor.state.clearTransient();
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      var _a;
+      this.deletedItems.forEach(({ node, shape }) => {
+        this.editor.document.addNode(node);
+        if (shape) {
+          this.editor.document.addShape(shape);
+        }
+      });
+      this.editor.selection.setMany(this.deletedIds);
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Delete ${this.deletedIds.length} shape(s)`;
+    }
+    canExecute() {
+      return this.deletedIds.length > 0;
+    }
+    canUndo() {
+      return this.deletedItems.length > 0;
+    }
+  };
+
+  // editor-engine/core/commands/TransformShapesCommand.ts
+  var TransformShapesCommand = class extends Command {
+    constructor(editor, transforms, operationType = "move") {
+      super();
+      this.editor = editor;
+      this.transforms = [];
+      this.operationType = operationType;
+      transforms.forEach(({ nodeId, newNode, newShape }) => {
+        const oldNode = editor.document.getNode(nodeId);
+        const oldShape = editor.document.getShape(nodeId);
+        if (oldNode) {
+          this.transforms.push({
+            nodeId,
+            oldNode: JSON.parse(JSON.stringify(oldNode)),
+            oldShape: oldShape ? JSON.parse(JSON.stringify(oldShape)) : void 0,
+            newNode,
+            newShape
+          });
+        }
+      });
+    }
+    execute() {
+      var _a;
+      this.transforms.forEach(({ nodeId, newNode, newShape }) => {
+        this.editor.document.updateNode(newNode);
+        if (newShape) {
+          this.editor.document.updateShape(newShape);
+        }
+      });
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      var _a;
+      this.transforms.forEach(({ nodeId, oldNode, oldShape }) => {
+        this.editor.document.updateNode(oldNode);
+        if (oldShape) {
+          this.editor.document.updateShape(oldShape);
+        }
+      });
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      const count = this.transforms.length;
+      return `${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} ${count} shape(s)`;
+    }
+    canExecute() {
+      return this.transforms.length > 0;
+    }
+    canUndo() {
+      return this.transforms.length > 0;
+    }
+  };
+
   // editor-engine/core/KeyboardShortcutManager.ts
   var KeyboardShortcutManager = class {
     constructor() {
@@ -2079,7 +2218,6 @@ var EditorEngine = (() => {
      */
     handlePointerUp(e) {
       this.editor.tools.pointerUp(e);
-      this.editor.events.emit("document:modified");
     }
     /**
      * Handle keyboard down events
@@ -2711,6 +2849,24 @@ var EditorEngine = (() => {
       ctx.renderOverlays();
     }
     onPointerUp(e, ctx) {
+      const { editor } = ctx;
+      const transforms = [];
+      this.originalData.forEach((_, nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        const shape = editor.document.getShape(nodeId);
+        if (node) {
+          transforms.push({
+            nodeId,
+            newNode: JSON.parse(JSON.stringify(node)),
+            newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
+          });
+        }
+      });
+      if (transforms.length > 0) {
+        editor.commands.execute(
+          new TransformShapesCommand(editor, transforms, "resize")
+        );
+      }
     }
     resizeSingleShape(node, shape, original, dx, dy, handle) {
       if (shape.type === "LINE" && original.shape.type === "LINE") {
@@ -2935,6 +3091,24 @@ var EditorEngine = (() => {
       });
     }
     onPointerUp(e, ctx) {
+      const { editor } = ctx;
+      const transforms = [];
+      this.originalTransforms.forEach((_, nodeId) => {
+        const node = editor.document.getNode(nodeId);
+        const shape = editor.document.getShape(nodeId);
+        if (node) {
+          transforms.push({
+            nodeId,
+            newNode: JSON.parse(JSON.stringify(node)),
+            newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
+          });
+        }
+      });
+      if (transforms.length > 0) {
+        editor.commands.execute(
+          new TransformShapesCommand(editor, transforms, "rotate")
+        );
+      }
     }
     calculateAngle(x, y, centerX, centerY) {
       return Math.atan2(y - centerY, x - centerX);
@@ -2987,6 +3161,8 @@ var EditorEngine = (() => {
     constructor(selectionContext) {
       this.prevMouseX = 0;
       this.prevMouseY = 0;
+      this.movedNodes = /* @__PURE__ */ new Map();
+      this.hasMoved = false;
       this.selectionContext = selectionContext;
     }
     onPointerDown(e, ctx) {
@@ -3016,6 +3192,7 @@ var EditorEngine = (() => {
       const { editor } = ctx;
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
+      this.hasMoved = true;
       editor.selection.getAll().forEach((nodeId) => {
         const node = editor.document.getNode(nodeId);
         if (!node) return;
@@ -3048,6 +3225,37 @@ var EditorEngine = (() => {
       }
     }
     onPointerUp(e, ctx) {
+      if (this.hasMoved) {
+        const { editor } = ctx;
+        const transforms = [];
+        editor.selection.getAll().forEach((nodeId) => {
+          this.collectTransformedNodes(nodeId, editor, transforms);
+        });
+        if (transforms.length > 0) {
+          editor.commands.execute(
+            new TransformShapesCommand(editor, transforms, "move")
+          );
+        }
+      }
+    }
+    /**
+     * Collect all transformed nodes recursively (including group children)
+     */
+    collectTransformedNodes(nodeId, editor, transforms) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectTransformedNodes(childId, editor, transforms);
+        }
+      } else {
+        const shape = editor.document.getShape(nodeId);
+        transforms.push({
+          nodeId,
+          newNode: JSON.parse(JSON.stringify(node)),
+          newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
+        });
+      }
     }
   };
 
@@ -3211,15 +3419,11 @@ var EditorEngine = (() => {
       }
     }
     handleDelete(ctx) {
-      var _a;
       const selectedIds = ctx.editor.selection.getAll();
       if (selectedIds.length === 0) return;
-      selectedIds.forEach((id) => {
-        ctx.editor.document.removeNode(id);
-      });
-      ctx.editor.selection.clear();
-      ctx.editor.state.clearTransient();
-      (_a = ctx.editor.renderer) == null ? void 0 : _a.renderShapes();
+      ctx.editor.commands.execute(
+        new DeleteShapesCommand(ctx.editor, [...selectedIds])
+      );
       ctx.renderOverlays();
     }
     transitionTo(state, ctx) {
@@ -3253,6 +3457,12 @@ var EditorEngine = (() => {
           this.draftNodeId = void 0;
           this.hasDragged = false;
           return;
+        }
+        const node = editor.document.getNode(this.draftNodeId);
+        const shape = editor.document.getShape(this.draftNodeId);
+        if (node && shape) {
+          editor.document.removeNode(this.draftNodeId);
+          editor.commands.execute(new CreateShapeCommand(editor, node, shape));
         }
         this.draftNodeId = void 0;
         this.hasDragged = false;

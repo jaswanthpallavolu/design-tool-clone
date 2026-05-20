@@ -10,6 +10,7 @@ import {
 } from "../../../model/Shape"
 import { Node, isGroupNode } from "../../../model/Node"
 import { Editor } from "../../../Editor"
+import { TransformShapesCommand } from "../../../commands"
 
 interface OriginalNodeShape {
   node: Node
@@ -90,7 +91,34 @@ export class ResizeState implements InteractionState {
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {
-    // Resize complete
+    // Create command for undo/redo
+    const { editor } = ctx
+    const transforms: Array<{
+      nodeId: string
+      newNode: Node
+      newShape?: Shape
+    }> = []
+
+    // Collect all resized shapes
+    this.originalData.forEach((_, nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      const shape = editor.document.getShape(nodeId)
+
+      if (node) {
+        transforms.push({
+          nodeId,
+          newNode: JSON.parse(JSON.stringify(node)),
+          newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
+        })
+      }
+    })
+
+    if (transforms.length > 0) {
+      // Execute command with final state (enables undo/redo)
+      editor.commands.execute(
+        new TransformShapesCommand(editor, transforms, "resize"),
+      )
+    }
   }
 
   private resizeSingleShape(

@@ -5,6 +5,7 @@ import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
 import { Node, isGroupNode } from "../../../model/Node"
 import { Shape } from "../../../model/Shape"
 import { Editor } from "../../../Editor"
+import { TransformShapesCommand } from "../../../commands"
 
 interface OriginalTransform {
   x: number
@@ -198,7 +199,34 @@ export class RotateState implements InteractionState {
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {
-    // Rotation complete
+    // Create command for undo/redo
+    const { editor } = ctx
+    const transforms: Array<{
+      nodeId: string
+      newNode: Node
+      newShape?: Shape
+    }> = []
+
+    // Collect all rotated nodes
+    this.originalTransforms.forEach((_, nodeId) => {
+      const node = editor.document.getNode(nodeId)
+      const shape = editor.document.getShape(nodeId)
+
+      if (node) {
+        transforms.push({
+          nodeId,
+          newNode: JSON.parse(JSON.stringify(node)),
+          newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
+        })
+      }
+    })
+
+    if (transforms.length > 0) {
+      // Execute command with final state (enables undo/redo)
+      editor.commands.execute(
+        new TransformShapesCommand(editor, transforms, "rotate"),
+      )
+    }
   }
 
   private calculateAngle(
