@@ -33,12 +33,11 @@ export function Sidebar() {
   const [tools, setTools] = useState(initialTools)
   const [colorSwatches, setColorSwatches] = useState(initialColorSwatches)
 
-  // Initialize editor tools and colors
+  // Initialize editor tools and subscribe UI to editor events
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
 
-    // Add tools to editor
     const editorTools = [
       { id: "select", component: SelectTool },
       { id: "rectangle", component: RectangleTool },
@@ -49,7 +48,6 @@ export function Sidebar() {
     editor.addTools(editorTools.map((tool) => new tool.component()))
     editor.setActiveTool("rectangle")
 
-    // Set initial tool options (color)
     const initialActiveColor = initialColorSwatches.find((s) => s.isActive)
     if (initialActiveColor) {
       const hexColor = colorMap[initialActiveColor.id]
@@ -61,14 +59,52 @@ export function Sidebar() {
       }
     }
 
-    // Set up callback to sync UI when tool changes (e.g., via keyboard shortcuts)
-    editor.onToolChanged = (toolId: string) => {
+    const unsubscribeToolChanged = editor.on("tool:changed", (data) => {
+      const toolId =
+        typeof data === "object" && data !== null && "toolId" in data
+          ? String(data.toolId)
+          : ""
+
       setTools((prevTools) =>
         prevTools.map((tool) => ({
           ...tool,
           isActive: tool.id === toolId,
         })),
       )
+    })
+
+    const unsubscribeToolOptionsChanged = editor.on(
+      "tool:options:changed",
+      (data) => {
+        const options =
+          typeof data === "object" && data !== null && "options" in data
+            ? (data.options as {
+                strokeColor?: string
+                fillColor?: string
+              })
+            : {}
+
+        const activeColorId =
+          Object.entries(colorMap).find(
+            ([, hexColor]) =>
+              hexColor === options.strokeColor ||
+              hexColor === options.fillColor,
+          )?.[0] ?? null
+
+        if (!activeColorId) return
+
+        setColorSwatches((prevSwatches) =>
+          prevSwatches.map((swatch) => ({
+            ...swatch,
+            isActive: swatch.id === activeColorId,
+          })),
+        )
+      },
+    )
+
+    return () => {
+      unsubscribeToolChanged()
+      unsubscribeToolOptionsChanged()
     }
   }, [editorRef])
 
@@ -76,16 +112,7 @@ export function Sidebar() {
     const editor = editorRef.current
     if (!editor) return
 
-    // Update active tool in editor
     editor.setActiveTool(toolId)
-
-    // Update UI state
-    setTools((prevTools) =>
-      prevTools.map((tool) => ({
-        ...tool,
-        isActive: tool.id === toolId,
-      })),
-    )
   }
 
   const handleColorSelect = (colorId: string) => {
@@ -95,19 +122,10 @@ export function Sidebar() {
     const hexColor = colorMap[colorId]
     if (!hexColor) return
 
-    // Update tool options in editor
     editor.updateToolOptions({
       strokeColor: hexColor,
       fillColor: hexColor,
     })
-
-    // Update UI state
-    setColorSwatches((prevSwatches) =>
-      prevSwatches.map((swatch) => ({
-        ...swatch,
-        isActive: swatch.id === colorId,
-      })),
-    )
   }
 
   const handleClear = () => {

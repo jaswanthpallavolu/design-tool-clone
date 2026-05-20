@@ -1,5 +1,6 @@
 import {
   Shape,
+  ShapeType,
   RectangleShape,
   EllipseShape,
   LineShape,
@@ -18,14 +19,13 @@ export class CanvasPathBuilder {
 
   static getPath(shape: Shape): Path2D {
     switch (shape.type) {
-      case "RECTANGLE":
+      case ShapeType.RECTANGLE:
         return this.createPathForRectangle(shape)
-      case "ELLIPSE":
+      case ShapeType.ELLIPSE:
         return this.createPathForEllipse(shape)
-      case "LINE":
+      case ShapeType.LINE:
         return this.createPathForLine(shape)
       default:
-        const _exhaustiveCheck: never = shape
         throw new Error(`Unknown shape type`)
     }
   }

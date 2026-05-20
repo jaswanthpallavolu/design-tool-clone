@@ -28,7 +28,7 @@ export class CanvasRenderer implements RenderPort {
     editor: Editor
   }) {
     this.canvas = canvas
-    const ctx = this.canvas.getContext("2d")
+    const ctx = this.canvas.getContext("2d", { willReadFrequently: true })
     if (!ctx) {
       throw new Error("Failed to get 2D rendering context from canvas")
     }

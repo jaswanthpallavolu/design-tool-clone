@@ -3682,14 +3682,13 @@ var EditorEngine = (() => {
     }
     static getPath(shape) {
       switch (shape.type) {
-        case "RECTANGLE":
+        case "RECTANGLE" /* RECTANGLE */:
           return this.createPathForRectangle(shape);
-        case "ELLIPSE":
+        case "ELLIPSE" /* ELLIPSE */:
           return this.createPathForEllipse(shape);
-        case "LINE":
+        case "LINE" /* LINE */:
           return this.createPathForLine(shape);
         default:
-          const _exhaustiveCheck = shape;
           throw new Error(`Unknown shape type`);
       }
     }
@@ -3786,7 +3785,7 @@ var EditorEngine = (() => {
       editor
     }) {
       this.canvas = canvas;
-      const ctx = this.canvas.getContext("2d");
+      const ctx = this.canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) {
         throw new Error("Failed to get 2D rendering context from canvas");
       }
