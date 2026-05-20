@@ -126,33 +126,3 @@ initViewport(canvas, () => {
 clearButton.addEventListener("click", () => {
   editor.clear()
 })
-
-// Keyboard shortcuts for undo/redo
-document.addEventListener("keydown", (e) => {
-  // Undo: Ctrl+Z or Cmd+Z
-  if ((e.ctrlKey || e.metaKey) && e.key === "z" && !e.shiftKey) {
-    e.preventDefault()
-    if (editor.undo()) {
-      console.log("↩️ Undo successful")
-    }
-    return
-  }
-
-  // Redo: Ctrl+Shift+Z or Cmd+Shift+Z
-  if ((e.ctrlKey || e.metaKey) && e.key === "z" && e.shiftKey) {
-    e.preventDefault()
-    if (editor.redo()) {
-      console.log("↪️ Redo successful")
-    }
-    return
-  }
-
-  // Redo alternative: Ctrl+Y or Cmd+Y
-  if ((e.ctrlKey || e.metaKey) && e.key === "y") {
-    e.preventDefault()
-    if (editor.redo()) {
-      console.log("↪️ Redo successful")
-    }
-    return
-  }
-})

@@ -55,6 +55,8 @@ export default function Canvas() {
     const canvas = canvasRef.current
     if (!canvas) return
 
+    let isMounted = true
+
     const editor = new Editor()
     editorRef.current = editor
 
@@ -63,17 +65,29 @@ export default function Canvas() {
     editor.setRenderer(renderer)
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isMounted) return
       editor.onKeyDown(e)
     }
 
     const handleKeyUp = (e: KeyboardEvent) => {
+      if (!isMounted) return
       editor.onKeyUp(e)
     }
+
+    // Handle document:modified event
+    const unsubscribeDocumentModified = editor.on("document:modified", () => {
+      renderer.renderShapes()
+      renderer.renderHoverOutline()
+      renderer.renderSelectionBox()
+      renderer.renderSelectionHandles()
+    })
 
     window.addEventListener("keydown", handleKeyDown)
     window.addEventListener("keyup", handleKeyUp)
 
     return () => {
+      isMounted = false
+      unsubscribeDocumentModified()
       window.removeEventListener("keydown", handleKeyDown)
       window.removeEventListener("keyup", handleKeyUp)
     }
@@ -83,6 +97,8 @@ export default function Canvas() {
     const canvas = canvasRef.current
     const renderer = rendererRef.current
     if (!canvas || !renderer) return
+
+    let animationFrameId: number | null = null
 
     const resizeCanvas = () => {
       const displayWidth = canvas.clientWidth
@@ -102,10 +118,15 @@ export default function Canvas() {
     resizeCanvas()
 
     const resizeObserver = new ResizeObserver((entries) => {
-      window.requestAnimationFrame(() => {
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
+
+      animationFrameId = window.requestAnimationFrame(() => {
         if (entries[0]?.target === canvas) {
           resizeCanvas()
         }
+        animationFrameId = null
       })
     })
 
@@ -113,6 +134,9 @@ export default function Canvas() {
 
     return () => {
       resizeObserver.disconnect()
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId)
+      }
     }
   }, [])
 

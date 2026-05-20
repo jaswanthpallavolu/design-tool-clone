@@ -46,6 +46,24 @@ export class InputManager {
    * Handle keyboard down events
    */
   handleKeyDown(e: KeyboardEvent): void {
+    // Handle undo shortcut (Cmd/Ctrl+Z without Shift)
+    if (
+      (e.ctrlKey || e.metaKey) &&
+      e.key.toLowerCase() === "z" &&
+      !e.shiftKey
+    ) {
+      e.preventDefault()
+      this.editor.undo()
+      return
+    }
+
+    // Handle redo shortcut (Cmd/Ctrl+Shift+Z)
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
+      e.preventDefault()
+      this.editor.redo()
+      return
+    }
+
     // Handle grouping shortcuts
     if (this.shortcuts.isGroupShortcut(e)) {
       e.preventDefault()

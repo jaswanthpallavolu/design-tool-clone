@@ -2224,6 +2224,16 @@ var EditorEngine = (() => {
      */
     handleKeyDown(e) {
       var _a, _b;
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        this.editor.undo();
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
+        e.preventDefault();
+        this.editor.redo();
+        return;
+      }
       if (this.shortcuts.isGroupShortcut(e)) {
         e.preventDefault();
         this.editor.commands.execute(new GroupCommand(this.editor));
