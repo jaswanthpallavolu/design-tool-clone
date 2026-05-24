@@ -1,5 +1,6 @@
 import CanvasEventAdapter from "./CanvasEventAdapter.js"
 import { LayerPanel } from "./LayerPanel.js"
+import { ShortcutsModal } from "./ShortcutsModal.js"
 const {
   Editor,
   CanvasRenderer,
@@ -153,3 +154,6 @@ initViewport(canvas, () => {
 clearButton.addEventListener("click", () => {
   editor.clear()
 })
+
+// Initialize Keyboard Shortcuts Modal
+new ShortcutsModal()

@@ -9,17 +9,31 @@
   --secondary: #14b8a6;
   --accent: #f59e0b;
   --margin: 0.5rem;
+  --header-height: 1.5rem;
 }
 
 body {
-  margin: 0;
-}
-
-.container {
   position: relative;
   margin: var(--margin);
   width: calc(100dvw - var(--margin) * 2);
   height: calc(100dvh - var(--margin) * 2);
+}
+
+header {
+  position: absolute;
+  top: 0%;
+  width: 100%;
+  height: var(--header-height);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.container {
+  position: absolute;
+  top: var(--header-height);
+  width: 100%;
+  height: calc(100% - var(--header-height));
 }
 
 .container .layers {

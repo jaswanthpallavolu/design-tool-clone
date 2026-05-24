@@ -5,9 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Canvas Tool</title>
     <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./shortcuts-modal.css" />
   </head>
   <body>
-    <div class="container">
+    <header>
+      <a href="/">Home</a>
+      <button id="shortcuts-button" title="Keyboard Shortcuts (?)">
+        ⌨️ Shortcuts
+      </button>
+    </header>
+    <section class="container">
       <canvas id="canvas"></canvas>
       <div class="layers"></div>
       <div class="tools-section">
@@ -15,7 +22,36 @@
         <select id="tool-dropdown"></select>
         <input type="color" id="color-input" />
       </div>
+    </section>
+
+    <!-- Keyboard Shortcuts Modal -->
+    <div id="shortcuts-modal" class="modal">
+      <div class="modal-content">
+        <button class="modal-close" id="close-modal">&times;</button>
+        <h2>Keyboard Shortcuts</h2>
+        <div class="modal-body">
+          <h3>Tools</h3>
+          <p><kbd>V</kbd> Select</p>
+          <p><kbd>R</kbd> Rectangle</p>
+          <p><kbd>O</kbd> Ellipse</p>
+          <p><kbd>L</kbd> Line</p>
+
+          <h3>Edit</h3>
+          <p><kbd>Ctrl+Z</kbd> Undo</p>
+          <p><kbd>Ctrl+Shift+Z</kbd> Redo</p>
+          <p><kbd>Delete</kbd> Delete</p>
+
+          <h3>Grouping</h3>
+          <p><kbd>Ctrl+G</kbd> Group</p>
+          <p><kbd>Ctrl+Shift+G</kbd> Ungroup</p>
+
+          <h3>Other</h3>
+          <p><kbd>?</kbd> Show shortcuts</p>
+          <p><kbd>Esc</kbd> Close modal</p>
+        </div>
+      </div>
     </div>
+
     <script src="./index.global.js"></script>
     <script type="module" src="./main.js"></script>
   </body>
