@@ -169,7 +169,7 @@ export class CanvasRenderer implements RenderPort {
     const selection = this.editor.selection.getAll()
 
     if (this.editor.state.selectionBounds && selection.length > 1) {
-      // Multi-select: Use AABB handles (without corner handles, with rotation)
+      // Multi-select: Use AABB handles (without corner handles, without rotation)
       const geometry = HandleGeometryService.getAABBHandleGeometry(
         this.editor.state.selectionBounds,
       )
@@ -178,13 +178,13 @@ export class CanvasRenderer implements RenderPort {
         paths,
         this.editor.state.selectionBounds,
         false,
-        true,
-      ) // Hide corners, show rotation for multi-select
+        false,
+      ) // Hide corners, hide rotation for multi-select
     } else if (selection.length === 1) {
       const node = this.editor.document.getNode(selection[0])
       const shape = this.editor.document.getShape(selection[0])
 
-      // If it's a group (no shape), use AABB handles (without corners, with rotation)
+      // If it's a group (no shape), use AABB handles (without corners, without rotation)
       if (node && !shape && this.editor.state.selectionBounds) {
         const geometry = HandleGeometryService.getAABBHandleGeometry(
           this.editor.state.selectionBounds,
@@ -194,8 +194,8 @@ export class CanvasRenderer implements RenderPort {
           paths,
           this.editor.state.selectionBounds,
           false,
-          true,
-        ) // Hide corners, show rotation for groups
+          false,
+        ) // Hide corners, hide rotation for groups
       } else if (node && shape) {
         // Single shape: Use shape-specific handles
         const geometry = HandleGeometryService.getShapeHandleGeometry(shape)

@@ -146,7 +146,7 @@ export class ResizeState implements InteractionState {
     dy: number,
     handle: string,
   ): void {
-    // Top-left based: geometry.x/y stays fixed, adjust local coords
+    // Simple line resize: just move the endpoints
     if (handle === "p1") {
       // Move p1 endpoint
       shape.geometry.x1 = original.geometry.x1 + dx
@@ -167,54 +167,141 @@ export class ResizeState implements InteractionState {
     handle: string,
   ): void {
     const originalShape = original.shape as RectangleShape | EllipseShape
+    const rotation = original.node.transform.rotation
 
-    // Transform delta to local space
-    const cos = Math.cos(-node.transform.rotation)
-    const sin = Math.sin(-node.transform.rotation)
+    // Transform delta to local space for size changes
+    const cos = Math.cos(-rotation)
+    const sin = Math.sin(-rotation)
     const localDx = dx * cos - dy * sin
     const localDy = dx * sin + dy * cos
 
-    // Resize: adjust both node position and shape size
+    const cosPos = Math.cos(rotation)
+    const sinPos = Math.sin(rotation)
+
+    // Calculate original center in world space
+    const origHalfW = originalShape.geometry.width / 2
+    const origHalfH = originalShape.geometry.height / 2
+    const origCenterX = original.node.transform.x + origHalfW
+    const origCenterY = original.node.transform.y + origHalfH
+
+    // Determine new dimensions and anchor point (relative to center)
+    let newWidth = originalShape.geometry.width
+    let newHeight = originalShape.geometry.height
+    let anchorCenterX = 0 // Anchor point relative to original center
+    let anchorCenterY = 0
+
     switch (handle) {
-      case "nw": // Top-left corner
-        shape.geometry.width = originalShape.geometry.width - localDx
-        shape.geometry.height = originalShape.geometry.height - localDy
-        node.transform.x = original.node.transform.x + dx
-        node.transform.y = original.node.transform.y + dy
+      case "nw": // Top-left corner - bottom-right stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width - localDx)
+        newHeight = Math.max(1, originalShape.geometry.height - localDy)
+        anchorCenterX = origHalfW
+        anchorCenterY = origHalfH
         break
-      case "ne": // Top-right corner
-        shape.geometry.width = originalShape.geometry.width + localDx
-        shape.geometry.height = originalShape.geometry.height - localDy
-        node.transform.y = original.node.transform.y + dy
+      case "ne": // Top-right corner - bottom-left stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width + localDx)
+        newHeight = Math.max(1, originalShape.geometry.height - localDy)
+        anchorCenterX = -origHalfW
+        anchorCenterY = origHalfH
         break
-      case "se": // Bottom-right corner
-        shape.geometry.width = originalShape.geometry.width + localDx
-        shape.geometry.height = originalShape.geometry.height + localDy
+      case "se": // Bottom-right corner - top-left stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width + localDx)
+        newHeight = Math.max(1, originalShape.geometry.height + localDy)
+        anchorCenterX = -origHalfW
+        anchorCenterY = -origHalfH
         break
-      case "sw": // Bottom-left corner
-        shape.geometry.width = originalShape.geometry.width - localDx
-        shape.geometry.height = originalShape.geometry.height + localDy
-        node.transform.x = original.node.transform.x + dx
+      case "sw": // Bottom-left corner - top-right stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width - localDx)
+        newHeight = Math.max(1, originalShape.geometry.height + localDy)
+        anchorCenterX = origHalfW
+        anchorCenterY = -origHalfH
         break
-      case "n": // Top edge
-        shape.geometry.height = originalShape.geometry.height - localDy
-        node.transform.y = original.node.transform.y + dy
+      case "n": // Top edge - bottom edge center stays fixed
+        newHeight = Math.max(1, originalShape.geometry.height - localDy)
+        anchorCenterX = 0
+        anchorCenterY = origHalfH
         break
-      case "e": // Right edge
-        shape.geometry.width = originalShape.geometry.width + localDx
+      case "e": // Right edge - left edge center stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width + localDx)
+        anchorCenterX = -origHalfW
+        anchorCenterY = 0
         break
-      case "s": // Bottom edge
-        shape.geometry.height = originalShape.geometry.height + localDy
+      case "s": // Bottom edge - top edge center stays fixed
+        newHeight = Math.max(1, originalShape.geometry.height + localDy)
+        anchorCenterX = 0
+        anchorCenterY = -origHalfH
         break
-      case "w": // Left edge
-        shape.geometry.width = originalShape.geometry.width - localDx
-        node.transform.x = original.node.transform.x + dx
+      case "w": // Left edge - right edge center stays fixed
+        newWidth = Math.max(1, originalShape.geometry.width - localDx)
+        anchorCenterX = origHalfW
+        anchorCenterY = 0
         break
     }
 
-    // Prevent negative dimensions
-    if (shape.geometry.width < 1) shape.geometry.width = 1
-    if (shape.geometry.height < 1) shape.geometry.height = 1
+    // Update shape dimensions
+    shape.geometry.width = newWidth
+    shape.geometry.height = newHeight
+
+    // Calculate anchor point's absolute world position
+    // Transform from center-relative to world space
+    const anchorWorldOffsetX = anchorCenterX * cosPos - anchorCenterY * sinPos
+    const anchorWorldOffsetY = anchorCenterX * sinPos + anchorCenterY * cosPos
+    const anchorWorldX = origCenterX + anchorWorldOffsetX
+    const anchorWorldY = origCenterY + anchorWorldOffsetY
+
+    // Calculate where anchor should be relative to new center
+    const newHalfW = newWidth / 2
+    const newHalfH = newHeight / 2
+    let newAnchorCenterX = 0
+    let newAnchorCenterY = 0
+
+    switch (handle) {
+      case "nw":
+        newAnchorCenterX = newHalfW
+        newAnchorCenterY = newHalfH
+        break
+      case "ne":
+        newAnchorCenterX = -newHalfW
+        newAnchorCenterY = newHalfH
+        break
+      case "se":
+        newAnchorCenterX = -newHalfW
+        newAnchorCenterY = -newHalfH
+        break
+      case "sw":
+        newAnchorCenterX = newHalfW
+        newAnchorCenterY = -newHalfH
+        break
+      case "n":
+        newAnchorCenterX = 0
+        newAnchorCenterY = newHalfH
+        break
+      case "e":
+        newAnchorCenterX = -newHalfW
+        newAnchorCenterY = 0
+        break
+      case "s":
+        newAnchorCenterX = 0
+        newAnchorCenterY = -newHalfH
+        break
+      case "w":
+        newAnchorCenterX = newHalfW
+        newAnchorCenterY = 0
+        break
+    }
+
+    // Transform new anchor position to world offset
+    const newAnchorWorldOffsetX =
+      newAnchorCenterX * cosPos - newAnchorCenterY * sinPos
+    const newAnchorWorldOffsetY =
+      newAnchorCenterX * sinPos + newAnchorCenterY * cosPos
+
+    // Calculate new center position so anchor stays at its world position
+    const newCenterX = anchorWorldX - newAnchorWorldOffsetX
+    const newCenterY = anchorWorldY - newAnchorWorldOffsetY
+
+    // Calculate new top-left position from new center
+    node.transform.x = newCenterX - newHalfW
+    node.transform.y = newCenterY - newHalfH
   }
 
   private resizeMultipleShapes(

@@ -15,6 +15,7 @@ export {
   CommandManager,
   SetToolCommand,
   UpdateToolOptionsCommand,
+  UpdateShapesStyleCommand,
   ClearCommand,
 } from "./core/commands"
 

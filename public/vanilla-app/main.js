@@ -7,6 +7,7 @@ const {
   RectangleTool,
   EllipseTool,
   LineTool,
+  UpdateShapesStyleCommand,
 } = EditorEngine
 
 // DOM elements
@@ -70,6 +71,14 @@ editor.on("command:redone", (data) => {
   console.log("↪️ Command redone:", data.command)
 })
 
+// Listen for tool options changes (Editor → UI)
+editor.on("tool:options:changed", (data) => {
+  console.log("🎨 Tool options changed:", data)
+  if (data && data.options && data.options.fillColor) {
+    colorInput.value = data.options.fillColor
+  }
+})
+
 // UI event handlers (UI → Editor via direct methods)
 toolDropdown.addEventListener("change", (e) => {
   editor.setActiveTool(e.target.value)
@@ -78,10 +87,28 @@ toolDropdown.addEventListener("change", (e) => {
 colorInput.value = editor.getToolOption("fillColor")
 
 colorInput.addEventListener("input", (e) => {
+  const newColor = e.target.value
+
+  // Update tool options for future shapes
   editor.updateToolOptions({
-    strokeColor: e.target.value,
-    fillColor: e.target.value,
+    strokeColor: newColor,
+    fillColor: newColor,
   })
+
+  // Update all currently selected shapes
+  const selectedIds = editor.selection.getAll()
+  if (selectedIds.length > 0) {
+    // Filter to only get shape nodes (not groups)
+    const shapeIds = selectedIds.filter((id) => editor.document.getShape(id))
+    if (shapeIds.length > 0) {
+      editor.commands.execute(
+        new UpdateShapesStyleCommand(editor, shapeIds, {
+          strokeColor: newColor,
+          fillColor: newColor,
+        }),
+      )
+    }
+  }
 })
 
 // CanvasAdapter

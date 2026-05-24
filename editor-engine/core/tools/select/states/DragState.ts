@@ -3,7 +3,10 @@ import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
 import { SelectionBoundsHelper } from "../helpers/SelectionBoundsHelper"
 import { isGroupNode, Node } from "../../../model/Node"
-import { TransformShapesCommand } from "../../../commands"
+import {
+  TransformShapesCommand,
+  UpdateToolOptionsCommand,
+} from "../../../commands"
 import { Shape } from "../../../model/Shape"
 
 /**
@@ -54,6 +57,40 @@ export class DragState implements InteractionState {
 
     // Update selection bounds after selection change
     SelectionBoundsHelper.updateSelectionBounds(ctx)
+
+    // Update tool options from the selected shape's style
+    this.updateToolOptionsFromSelection(editor, nodeToSelect)
+  }
+
+  /**
+   * Update tool options (strokeColor, fillColor) from the selected shape's style
+   */
+  private updateToolOptionsFromSelection(
+    editor: ToolContext["editor"],
+    nodeId: string,
+  ): void {
+    const shape = editor.document.getShape(nodeId)
+    console.log(
+      "🔍 DragState - updateToolOptionsFromSelection - nodeId:",
+      nodeId,
+      "shape:",
+      shape,
+    )
+    if (shape) {
+      console.log(
+        "🎨 DragState - Executing UpdateToolOptionsCommand with colors:",
+        {
+          strokeColor: shape.style.strokeColor,
+          fillColor: shape.style.fillColor,
+        },
+      )
+      editor.commands.execute(
+        new UpdateToolOptionsCommand(editor, {
+          strokeColor: shape.style.strokeColor,
+          fillColor: shape.style.fillColor,
+        }),
+      )
+    }
   }
   onPointerMove(e: PointerEventData, ctx: ToolContext): void {
     const { editor } = ctx

@@ -43,6 +43,7 @@ var EditorEngine = (() => {
     SpatialGrid: () => SpatialGrid,
     SpatialIndexService: () => SpatialIndexService,
     ToolManager: () => ToolManager,
+    UpdateShapesStyleCommand: () => UpdateShapesStyleCommand,
     UpdateToolOptionsCommand: () => UpdateToolOptionsCommand,
     createEllipseShape: () => createEllipseShape,
     createGroupNode: () => createGroupNode,
@@ -2031,6 +2032,55 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/commands/UpdateShapesStyleCommand.ts
+  var UpdateShapesStyleCommand = class extends Command {
+    constructor(editor, nodeIds, newStyle) {
+      super();
+      this.editor = editor;
+      this.nodeIds = nodeIds;
+      this.newStyle = newStyle;
+      this.oldStyles = /* @__PURE__ */ new Map();
+      nodeIds.forEach((nodeId) => {
+        const shape = editor.document.getShape(nodeId);
+        if (shape) {
+          this.oldStyles.set(nodeId, { ...shape.style });
+        }
+      });
+    }
+    execute() {
+      var _a;
+      this.nodeIds.forEach((nodeId) => {
+        const shape = this.editor.document.getShape(nodeId);
+        if (shape) {
+          Object.assign(shape.style, this.newStyle);
+          this.editor.document.updateShape(shape);
+        }
+      });
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      var _a;
+      this.nodeIds.forEach((nodeId) => {
+        const shape = this.editor.document.getShape(nodeId);
+        const oldStyle = this.oldStyles.get(nodeId);
+        if (shape && oldStyle) {
+          shape.style = oldStyle;
+          this.editor.document.updateShape(shape);
+        }
+      });
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      const styleChanges = Object.entries(this.newStyle).map(([key, value]) => `${key}=${value}`).join(", ");
+      return `Update style of ${this.nodeIds.length} shape(s): ${styleChanges}`;
+    }
+    canUndo() {
+      return true;
+    }
+  };
+
   // editor-engine/core/commands/DeleteShapesCommand.ts
   var DeleteShapesCommand = class extends Command {
     constructor(editor, nodeIds) {
@@ -2896,48 +2946,117 @@ var EditorEngine = (() => {
     }
     resizeRectangular(node, shape, original, dx, dy, handle) {
       const originalShape = original.shape;
-      const cos = Math.cos(-node.transform.rotation);
-      const sin = Math.sin(-node.transform.rotation);
+      const rotation = original.node.transform.rotation;
+      const cos = Math.cos(-rotation);
+      const sin = Math.sin(-rotation);
       const localDx = dx * cos - dy * sin;
       const localDy = dx * sin + dy * cos;
+      const cosPos = Math.cos(rotation);
+      const sinPos = Math.sin(rotation);
+      const origHalfW = originalShape.geometry.width / 2;
+      const origHalfH = originalShape.geometry.height / 2;
+      const origCenterX = original.node.transform.x + origHalfW;
+      const origCenterY = original.node.transform.y + origHalfH;
+      let newWidth = originalShape.geometry.width;
+      let newHeight = originalShape.geometry.height;
+      let anchorCenterX = 0;
+      let anchorCenterY = 0;
       switch (handle) {
         case "nw":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.x = original.node.transform.x + dx;
-          node.transform.y = original.node.transform.y + dy;
+          newWidth = Math.max(1, originalShape.geometry.width - localDx);
+          newHeight = Math.max(1, originalShape.geometry.height - localDy);
+          anchorCenterX = origHalfW;
+          anchorCenterY = origHalfH;
           break;
         case "ne":
-          shape.geometry.width = originalShape.geometry.width + localDx;
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.y = original.node.transform.y + dy;
+          newWidth = Math.max(1, originalShape.geometry.width + localDx);
+          newHeight = Math.max(1, originalShape.geometry.height - localDy);
+          anchorCenterX = -origHalfW;
+          anchorCenterY = origHalfH;
           break;
         case "se":
-          shape.geometry.width = originalShape.geometry.width + localDx;
-          shape.geometry.height = originalShape.geometry.height + localDy;
+          newWidth = Math.max(1, originalShape.geometry.width + localDx);
+          newHeight = Math.max(1, originalShape.geometry.height + localDy);
+          anchorCenterX = -origHalfW;
+          anchorCenterY = -origHalfH;
           break;
         case "sw":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          shape.geometry.height = originalShape.geometry.height + localDy;
-          node.transform.x = original.node.transform.x + dx;
+          newWidth = Math.max(1, originalShape.geometry.width - localDx);
+          newHeight = Math.max(1, originalShape.geometry.height + localDy);
+          anchorCenterX = origHalfW;
+          anchorCenterY = -origHalfH;
           break;
         case "n":
-          shape.geometry.height = originalShape.geometry.height - localDy;
-          node.transform.y = original.node.transform.y + dy;
+          newHeight = Math.max(1, originalShape.geometry.height - localDy);
+          anchorCenterX = 0;
+          anchorCenterY = origHalfH;
           break;
         case "e":
-          shape.geometry.width = originalShape.geometry.width + localDx;
+          newWidth = Math.max(1, originalShape.geometry.width + localDx);
+          anchorCenterX = -origHalfW;
+          anchorCenterY = 0;
           break;
         case "s":
-          shape.geometry.height = originalShape.geometry.height + localDy;
+          newHeight = Math.max(1, originalShape.geometry.height + localDy);
+          anchorCenterX = 0;
+          anchorCenterY = -origHalfH;
           break;
         case "w":
-          shape.geometry.width = originalShape.geometry.width - localDx;
-          node.transform.x = original.node.transform.x + dx;
+          newWidth = Math.max(1, originalShape.geometry.width - localDx);
+          anchorCenterX = origHalfW;
+          anchorCenterY = 0;
           break;
       }
-      if (shape.geometry.width < 1) shape.geometry.width = 1;
-      if (shape.geometry.height < 1) shape.geometry.height = 1;
+      shape.geometry.width = newWidth;
+      shape.geometry.height = newHeight;
+      const anchorWorldOffsetX = anchorCenterX * cosPos - anchorCenterY * sinPos;
+      const anchorWorldOffsetY = anchorCenterX * sinPos + anchorCenterY * cosPos;
+      const anchorWorldX = origCenterX + anchorWorldOffsetX;
+      const anchorWorldY = origCenterY + anchorWorldOffsetY;
+      const newHalfW = newWidth / 2;
+      const newHalfH = newHeight / 2;
+      let newAnchorCenterX = 0;
+      let newAnchorCenterY = 0;
+      switch (handle) {
+        case "nw":
+          newAnchorCenterX = newHalfW;
+          newAnchorCenterY = newHalfH;
+          break;
+        case "ne":
+          newAnchorCenterX = -newHalfW;
+          newAnchorCenterY = newHalfH;
+          break;
+        case "se":
+          newAnchorCenterX = -newHalfW;
+          newAnchorCenterY = -newHalfH;
+          break;
+        case "sw":
+          newAnchorCenterX = newHalfW;
+          newAnchorCenterY = -newHalfH;
+          break;
+        case "n":
+          newAnchorCenterX = 0;
+          newAnchorCenterY = newHalfH;
+          break;
+        case "e":
+          newAnchorCenterX = -newHalfW;
+          newAnchorCenterY = 0;
+          break;
+        case "s":
+          newAnchorCenterX = 0;
+          newAnchorCenterY = -newHalfH;
+          break;
+        case "w":
+          newAnchorCenterX = newHalfW;
+          newAnchorCenterY = 0;
+          break;
+      }
+      const newAnchorWorldOffsetX = newAnchorCenterX * cosPos - newAnchorCenterY * sinPos;
+      const newAnchorWorldOffsetY = newAnchorCenterX * sinPos + newAnchorCenterY * cosPos;
+      const newCenterX = anchorWorldX - newAnchorWorldOffsetX;
+      const newCenterY = anchorWorldY - newAnchorWorldOffsetY;
+      node.transform.x = newCenterX - newHalfW;
+      node.transform.y = newCenterY - newHalfH;
     }
     resizeMultipleShapes(editor, dx, dy, handle) {
     }
@@ -3196,6 +3315,34 @@ var EditorEngine = (() => {
         editor.selection.setSingle(nodeToSelect);
       }
       SelectionBoundsHelper.updateSelectionBounds(ctx);
+      this.updateToolOptionsFromSelection(editor, nodeToSelect);
+    }
+    /**
+     * Update tool options (strokeColor, fillColor) from the selected shape's style
+     */
+    updateToolOptionsFromSelection(editor, nodeId) {
+      const shape = editor.document.getShape(nodeId);
+      console.log(
+        "\u{1F50D} DragState - updateToolOptionsFromSelection - nodeId:",
+        nodeId,
+        "shape:",
+        shape
+      );
+      if (shape) {
+        console.log(
+          "\u{1F3A8} DragState - Executing UpdateToolOptionsCommand with colors:",
+          {
+            strokeColor: shape.style.strokeColor,
+            fillColor: shape.style.fillColor
+          }
+        );
+        editor.commands.execute(
+          new UpdateToolOptionsCommand(editor, {
+            strokeColor: shape.style.strokeColor,
+            fillColor: shape.style.fillColor
+          })
+        );
+      }
     }
     onPointerMove(e, ctx) {
       var _a;
@@ -3921,7 +4068,7 @@ var EditorEngine = (() => {
           paths,
           this.editor.state.selectionBounds,
           false,
-          true
+          false
         );
       } else if (selection.length === 1) {
         const node = this.editor.document.getNode(selection[0]);
@@ -3935,7 +4082,7 @@ var EditorEngine = (() => {
             paths,
             this.editor.state.selectionBounds,
             false,
-            true
+            false
           );
         } else if (node && shape) {
           const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
