@@ -155,6 +155,35 @@ export class Document {
   }
 
   /**
+   * Set the z-order of a node by moving it to a specific index
+   * Higher index = higher z-order (drawn on top)
+   */
+  setNodeZOrder(nodeId: string, targetIndex: number): void {
+    const node = this.nodes.get(nodeId)
+    if (!node) {
+      throw new Error(`Node with id '${nodeId}' does not exist`)
+    }
+
+    const nodesArray = Array.from(this.nodes.entries())
+    const currentIndex = nodesArray.findIndex(([id]) => id === nodeId)
+
+    if (currentIndex === -1) return
+
+    // Remove from current position
+    const [entry] = nodesArray.splice(currentIndex, 1)
+
+    // Insert at target position
+    const clampedIndex = Math.max(0, Math.min(targetIndex, nodesArray.length))
+    nodesArray.splice(clampedIndex, 0, entry)
+
+    // Rebuild Map to maintain new order
+    this.nodes.clear()
+    for (const [id, node] of nodesArray) {
+      this.nodes.set(id, node)
+    }
+  }
+
+  /**
    * Move a node to a new parent (or root if parentId is undefined)
    */
   reparent(childId: string, newParentId: string | undefined): void {

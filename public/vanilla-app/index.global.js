@@ -323,6 +323,26 @@ var EditorEngine = (() => {
       this.nodes.set(node.id, node);
     }
     /**
+     * Set the z-order of a node by moving it to a specific index
+     * Higher index = higher z-order (drawn on top)
+     */
+    setNodeZOrder(nodeId, targetIndex) {
+      const node = this.nodes.get(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const nodesArray = Array.from(this.nodes.entries());
+      const currentIndex = nodesArray.findIndex(([id]) => id === nodeId);
+      if (currentIndex === -1) return;
+      const [entry] = nodesArray.splice(currentIndex, 1);
+      const clampedIndex = Math.max(0, Math.min(targetIndex, nodesArray.length));
+      nodesArray.splice(clampedIndex, 0, entry);
+      this.nodes.clear();
+      for (const [id, node2] of nodesArray) {
+        this.nodes.set(id, node2);
+      }
+    }
+    /**
      * Move a node to a new parent (or root if parentId is undefined)
      */
     reparent(childId, newParentId) {
@@ -779,26 +799,23 @@ var EditorEngine = (() => {
      * Returns the ID of the newly created group
      */
     groupNodes(nodeIds) {
-      if (nodeIds.length < 1) {
+      const normalizedIds = this.normalizeSelectionForGrouping(nodeIds);
+      if (!this.hasEnoughNodesToGroup(normalizedIds)) {
         return null;
       }
       const nodes = [];
-      for (const id of nodeIds) {
+      for (const id of normalizedIds) {
         const node = this.document.getNode(id);
         if (!node) {
           return null;
         }
         nodes.push(node);
       }
-      const parentIds = new Set(nodes.map((n) => {
-        var _a;
-        return (_a = n.parentId) != null ? _a : "root";
-      }));
-      if (parentIds.size > 1) {
+      const commonParentId = this.getGroupingParentId(normalizedIds);
+      if (commonParentId === null) {
         return null;
       }
-      const commonParentId = nodes[0].parentId;
-      const bounds = this.calculateBoundingBox(nodeIds);
+      const bounds = this.calculateBoundingBox(normalizedIds);
       if (!bounds) {
         return null;
       }
@@ -816,8 +833,23 @@ var EditorEngine = (() => {
         width: bounds.width,
         height: bounds.height
       };
+      const allNodes = this.document.getAllNodes();
+      let maxZIndex = -1;
+      for (const nodeId of normalizedIds) {
+        const index = allNodes.findIndex((n) => n.id === nodeId);
+        if (index > maxZIndex) {
+          maxZIndex = index;
+        }
+      }
       this.document.addNode(groupNode);
-      for (const node of nodes) {
+      if (maxZIndex >= 0) {
+        this.document.setNodeZOrder(groupNode.id, maxZIndex);
+      }
+      const nodesByZOrder = nodes.map((node) => ({
+        node,
+        zIndex: allNodes.findIndex((n) => n.id === node.id)
+      })).sort((a, b) => a.zIndex - b.zIndex);
+      for (const { node } of nodesByZOrder) {
         this.document.reparent(node.id, groupId);
       }
       return groupId;
@@ -858,18 +890,119 @@ var EditorEngine = (() => {
      * Check if multiple nodes can be grouped
      */
     canGroup(nodeIds) {
-      if (nodeIds.length < 1) return false;
-      const nodes = [];
-      for (const id of nodeIds) {
-        const node = this.document.getNode(id);
-        if (!node) return false;
-        nodes.push(node);
+      const normalizedIds = this.normalizeSelectionForGrouping(nodeIds);
+      if (!this.hasEnoughNodesToGroup(normalizedIds)) return false;
+      for (const id of normalizedIds) {
+        if (!this.document.getNode(id)) return false;
       }
-      const parentIds = new Set(nodes.map((n) => {
-        var _a;
-        return (_a = n.parentId) != null ? _a : "root";
-      }));
-      return parentIds.size === 1;
+      return this.getGroupingParentId(normalizedIds) !== null;
+    }
+    /** Need 2+ nodes, or a single shape/group (wrap it in a new parent group). */
+    hasEnoughNodesToGroup(normalizedIds) {
+      if (normalizedIds.length >= 2) return true;
+      if (normalizedIds.length !== 1) return false;
+      const node = this.document.getNode(normalizedIds[0]);
+      if (!node) return false;
+      return isGroupNode(node) || isShapeNode(node);
+    }
+    /**
+     * Keep only top-level selected nodes: drop descendants of another selected node,
+     * and replace a full leaf selection of a group with the group node itself.
+     */
+    normalizeSelectionForGrouping(nodeIds) {
+      const uniqueIds = [...new Set(nodeIds)];
+      const withoutDescendants = uniqueIds.filter(
+        (id) => !uniqueIds.some(
+          (otherId) => otherId !== id && this.isDescendantOf(id, otherId)
+        )
+      );
+      const collapsed = this.collapseFullySelectedGroups(withoutDescendants);
+      return collapsed.filter(
+        (id) => !collapsed.some(
+          (otherId) => otherId !== id && this.isDescendantOf(id, otherId)
+        )
+      );
+    }
+    /**
+     * When every shape in a group is selected (but the group node is not), treat the group as selected.
+     */
+    collapseFullySelectedGroups(nodeIds) {
+      const set = new Set(nodeIds);
+      const toRemove = /* @__PURE__ */ new Set();
+      const toAdd = /* @__PURE__ */ new Set();
+      for (const node of this.document.getAllNodes()) {
+        if (!isGroupNode(node)) continue;
+        const leafShapeIds = this.getLeafShapeIds(node.id);
+        if (leafShapeIds.length === 0) continue;
+        const allLeavesSelected = leafShapeIds.every((id) => set.has(id));
+        if (allLeavesSelected && !set.has(node.id)) {
+          toAdd.add(node.id);
+          for (const id of leafShapeIds) {
+            toRemove.add(id);
+          }
+        }
+      }
+      const result = [...set].filter((id) => !toRemove.has(id));
+      for (const id of toAdd) {
+        result.push(id);
+      }
+      return result;
+    }
+    getLeafShapeIds(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) return [];
+      if (isGroupNode(node)) {
+        return node.children.flatMap((childId) => this.getLeafShapeIds(childId));
+      }
+      return this.document.getShape(nodeId) ? [nodeId] : [];
+    }
+    isDescendantOf(nodeId, ancestorId) {
+      let current = this.document.getNode(nodeId);
+      while (current == null ? void 0 : current.parentId) {
+        if (current.parentId === ancestorId) return true;
+        current = this.document.getNode(current.parentId);
+      }
+      return false;
+    }
+    /**
+     * Parent for the new group node. Uses the LCA of the top-level selection so
+     * existing groups stay intact as single children (not flattened).
+     */
+    getGroupingParentId(normalizedIds) {
+      const lca = this.findLCA(normalizedIds);
+      if (lca === "root") {
+        return void 0;
+      }
+      const lcaNode = this.document.getNode(lca);
+      if (!lcaNode) return null;
+      const lcaIsBeingGrouped = normalizedIds.includes(lca);
+      if (isGroupNode(lcaNode) && !lcaIsBeingGrouped) {
+        return lca;
+      }
+      return lcaNode.parentId;
+    }
+    getPathToRoot(nodeId) {
+      var _a;
+      const path = ["root"];
+      let currentId = nodeId;
+      while (currentId) {
+        path.push(currentId);
+        currentId = (_a = this.document.getNode(currentId)) == null ? void 0 : _a.parentId;
+      }
+      return path;
+    }
+    findLCA(nodeIds) {
+      const paths = nodeIds.map((id) => this.getPathToRoot(id));
+      let lca = "root";
+      for (let i = 0; i < paths[0].length; i++) {
+        const segment = paths[0][i];
+        if (paths.every((p) => p[i] === segment)) {
+          lca = segment;
+        } else {
+          break;
+        }
+      }
+      return lca;
     }
     /**
      * Calculate bounding box for multiple nodes
@@ -878,12 +1011,7 @@ var EditorEngine = (() => {
     calculateBoundingBox(nodeIds) {
       const aabbs = [];
       for (const nodeId of nodeIds) {
-        const node = this.document.getNode(nodeId);
-        if (!node) continue;
-        const shape = this.document.getShape(nodeId);
-        if (!shape) continue;
-        const aabb = BoundingBoxService.getAABB(node, shape);
-        aabbs.push(aabb);
+        this.collectNodeAABBs(nodeId, aabbs);
       }
       if (aabbs.length === 0) return null;
       const union = BoundingBoxService.unionAABBs(aabbs);
@@ -893,6 +1021,20 @@ var EditorEngine = (() => {
         width: union.maxX - union.minX,
         height: union.maxY - union.minY
       };
+    }
+    collectNodeAABBs(nodeId, aabbs) {
+      const node = this.document.getNode(nodeId);
+      if (!node) return;
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.collectNodeAABBs(childId, aabbs);
+        }
+        return;
+      }
+      const shape = this.document.getShape(nodeId);
+      if (shape) {
+        aabbs.push(BoundingBoxService.getAABB(node, shape));
+      }
     }
   };
 
@@ -1435,13 +1577,6 @@ var EditorEngine = (() => {
     findShapeAtPoint(x, y, hitTestAdapter, priorityNodeId) {
       if (!hitTestAdapter) {
         return void 0;
-      }
-      if (priorityNodeId) {
-        const node = this.document.getNode(priorityNodeId);
-        const shape = this.document.getShape(priorityNodeId);
-        if (node && shape && isShapeNode(node) && hitTestAdapter.testShape(node, shape, x, y)) {
-          return node;
-        }
       }
       if (this.spatialIndex.isEnabled()) {
         const candidates = this.spatialIndex.queryPoint(x, y);
@@ -2276,12 +2411,12 @@ var EditorEngine = (() => {
       var _a, _b;
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
-        this.editor.undo();
+        this.editor.commands.undo();
         return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
         e.preventDefault();
-        this.editor.redo();
+        this.editor.commands.redo();
         return;
       }
       if (this.shortcuts.isGroupShortcut(e)) {
@@ -2320,8 +2455,8 @@ var EditorEngine = (() => {
       this.selection = new SelectionManager();
       this.tools = new ToolManager(this);
       this.state = new EditorState();
-      this.groupService = new GroupService(this.document);
       this.events = new EventBus();
+      this.groupService = new GroupService(this.document);
       this.commands = new CommandManager(this.events);
       this.input = new InputManager(this);
       this.spatialIndex = new SpatialIndexService(this.document, this.events);
@@ -2376,95 +2511,6 @@ var EditorEngine = (() => {
     }
     clear() {
       this.commands.execute(new ClearCommand(this));
-    }
-    /**
-     * Undo the last command
-     * @returns true if undo was successful
-     */
-    undo() {
-      return this.commands.undo();
-    }
-    /**
-     * Redo the next command
-     * @returns true if redo was successful
-     */
-    redo() {
-      return this.commands.redo();
-    }
-    /**
-     * Check if undo is available
-     */
-    canUndo() {
-      return this.commands.canUndo();
-    }
-    /**
-     * Check if redo is available
-     */
-    canRedo() {
-      return this.commands.canRedo();
-    }
-    // ---------------------------------------------
-    // Grouping Operations
-    // ---------------------------------------------
-    /**
-     * Group the currently selected nodes
-     * Uses GroupCommand for undoable grouping
-     */
-    groupSelection() {
-      this.commands.execute(new GroupCommand(this));
-    }
-    /**
-     * Ungroup the currently selected group nodes
-     * Uses UngroupCommand for undoable ungrouping
-     */
-    ungroupSelection() {
-      this.commands.execute(new UngroupCommand(this));
-    }
-  };
-
-  // editor-engine/core/tools/select/states/IdleState.ts
-  var IdleState = class {
-    onPointerDown(e, ctx) {
-    }
-    onPointerMove(e, { editor }) {
-      var _a;
-      const found = editor.shapeQuery.findShapeAtPoint(
-        e.clientX,
-        e.clientY,
-        (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter(),
-        editor.state.hoveredNodeId
-        // Check current hover first to avoid recomputation
-      );
-      editor.state.hoveredNodeId = found == null ? void 0 : found.id;
-    }
-    onPointerUp(e, ctx) {
-    }
-  };
-
-  // editor-engine/core/tools/select/resolvers/StateResolver.ts
-  var StateResolver = class {
-    constructor() {
-      this.nextResolver = null;
-    }
-    /**
-     * Set the next resolver in the chain
-     */
-    setNext(resolver) {
-      this.nextResolver = resolver;
-      return resolver;
-    }
-    /**
-     * Handle the request - try to resolve state, or pass to next in chain
-     */
-    resolve(e, ctx) {
-      const state = this.tryResolve(e, ctx);
-      if (state !== null) {
-        return state;
-      }
-      if (this.nextResolver) {
-        return this.nextResolver.resolve(e, ctx);
-      }
-      return null;
     }
   };
 
@@ -2730,6 +2776,113 @@ var EditorEngine = (() => {
           }
         }
       };
+    }
+  };
+
+  // editor-engine/core/tools/select/states/IdleState.ts
+  var IdleState = class {
+    constructor() {
+      this.lastPointerEvent = null;
+    }
+    onPointerDown(e, ctx) {
+    }
+    onPointerMove(e, { editor }) {
+      this.lastPointerEvent = e;
+      this.updateHoverState(e, editor);
+    }
+    onPointerUp(e, ctx) {
+    }
+    onKeyDown(e, ctx) {
+      if ((e.key === "Control" || e.key === "Meta") && this.lastPointerEvent) {
+        const updatedPointerEvent = {
+          ...this.lastPointerEvent,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey
+        };
+        this.updateHoverState(updatedPointerEvent, ctx.editor);
+      }
+    }
+    onKeyUp(e, ctx) {
+      if ((e.key === "Control" || e.key === "Meta") && this.lastPointerEvent) {
+        const updatedPointerEvent = {
+          ...this.lastPointerEvent,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+          shiftKey: e.shiftKey,
+          altKey: e.altKey
+        };
+        this.updateHoverState(updatedPointerEvent, ctx.editor);
+      }
+    }
+    /**
+     * Recalculate hover state based on current pointer position and modifier keys
+     * Called when pointer moves or when Ctrl/Meta keys are pressed/released
+     */
+    updateHoverState(e, editor) {
+      var _a, _b;
+      const selection = editor.selection.getAll();
+      if (selection.length === 1) {
+        const handleHit = this.testSingleSelectionHandles(e, editor, selection[0]);
+        if (handleHit.type) {
+          editor.state.hoveredNodeId = void 0;
+          return;
+        }
+      }
+      const found = editor.shapeQuery.findShapeAtPoint(
+        e.clientX,
+        e.clientY,
+        (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()
+      );
+      const isFoundShapeSelected = (found == null ? void 0 : found.id) && editor.selection.isSelected(found.id);
+      const topLevelParent = !(e.ctrlKey || e.metaKey) && !isFoundShapeSelected && editor.document.getTopLevelParent((_b = found == null ? void 0 : found.id) != null ? _b : "");
+      const selectionCandidateId = topLevelParent && topLevelParent.id !== (found == null ? void 0 : found.id) ? topLevelParent.id : found == null ? void 0 : found.id;
+      editor.state.hoveredNodeId = selectionCandidateId;
+    }
+    testSingleSelectionHandles(e, editor, nodeId) {
+      const node = editor.document.getNode(nodeId);
+      const shape = editor.document.getShape(nodeId);
+      if (node && shape) {
+        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
+        const center = HandleHitTestService.getShapeCenter(node, shape);
+        return HandleHitTestService.testHandles(
+          e.clientX,
+          e.clientY,
+          geometry,
+          center.x,
+          center.y,
+          node.transform.rotation
+        );
+      }
+      return { type: null, handle: null };
+    }
+  };
+
+  // editor-engine/core/tools/select/resolvers/StateResolver.ts
+  var StateResolver = class {
+    constructor() {
+      this.nextResolver = null;
+    }
+    /**
+     * Set the next resolver in the chain
+     */
+    setNext(resolver) {
+      this.nextResolver = resolver;
+      return resolver;
+    }
+    /**
+     * Handle the request - try to resolve state, or pass to next in chain
+     */
+    resolve(e, ctx) {
+      const state = this.tryResolve(e, ctx);
+      if (state !== null) {
+        return state;
+      }
+      if (this.nextResolver) {
+        return this.nextResolver.resolve(e, ctx);
+      }
+      return null;
     }
   };
 
@@ -3423,27 +3576,20 @@ var EditorEngine = (() => {
       if (!editor.state.hoveredNodeId) {
         return null;
       }
-      if (this.isHoveredShapeInSelection(editor)) {
+      if (this.isHoveredShapeInCurrentSelection(e, editor)) {
         return new DragState();
       }
       return null;
     }
     /**
-     * Check if the hovered shape is within the current selection bounds
-     * This allows dragging without changing the selection
+     * Check if the hovered node corresponds to the current selection.
+     * - Without Ctrl/Cmd: selection is considered at the top-level parent (group) level.
+     * - With Ctrl/Cmd: selection is considered at the hovered node level (drill-down).
      */
-    isHoveredShapeInSelection(editor) {
+    isHoveredShapeInCurrentSelection(e, editor) {
       const hoveredNodeId = editor.state.hoveredNodeId;
       if (!hoveredNodeId) return false;
-      const hoveredNode = editor.document.getNode(hoveredNodeId);
-      const hoveredShape = editor.document.getShape(hoveredNodeId);
-      if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
-        return BoundingBoxService.aabbIntersects(
-          editor.state.selectionBounds,
-          BoundingBoxService.getAABB(hoveredNode, hoveredShape)
-        );
-      }
-      return false;
+      return editor.selection.isSelected(hoveredNodeId);
     }
   };
 
@@ -3465,13 +3611,6 @@ var EditorEngine = (() => {
      */
     determineNodeToSelect(e, editor) {
       const hoveredNodeId = editor.state.hoveredNodeId;
-      if (e.ctrlKey || e.metaKey) {
-        return hoveredNodeId;
-      }
-      const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId);
-      if (topLevelParent && topLevelParent.id !== hoveredNodeId) {
-        return topLevelParent.id;
-      }
       return hoveredNodeId;
     }
   };
@@ -3570,10 +3709,19 @@ var EditorEngine = (() => {
       ctx.renderOverlays();
     }
     onKeyDown(e, ctx) {
+      var _a, _b;
       if (e.key === "Delete" || e.key === "Backspace") {
         this.handleDelete(ctx);
         e.preventDefault();
+        return;
       }
+      (_b = (_a = this.currentState).onKeyDown) == null ? void 0 : _b.call(_a, e, ctx);
+      ctx.renderOverlays();
+    }
+    onKeyUp(e, ctx) {
+      var _a, _b;
+      (_b = (_a = this.currentState).onKeyUp) == null ? void 0 : _b.call(_a, e, ctx);
+      ctx.renderOverlays();
     }
     handleDelete(ctx) {
       const selectedIds = ctx.editor.selection.getAll();
@@ -3961,9 +4109,14 @@ var EditorEngine = (() => {
     }
     renderShapes() {
       this.clear();
-      this.editor.document.getShapeNodes().forEach(([node, shape]) => {
+      const shapesInLayerOrder = [];
+      const roots = this.editor.document.getRootNodes().slice().reverse();
+      for (const root of roots) {
+        this.collectShapesInLayerOrder(root.id, shapesInLayerOrder);
+      }
+      for (const [node, shape] of shapesInLayerOrder.reverse()) {
         this.renderShape(node, shape);
-      });
+      }
       this.imageData = this.ctx.getImageData(
         0,
         0,
@@ -3979,6 +4132,19 @@ var EditorEngine = (() => {
         this.canvas.width,
         this.canvas.height
       );
+    }
+    /** Same traversal as LayerPanel; paint back-to-front by reversing collected shapes. */
+    collectShapesInLayerOrder(nodeId, out) {
+      const node = this.editor.document.getNode(nodeId);
+      if (!node) return;
+      const children = node.children.slice().reverse();
+      for (const childId of children) {
+        this.collectShapesInLayerOrder(childId, out);
+      }
+      const shape = this.editor.document.getShape(nodeId);
+      if (shape) {
+        out.push([node, shape]);
+      }
     }
     renderShape(node, shape) {
       if (!node.visible) return;
@@ -4012,13 +4178,25 @@ var EditorEngine = (() => {
       const hoveredNode = this.editor.document.getNode(
         this.editor.state.hoveredNodeId
       );
+      if (!hoveredNode) return;
       const hoveredShape = this.editor.document.getShape(
         this.editor.state.hoveredNodeId
       );
-      if (!hoveredNode || !hoveredShape) return;
       this.ctx.save();
       this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor;
       this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth;
+      if (isGroupNode(hoveredNode)) {
+        const bounds = this.getGroupBounds(hoveredNode.id);
+        if (bounds) {
+          this.ctx.stroke(CanvasPathBuilder.getPathFromAABB(bounds));
+        }
+        this.ctx.restore();
+        return;
+      }
+      if (!hoveredShape) {
+        this.ctx.restore();
+        return;
+      }
       const path = CanvasPathBuilder.getPath(hoveredShape);
       let centerX = hoveredNode.transform.x;
       let centerY = hoveredNode.transform.y;
@@ -4033,6 +4211,28 @@ var EditorEngine = (() => {
       this.ctx.rotate(hoveredNode.transform.rotation);
       this.ctx.stroke(path);
       this.ctx.restore();
+    }
+    /** Union AABB of all shape descendants within a group. */
+    getGroupBounds(groupId) {
+      const aabbs = [];
+      this.collectGroupAABBs(groupId, aabbs);
+      return aabbs.length > 0 ? BoundingBoxService.unionAABBs(aabbs) : void 0;
+    }
+    collectGroupAABBs(groupId, aabbs) {
+      const group = this.editor.document.getNode(groupId);
+      if (!group || !isGroupNode(group)) return;
+      for (const childId of group.children) {
+        const child = this.editor.document.getNode(childId);
+        if (!child) continue;
+        if (isGroupNode(child)) {
+          this.collectGroupAABBs(childId, aabbs);
+        } else {
+          const shape = this.editor.document.getShape(childId);
+          if (shape) {
+            aabbs.push(BoundingBoxService.getAABB(child, shape));
+          }
+        }
+      }
     }
     renderSelectionBox() {
       if (!this.editor.state.marquee) return;

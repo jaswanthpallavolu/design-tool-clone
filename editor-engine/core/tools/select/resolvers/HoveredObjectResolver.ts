@@ -23,11 +23,11 @@ export class HoveredObjectResolver extends StateResolver {
     }
 
     // Determine what to select: group or individual shape
-    const nodeToSelect = this.determineNodeToSelect(e, editor)
+    // const nodeToSelect = this.determineNodeToSelect(e, editor)
 
     // Return DragState with selection context - let the state handle the selection
     return new DragState({
-      nodeToSelect,
+      nodeToSelect: editor.state.hoveredNodeId,
       shouldAddToSelection: e.shiftKey,
     })
   }
@@ -38,7 +38,7 @@ export class HoveredObjectResolver extends StateResolver {
   private determineNodeToSelect(e: PointerEventData, editor: Editor): string {
     const hoveredNodeId = editor.state.hoveredNodeId!
 
-    // If Cmd/Ctrl is held, select the individual shape (drill down into groups)
+    // // If Cmd/Ctrl is held, select the individual shape (drill down into groups)
     if (e.ctrlKey || e.metaKey) {
       return hoveredNodeId
     }

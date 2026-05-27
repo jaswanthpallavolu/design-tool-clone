@@ -14,8 +14,6 @@ import {
   SetToolCommand,
   UpdateToolOptionsCommand,
   ClearCommand,
-  GroupCommand,
-  UngroupCommand,
 } from "./commands"
 import { InputManager } from "./InputManager"
 
@@ -24,13 +22,14 @@ export class Editor {
   readonly selection = new SelectionManager()
   readonly tools = new ToolManager(this)
   readonly state = new EditorState()
-  readonly groupService = new GroupService(this.document)
-  readonly spatialIndex: SpatialIndexService
-  readonly shapeQuery: ShapeQueryService
-  readonly events = new EventBus()
   readonly commands: CommandManager
   readonly input: InputManager
   renderer?: RenderPort
+  readonly events = new EventBus()
+
+  readonly groupService = new GroupService(this.document)
+  readonly spatialIndex: SpatialIndexService
+  readonly shapeQuery: ShapeQueryService
 
   constructor() {
     this.commands = new CommandManager(this.events)
@@ -100,55 +99,5 @@ export class Editor {
 
   clear() {
     this.commands.execute(new ClearCommand(this))
-  }
-
-  /**
-   * Undo the last command
-   * @returns true if undo was successful
-   */
-  undo(): boolean {
-    return this.commands.undo()
-  }
-
-  /**
-   * Redo the next command
-   * @returns true if redo was successful
-   */
-  redo(): boolean {
-    return this.commands.redo()
-  }
-
-  /**
-   * Check if undo is available
-   */
-  canUndo(): boolean {
-    return this.commands.canUndo()
-  }
-
-  /**
-   * Check if redo is available
-   */
-  canRedo(): boolean {
-    return this.commands.canRedo()
-  }
-
-  // ---------------------------------------------
-  // Grouping Operations
-  // ---------------------------------------------
-
-  /**
-   * Group the currently selected nodes
-   * Uses GroupCommand for undoable grouping
-   */
-  groupSelection(): void {
-    this.commands.execute(new GroupCommand(this))
-  }
-
-  /**
-   * Ungroup the currently selected group nodes
-   * Uses UngroupCommand for undoable ungrouping
-   */
-  ungroupSelection(): void {
-    this.commands.execute(new UngroupCommand(this))
   }
 }

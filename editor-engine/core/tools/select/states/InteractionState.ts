@@ -5,6 +5,8 @@ export interface InteractionState {
   onPointerDown(e: PointerEventData, ctx: ToolContext): void
   onPointerMove(e: PointerEventData, ctx: ToolContext): void
   onPointerUp(e: PointerEventData, ctx: ToolContext): void
+  onKeyDown?(e: KeyboardEvent, ctx: ToolContext): void
+  onKeyUp?(e: KeyboardEvent, ctx: ToolContext): void
   onEnter?(ctx: ToolContext): void
   onExit?(ctx: ToolContext): void
 }

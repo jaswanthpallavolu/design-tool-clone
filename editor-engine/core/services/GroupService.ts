@@ -2,7 +2,13 @@
 // Service for grouping and ungrouping nodes
 
 import { Document } from "../Document"
-import { createGroupNode, Node, isGroupNode, Transform } from "../model/Node"
+import {
+  createGroupNode,
+  Node,
+  isGroupNode,
+  isShapeNode,
+  Transform,
+} from "../model/Node"
 import { BoundingBoxService, AABB } from "./BoundingBoxService"
 
 export class GroupService {
@@ -13,14 +19,13 @@ export class GroupService {
    * Returns the ID of the newly created group
    */
   groupNodes(nodeIds: string[]): string | null {
-    // Validate input
-    if (nodeIds.length < 1) {
+    const normalizedIds = this.normalizeSelectionForGrouping(nodeIds)
+    if (!this.hasEnoughNodesToGroup(normalizedIds)) {
       return null
     }
 
-    // Get all nodes and validate they exist
     const nodes: Node[] = []
-    for (const id of nodeIds) {
+    for (const id of normalizedIds) {
       const node = this.document.getNode(id)
       if (!node) {
         return null
@@ -28,16 +33,13 @@ export class GroupService {
       nodes.push(node)
     }
 
-    // Check if all nodes have the same parent (or all are root-level)
-    const parentIds = new Set(nodes.map((n) => n.parentId ?? "root"))
-    if (parentIds.size > 1) {
+    const commonParentId = this.getGroupingParentId(normalizedIds)
+    if (commonParentId === null) {
       return null
     }
 
-    const commonParentId = nodes[0].parentId
-
     // Calculate bounding box of all selected nodes in world space
-    const bounds = this.calculateBoundingBox(nodeIds)
+    const bounds = this.calculateBoundingBox(normalizedIds)
     if (!bounds) {
       return null
     }
@@ -61,12 +63,38 @@ export class GroupService {
       height: bounds.height,
     }
 
+    // Find the highest z-order index among selected nodes
+    const allNodes = this.document.getAllNodes()
+    let maxZIndex = -1
+
+    for (const nodeId of normalizedIds) {
+      const index = allNodes.findIndex((n) => n.id === nodeId)
+      if (index > maxZIndex) {
+        maxZIndex = index
+      }
+    }
+
     // Add the group node to the document
     this.document.addNode(groupNode)
 
-    // Reparent all selected nodes to the new group
+    // Move to correct z-order position (at the highest z-order of selected nodes)
+    if (maxZIndex >= 0) {
+      this.document.setNodeZOrder(groupNode.id, maxZIndex)
+    }
+
+    // Reparent all selected nodes to the new group, preserving their z-order
     // NOTE: We keep transforms in world space since the renderer doesn't support hierarchical transforms
-    for (const node of nodes) {
+
+    // Sort nodes by their current z-order (index in allNodes array)
+    const nodesByZOrder = nodes
+      .map((node) => ({
+        node,
+        zIndex: allNodes.findIndex((n) => n.id === node.id),
+      }))
+      .sort((a, b) => a.zIndex - b.zIndex)
+
+    // Reparent in z-order (lowest to highest)
+    for (const { node } of nodesByZOrder) {
       // Reparent to the group without modifying transforms
       this.document.reparent(node.id, groupId)
     }
@@ -124,21 +152,149 @@ export class GroupService {
    * Check if multiple nodes can be grouped
    */
   canGroup(nodeIds: string[]): boolean {
-    if (nodeIds.length < 1) return false
+    const normalizedIds = this.normalizeSelectionForGrouping(nodeIds)
+    if (!this.hasEnoughNodesToGroup(normalizedIds)) return false
 
-    // Check if all nodes exist
-    const nodes: Node[] = []
-    for (const id of nodeIds) {
-      const node = this.document.getNode(id)
-      if (!node) return false
-      nodes.push(node)
+    for (const id of normalizedIds) {
+      if (!this.document.getNode(id)) return false
     }
 
-    // Check if all nodes have the same parent
-    const parentIds = new Set(nodes.map((n) => n.parentId ?? "root"))
-    return parentIds.size === 1
+    return this.getGroupingParentId(normalizedIds) !== null
+  }
 
-    // [TODO] handle if all nodes doesn't have the same parent
+  /** Need 2+ nodes, or a single shape/group (wrap it in a new parent group). */
+  private hasEnoughNodesToGroup(normalizedIds: string[]): boolean {
+    if (normalizedIds.length >= 2) return true
+    if (normalizedIds.length !== 1) return false
+    const node = this.document.getNode(normalizedIds[0])
+    if (!node) return false
+    return isGroupNode(node) || isShapeNode(node)
+  }
+
+  /**
+   * Keep only top-level selected nodes: drop descendants of another selected node,
+   * and replace a full leaf selection of a group with the group node itself.
+   */
+  private normalizeSelectionForGrouping(nodeIds: string[]): string[] {
+    const uniqueIds = [...new Set(nodeIds)]
+
+    const withoutDescendants = uniqueIds.filter(
+      (id) =>
+        !uniqueIds.some(
+          (otherId) => otherId !== id && this.isDescendantOf(id, otherId),
+        ),
+    )
+
+    const collapsed = this.collapseFullySelectedGroups(withoutDescendants)
+
+    return collapsed.filter(
+      (id) =>
+        !collapsed.some(
+          (otherId) => otherId !== id && this.isDescendantOf(id, otherId),
+        ),
+    )
+  }
+
+  /**
+   * When every shape in a group is selected (but the group node is not), treat the group as selected.
+   */
+  private collapseFullySelectedGroups(nodeIds: string[]): string[] {
+    const set = new Set(nodeIds)
+    const toRemove = new Set<string>()
+    const toAdd = new Set<string>()
+
+    for (const node of this.document.getAllNodes()) {
+      if (!isGroupNode(node)) continue
+
+      const leafShapeIds = this.getLeafShapeIds(node.id)
+      if (leafShapeIds.length === 0) continue
+
+      const allLeavesSelected = leafShapeIds.every((id) => set.has(id))
+      if (allLeavesSelected && !set.has(node.id)) {
+        toAdd.add(node.id)
+        for (const id of leafShapeIds) {
+          toRemove.add(id)
+        }
+      }
+    }
+
+    const result = [...set].filter((id) => !toRemove.has(id))
+    for (const id of toAdd) {
+      result.push(id)
+    }
+    return result
+  }
+
+  private getLeafShapeIds(nodeId: string): string[] {
+    const node = this.document.getNode(nodeId)
+    if (!node) return []
+
+    if (isGroupNode(node)) {
+      return node.children.flatMap((childId) => this.getLeafShapeIds(childId))
+    }
+
+    return this.document.getShape(nodeId) ? [nodeId] : []
+  }
+
+  private isDescendantOf(nodeId: string, ancestorId: string): boolean {
+    let current = this.document.getNode(nodeId)
+    while (current?.parentId) {
+      if (current.parentId === ancestorId) return true
+      current = this.document.getNode(current.parentId)
+    }
+    return false
+  }
+
+  /**
+   * Parent for the new group node. Uses the LCA of the top-level selection so
+   * existing groups stay intact as single children (not flattened).
+   */
+  private getGroupingParentId(
+    normalizedIds: string[],
+  ): string | undefined | null {
+    const lca = this.findLCA(normalizedIds)
+    if (lca === "root") {
+      return undefined
+    }
+
+    const lcaNode = this.document.getNode(lca)
+    if (!lcaNode) return null
+
+    const lcaIsBeingGrouped = normalizedIds.includes(lca)
+
+    // Selection is under this group but does not include the group itself —
+    // place the new group inside it (e.g. grouping two shapes in the same group).
+    if (isGroupNode(lcaNode) && !lcaIsBeingGrouped) {
+      return lca
+    }
+
+    // LCA is one of the nodes being grouped (e.g. a group + sibling, or a
+    // single group wrap) — new group is a sibling, not a child of the selection.
+    return lcaNode.parentId
+  }
+
+  private getPathToRoot(nodeId: string): string[] {
+    const path: string[] = ["root"]
+    let currentId: string | undefined = nodeId
+    while (currentId) {
+      path.push(currentId)
+      currentId = this.document.getNode(currentId)?.parentId
+    }
+    return path
+  }
+
+  private findLCA(nodeIds: string[]): string {
+    const paths = nodeIds.map((id) => this.getPathToRoot(id))
+    let lca = "root"
+    for (let i = 0; i < paths[0].length; i++) {
+      const segment = paths[0][i]
+      if (paths.every((p) => p[i] === segment)) {
+        lca = segment
+      } else {
+        break
+      }
+    }
+    return lca
   }
 
   /**
@@ -151,14 +307,7 @@ export class GroupService {
     const aabbs: AABB[] = []
 
     for (const nodeId of nodeIds) {
-      const node = this.document.getNode(nodeId)
-      if (!node) continue
-
-      const shape = this.document.getShape(nodeId)
-      if (!shape) continue
-
-      const aabb = BoundingBoxService.getAABB(node, shape)
-      aabbs.push(aabb)
+      this.collectNodeAABBs(nodeId, aabbs)
     }
 
     if (aabbs.length === 0) return null
@@ -170,6 +319,23 @@ export class GroupService {
       y: union.minY,
       width: union.maxX - union.minX,
       height: union.maxY - union.minY,
+    }
+  }
+
+  private collectNodeAABBs(nodeId: string, aabbs: AABB[]): void {
+    const node = this.document.getNode(nodeId)
+    if (!node) return
+
+    if (isGroupNode(node)) {
+      for (const childId of node.children) {
+        this.collectNodeAABBs(childId, aabbs)
+      }
+      return
+    }
+
+    const shape = this.document.getShape(nodeId)
+    if (shape) {
+      aabbs.push(BoundingBoxService.getAABB(node, shape))
     }
   }
 }

@@ -53,14 +53,14 @@ export class InputManager {
       !e.shiftKey
     ) {
       e.preventDefault()
-      this.editor.undo()
+      this.editor.commands.undo()
       return
     }
 
     // Handle redo shortcut (Cmd/Ctrl+Shift+Z)
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
       e.preventDefault()
-      this.editor.redo()
+      this.editor.commands.redo()
       return
     }
 

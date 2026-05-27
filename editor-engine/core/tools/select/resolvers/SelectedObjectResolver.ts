@@ -3,7 +3,6 @@ import type { ToolContext } from "../../Tool"
 import type { InteractionState } from "../states/InteractionState"
 import { StateResolver } from "./StateResolver"
 import { DragState } from "../states/DragState"
-import { BoundingBoxService } from "../../../services/BoundingBoxService"
 
 /**
  * Priority 3: Selected Object Resolver
@@ -21,8 +20,10 @@ export class SelectedObjectResolver extends StateResolver {
       return null
     }
 
-    // Check if the hovered shape is within the current selection bounds
-    if (this.isHoveredShapeInSelection(editor)) {
+    // Only treat it as "clicking already-selected object" when the hovered node
+    // (or its default top-level parent) is actually part of the current selection.
+    // This avoids blocking selection changes when shapes overlap.
+    if (this.isHoveredShapeInCurrentSelection(e, editor)) {
       return new DragState()
     }
 
@@ -30,25 +31,32 @@ export class SelectedObjectResolver extends StateResolver {
   }
 
   /**
-   * Check if the hovered shape is within the current selection bounds
-   * This allows dragging without changing the selection
+   * Check if the hovered node corresponds to the current selection.
+   * - Without Ctrl/Cmd: selection is considered at the top-level parent (group) level.
+   * - With Ctrl/Cmd: selection is considered at the hovered node level (drill-down).
    */
-  private isHoveredShapeInSelection(editor: ToolContext["editor"]): boolean {
+  private isHoveredShapeInCurrentSelection(
+    e: PointerEventData,
+    editor: ToolContext["editor"],
+  ): boolean {
     const hoveredNodeId = editor.state.hoveredNodeId
     if (!hoveredNodeId) return false
 
-    const hoveredNode = editor.document.getNode(hoveredNodeId)
-    const hoveredShape = editor.document.getShape(hoveredNodeId)
+    return editor.selection.isSelected(hoveredNodeId)
 
-    // Check if the hovered shape is within the selection bounds
-    if (hoveredNode && hoveredShape && editor.state.selectionBounds) {
-      return BoundingBoxService.aabbIntersects(
-        editor.state.selectionBounds,
-        BoundingBoxService.getAABB(hoveredNode, hoveredShape),
-      )
-    }
+    // Ctrl/Cmd: match selection exactly at hovered node level.
+    // if (e.ctrlKey || e.metaKey) {
+    //   return editor.selection.isSelected(hoveredNodeId)
+    // }
 
-    return false
+    // // Default: match selection at top-level parent (group if it exists).
+    // const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId)
+    // const selectionCandidateId =
+    //   topLevelParent && topLevelParent.id !== hoveredNodeId
+    //     ? topLevelParent.id
+    //     : hoveredNodeId
+
+    // return editor.selection.isSelected(selectionCandidateId)
   }
 }
 

@@ -52,7 +52,18 @@ export class SelectTool implements Tool {
     if (e.key === "Delete" || e.key === "Backspace") {
       this.handleDelete(ctx)
       e.preventDefault()
+      return
     }
+
+    // Delegate to current state
+    this.currentState.onKeyDown?.(e, ctx)
+    ctx.renderOverlays()
+  }
+
+  onKeyUp(e: KeyboardEvent, ctx: ToolContext): void {
+    // Delegate to current state
+    this.currentState.onKeyUp?.(e, ctx)
+    ctx.renderOverlays()
   }
 
   private handleDelete(ctx: ToolContext): void {

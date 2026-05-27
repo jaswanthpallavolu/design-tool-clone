@@ -42,18 +42,18 @@ export class ShapeQueryService {
 
     // Fast path: check priority node first (currently hovered shape)
     // This avoids expensive spatial queries when mouse stays on the same shape
-    if (priorityNodeId) {
-      const node = this.document.getNode(priorityNodeId)
-      const shape = this.document.getShape(priorityNodeId)
-      if (
-        node &&
-        shape &&
-        isShapeNode(node) &&
-        hitTestAdapter.testShape(node, shape, x, y)
-      ) {
-        return node
-      }
-    }
+    // if (priorityNodeId) {
+    //   const node = this.document.getNode(priorityNodeId)
+    //   const shape = this.document.getShape(priorityNodeId)
+    //   if (
+    //     node &&
+    //     shape &&
+    //     isShapeNode(node) &&
+    //     hitTestAdapter.testShape(node, shape, x, y)
+    //   ) {
+    //     return node
+    //   }
+    // }
 
     // Use spatial index if enabled (optimized path)
     if (this.spatialIndex.isEnabled()) {

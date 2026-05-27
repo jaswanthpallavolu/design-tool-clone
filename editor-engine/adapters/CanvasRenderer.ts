@@ -1,7 +1,7 @@
 import { RenderPort } from "../core/ports/RenderPort"
 import { Editor } from "../core/Editor"
 import { Shape } from "../core/model/Shape"
-import { Node } from "../core/model/Node"
+import { Node, isGroupNode } from "../core/model/Node"
 import { HitTestPort } from "../core/ports/HitTestPort"
 import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
 import { CanvasPathBuilder, HandlePaths } from "./CanvasPathBuilder"
@@ -49,9 +49,14 @@ export class CanvasRenderer implements RenderPort {
 
   renderShapes(): void {
     this.clear()
-    this.editor.document.getShapeNodes().forEach(([node, shape]) => {
+    const shapesInLayerOrder: Array<[Node, Shape]> = []
+    const roots = this.editor.document.getRootNodes().slice().reverse()
+    for (const root of roots) {
+      this.collectShapesInLayerOrder(root.id, shapesInLayerOrder)
+    }
+    for (const [node, shape] of shapesInLayerOrder.reverse()) {
       this.renderShape(node, shape)
-    })
+    }
     this.imageData = this.ctx.getImageData(
       0,
       0,
@@ -68,6 +73,25 @@ export class CanvasRenderer implements RenderPort {
       this.canvas.width,
       this.canvas.height,
     )
+  }
+
+  /** Same traversal as LayerPanel; paint back-to-front by reversing collected shapes. */
+  private collectShapesInLayerOrder(
+    nodeId: string,
+    out: Array<[Node, Shape]>,
+  ): void {
+    const node = this.editor.document.getNode(nodeId)
+    if (!node) return
+
+    const children = node.children.slice().reverse()
+    for (const childId of children) {
+      this.collectShapesInLayerOrder(childId, out)
+    }
+
+    const shape = this.editor.document.getShape(nodeId)
+    if (shape) {
+      out.push([node, shape])
+    }
   }
 
   private renderShape(node: Node, shape: Shape): void {
@@ -113,14 +137,30 @@ export class CanvasRenderer implements RenderPort {
     const hoveredNode = this.editor.document.getNode(
       this.editor.state.hoveredNodeId,
     )
+    if (!hoveredNode) return
+
     const hoveredShape = this.editor.document.getShape(
       this.editor.state.hoveredNodeId,
     )
-    if (!hoveredNode || !hoveredShape) return
 
     this.ctx.save()
     this.ctx.strokeStyle = EditorConfig.renderOptions.hoverOutlineColor
     this.ctx.lineWidth = EditorConfig.renderOptions.hoverOutlineWidth
+
+    if (isGroupNode(hoveredNode)) {
+      const bounds = this.getGroupBounds(hoveredNode.id)
+      if (bounds) {
+        this.ctx.stroke(CanvasPathBuilder.getPathFromAABB(bounds))
+      }
+      this.ctx.restore()
+      return
+    }
+
+    if (!hoveredShape) {
+      this.ctx.restore()
+      return
+    }
+
     const path: Path2D = CanvasPathBuilder.getPath(hoveredShape)
 
     // Calculate center from node position
@@ -138,6 +178,32 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.rotate(hoveredNode.transform.rotation)
     this.ctx.stroke(path)
     this.ctx.restore()
+  }
+
+  /** Union AABB of all shape descendants within a group. */
+  private getGroupBounds(groupId: string): AABB | undefined {
+    const aabbs: AABB[] = []
+    this.collectGroupAABBs(groupId, aabbs)
+    return aabbs.length > 0 ? BoundingBoxService.unionAABBs(aabbs) : undefined
+  }
+
+  private collectGroupAABBs(groupId: string, aabbs: AABB[]): void {
+    const group = this.editor.document.getNode(groupId)
+    if (!group || !isGroupNode(group)) return
+
+    for (const childId of group.children) {
+      const child = this.editor.document.getNode(childId)
+      if (!child) continue
+
+      if (isGroupNode(child)) {
+        this.collectGroupAABBs(childId, aabbs)
+      } else {
+        const shape = this.editor.document.getShape(childId)
+        if (shape) {
+          aabbs.push(BoundingBoxService.getAABB(child, shape))
+        }
+      }
+    }
   }
 
   renderSelectionBox(): void {
