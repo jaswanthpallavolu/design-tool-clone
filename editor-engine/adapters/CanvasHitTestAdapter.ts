@@ -1,17 +1,16 @@
 import { Shape } from "../core/model/Shape"
 import { Node } from "../core/model/Node"
-import { HitTestPort } from "../core/ports/HitTestPort"
+import { ShapeHitTestPort, HitTestHelper } from "../core/ports/HitTestPort"
 import { CanvasPathBuilder } from "./CanvasPathBuilder"
-import { HandleHitTestService } from "../core/services/HandleHitTestService"
 
-export class CanvasHitTestAdapter implements HitTestPort {
+export class CanvasHitTestAdapter implements ShapeHitTestPort {
   private ctx: CanvasRenderingContext2D
   constructor(ctx: CanvasRenderingContext2D) {
     this.ctx = ctx
   }
   testShape(node: Node, shape: Shape, x: number, y: number): boolean {
     this.ctx.save()
-    const center = HandleHitTestService.getShapeCenter(node, shape)
+    const center = HitTestHelper.getShapeCenter(node, shape)
     this.ctx.translate(center.x, center.y)
     this.ctx.rotate(node.transform.rotation)
     this.ctx.lineWidth = 10

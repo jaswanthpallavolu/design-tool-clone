@@ -2,7 +2,7 @@ import { RenderPort } from "../core/ports/RenderPort"
 import { Editor } from "../core/Editor"
 import { Shape } from "../core/model/Shape"
 import { Node, isGroupNode } from "../core/model/Node"
-import { HitTestPort } from "../core/ports/HitTestPort"
+import { ShapeHitTestPort, HandleHitTestPort } from "../core/ports/HitTestPort"
 import { CanvasHitTestAdapter } from "./CanvasHitTestAdapter"
 import { CanvasPathBuilder, HandlePaths } from "./CanvasPathBuilder"
 import { EditorConfig } from "../config/EditorConfig"
@@ -12,13 +12,15 @@ import {
   OBB,
   BoundingBoxService,
 } from "../core/services/BoundingBoxService"
+import { CanvasHandleHitTestAdapter } from "./CanvasHandleHitTestAdapter"
 
 export class CanvasRenderer implements RenderPort {
   canvas: HTMLCanvasElement
   ctx: CanvasRenderingContext2D
   editor: Editor
   imageData: ImageData
-  private hitTestAdapter: HitTestPort
+  private hitTestAdapter: ShapeHitTestPort
+  private handleHitTestAdapter: HandleHitTestPort
 
   constructor({
     canvas,
@@ -41,10 +43,15 @@ export class CanvasRenderer implements RenderPort {
     )
     this.editor = editor
     this.hitTestAdapter = new CanvasHitTestAdapter(this.ctx)
+    this.handleHitTestAdapter = new CanvasHandleHitTestAdapter(this.ctx)
   }
 
-  getHitTestAdapter(): HitTestPort | null {
+  getShapeHitTestAdapter(): ShapeHitTestPort {
     return this.hitTestAdapter
+  }
+
+  getHandleHitTestAdapter(): HandleHitTestPort {
+    return this.handleHitTestAdapter
   }
 
   renderShapes(): void {
@@ -315,6 +322,9 @@ export class CanvasRenderer implements RenderPort {
     }
 
     this.ctx.restore()
+
+    // Store handle context for hit testing
+    this.handleHitTestAdapter.setHandleContext?.(paths, centerX, centerY, 0)
   }
 
   private drawHandlesForShape(
@@ -367,9 +377,19 @@ export class CanvasRenderer implements RenderPort {
     }
 
     this.ctx.restore()
+
+    // Store handle context for hit testing
+    this.handleHitTestAdapter.setHandleContext?.(
+      paths,
+      centerX,
+      centerY,
+      node.transform.rotation,
+    )
   }
 
   clearSelectionBox(): void {
     this.ctx.putImageData(this.imageData, 0, 0)
+    // Clear handle context when clearing selection
+    this.handleHitTestAdapter.clearHandleContext()
   }
 }
