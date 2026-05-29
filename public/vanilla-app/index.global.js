@@ -2514,271 +2514,6 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/services/HandleHitTestService.ts
-  var HandleHitTestService = class {
-    /**
-     * Test if mouse position hits any handle
-     * Mouse coordinates should be in world space
-     */
-    static testHandles(mouseX, mouseY, geometry, centerX, centerY, rotation = 0) {
-      const localMouse = this.worldToLocal(
-        mouseX,
-        mouseY,
-        centerX,
-        centerY,
-        rotation
-      );
-      for (const [key, handle] of Object.entries(geometry.rotation)) {
-        if (this.isPointInCircle(localMouse.x, localMouse.y, handle)) {
-          return { type: "rotation", handle: key };
-        }
-      }
-      for (const [key, handle] of Object.entries(geometry.corners)) {
-        if (this.isPointInRect(localMouse.x, localMouse.y, handle)) {
-          return { type: "corner", handle: key };
-        }
-      }
-      for (const [key, edge] of Object.entries(geometry.edges)) {
-        if (this.isPointNearLine(localMouse.x, localMouse.y, edge)) {
-          return { type: "edge", handle: key };
-        }
-      }
-      return { type: null, handle: null };
-    }
-    /**
-     * Transform world coordinates to local space
-     */
-    static worldToLocal(worldX, worldY, centerX, centerY, rotation) {
-      const tx = worldX - centerX;
-      const ty = worldY - centerY;
-      const cos = Math.cos(-rotation);
-      const sin = Math.sin(-rotation);
-      return {
-        x: tx * cos - ty * sin,
-        y: tx * sin + ty * cos
-      };
-    }
-    /**
-     * Check if point is inside a circle
-     */
-    static isPointInCircle(x, y, circle) {
-      const dx = x - circle.x;
-      const dy = y - circle.y;
-      return dx * dx + dy * dy <= circle.radius * circle.radius;
-    }
-    /**
-     * Check if point is inside a rectangle (corner handle)
-     */
-    static isPointInRect(x, y, rect) {
-      const halfSize = rect.size / 2;
-      return x >= rect.x - halfSize && x <= rect.x + halfSize && y >= rect.y - halfSize && y <= rect.y + halfSize;
-    }
-    /**
-     * Check if point is near a line (edge handle)
-     */
-    static isPointNearLine(x, y, line, threshold = 5) {
-      const dx = line.x2 - line.x1;
-      const dy = line.y2 - line.y1;
-      const lengthSquared = dx * dx + dy * dy;
-      if (lengthSquared === 0) {
-        const dist = Math.sqrt((x - line.x1) ** 2 + (y - line.y1) ** 2);
-        return dist <= threshold;
-      }
-      let t = ((x - line.x1) * dx + (y - line.y1) * dy) / lengthSquared;
-      t = Math.max(0, Math.min(1, t));
-      const closestX = line.x1 + t * dx;
-      const closestY = line.y1 + t * dy;
-      const distance = Math.sqrt((x - closestX) ** 2 + (y - closestY) ** 2);
-      return distance <= threshold;
-    }
-    /**
-     * Get center position for a node + shape
-     * Node provides position, shape provides dimensions
-     */
-    static getShapeCenter(node, shape) {
-      if (shape.type === "LINE") {
-        return {
-          x: node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
-          y: node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2
-        };
-      }
-      return {
-        x: node.transform.x + shape.geometry.width / 2,
-        y: node.transform.y + shape.geometry.height / 2
-      };
-    }
-    /**
-     * Get center position for an AABB
-     */
-    static getAABBCenter(aabb) {
-      return {
-        x: aabb.minX + (aabb.maxX - aabb.minX) / 2,
-        y: aabb.minY + (aabb.maxY - aabb.minY) / 2
-      };
-    }
-  };
-
-  // editor-engine/core/services/HandleGeometryService.ts
-  var HandleGeometryService = class {
-    static getAABBHandleGeometry(aabb) {
-      const width = aabb.maxX - aabb.minX;
-      const height = aabb.maxY - aabb.minY;
-      const halfW = width / 2;
-      const halfH = height / 2;
-      const centerX = aabb.minX + halfW;
-      const centerY = aabb.minY + halfH;
-      return {
-        corners: {
-          nw: {
-            x: -halfW,
-            y: -halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          },
-          ne: {
-            x: halfW,
-            y: -halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          },
-          se: { x: halfW, y: halfH, size: EditorConfig.handleOptions.cornerSize },
-          sw: {
-            x: -halfW,
-            y: halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          }
-        },
-        edges: {
-          n: { x1: -halfW, y1: -halfH, x2: halfW, y2: -halfH },
-          e: { x1: halfW, y1: -halfH, x2: halfW, y2: halfH },
-          s: { x1: halfW, y1: halfH, x2: -halfW, y2: halfH },
-          w: { x1: -halfW, y1: halfH, x2: -halfW, y2: -halfH }
-        },
-        rotation: {
-          nw: {
-            x: -halfW - EditorConfig.handleOptions.rotationPadding,
-            y: -halfH - EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          ne: {
-            x: halfW + EditorConfig.handleOptions.rotationPadding,
-            y: -halfH - EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          se: {
-            x: halfW + EditorConfig.handleOptions.rotationPadding,
-            y: halfH + EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          sw: {
-            x: -halfW - EditorConfig.handleOptions.rotationPadding,
-            y: halfH + EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          }
-        }
-      };
-    }
-    static getShapeHandleGeometry(shape) {
-      if (shape.type === "LINE") {
-        return this.getLineHandleGeometry(shape);
-      }
-      return this.getRectangularHandleGeometry(shape);
-    }
-    static getLineHandleGeometry(shape) {
-      const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2;
-      const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2;
-      const relP1X = shape.geometry.x1 - centerX;
-      const relP1Y = shape.geometry.y1 - centerY;
-      const relP2X = shape.geometry.x2 - centerX;
-      const relP2Y = shape.geometry.y2 - centerY;
-      const length = Math.sqrt(
-        Math.pow(shape.geometry.x2 - shape.geometry.x1, 2) + Math.pow(shape.geometry.y2 - shape.geometry.y1, 2)
-      );
-      const dirP1X = length > 0 ? relP1X / (length / 2) : 0;
-      const dirP1Y = length > 0 ? relP1Y / (length / 2) : 0;
-      const dirP2X = length > 0 ? relP2X / (length / 2) : 0;
-      const dirP2Y = length > 0 ? relP2Y / (length / 2) : 0;
-      return {
-        corners: {
-          p1: {
-            x: relP1X,
-            y: relP1Y,
-            size: EditorConfig.handleOptions.cornerSize
-          },
-          p2: {
-            x: relP2X,
-            y: relP2Y,
-            size: EditorConfig.handleOptions.cornerSize
-          }
-        },
-        edges: {},
-        // Lines don't have edge handles
-        rotation: {
-          p1: {
-            x: relP1X + dirP1X * EditorConfig.handleOptions.rotationPadding,
-            y: relP1Y + dirP1Y * EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          p2: {
-            x: relP2X + dirP2X * EditorConfig.handleOptions.rotationPadding,
-            y: relP2Y + dirP2Y * EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          }
-        }
-      };
-    }
-    static getRectangularHandleGeometry(shape) {
-      const halfW = shape.geometry.width / 2;
-      const halfH = shape.geometry.height / 2;
-      return {
-        corners: {
-          nw: {
-            x: -halfW,
-            y: -halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          },
-          ne: {
-            x: halfW,
-            y: -halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          },
-          se: { x: halfW, y: halfH, size: EditorConfig.handleOptions.cornerSize },
-          sw: {
-            x: -halfW,
-            y: halfH,
-            size: EditorConfig.handleOptions.cornerSize
-          }
-        },
-        edges: {
-          n: { x1: -halfW, y1: -halfH, x2: halfW, y2: -halfH },
-          e: { x1: halfW, y1: -halfH, x2: halfW, y2: halfH },
-          s: { x1: halfW, y1: halfH, x2: -halfW, y2: halfH },
-          w: { x1: -halfW, y1: halfH, x2: -halfW, y2: -halfH }
-        },
-        rotation: {
-          nw: {
-            x: -halfW - EditorConfig.handleOptions.rotationPadding,
-            y: -halfH - EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          ne: {
-            x: halfW + EditorConfig.handleOptions.rotationPadding,
-            y: -halfH - EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          se: {
-            x: halfW + EditorConfig.handleOptions.rotationPadding,
-            y: halfH + EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          },
-          sw: {
-            x: -halfW - EditorConfig.handleOptions.rotationPadding,
-            y: halfH + EditorConfig.handleOptions.rotationPadding,
-            radius: EditorConfig.handleOptions.rotationRadius
-          }
-        }
-      };
-    }
-  };
-
   // editor-engine/core/tools/select/states/IdleState.ts
   var IdleState = class {
     constructor() {
@@ -2833,7 +2568,7 @@ var EditorEngine = (() => {
       const found = editor.shapeQuery.findShapeAtPoint(
         e.clientX,
         e.clientY,
-        (_a = editor.renderer) == null ? void 0 : _a.getHitTestAdapter()
+        (_a = editor.renderer) == null ? void 0 : _a.getShapeHitTestAdapter()
       );
       const isFoundShapeSelected = (found == null ? void 0 : found.id) && editor.selection.isSelected(found.id);
       const topLevelParent = !(e.ctrlKey || e.metaKey) && !isFoundShapeSelected && editor.document.getTopLevelParent((_b = found == null ? void 0 : found.id) != null ? _b : "");
@@ -2841,21 +2576,15 @@ var EditorEngine = (() => {
       editor.state.hoveredNodeId = selectionCandidateId;
     }
     testSingleSelectionHandles(e, editor, nodeId) {
-      const node = editor.document.getNode(nodeId);
-      const shape = editor.document.getShape(nodeId);
-      if (node && shape) {
-        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
-        const center = HandleHitTestService.getShapeCenter(node, shape);
-        return HandleHitTestService.testHandles(
-          e.clientX,
-          e.clientY,
-          geometry,
-          center.x,
-          center.y,
-          node.transform.rotation
-        );
+      const renderer = editor.renderer;
+      if (!(renderer == null ? void 0 : renderer.getHandleHitTestAdapter)) {
+        return { type: null, handle: null };
       }
-      return { type: null, handle: null };
+      const handleAdapter = renderer.getHandleHitTestAdapter();
+      if (!handleAdapter) {
+        return { type: null, handle: null };
+      }
+      return handleAdapter.testHandles(e.clientX, e.clientY);
     }
   };
 
@@ -2897,62 +2626,18 @@ var EditorEngine = (() => {
     }
     /**
      * Test if pointer hits any handle of the appropriate type
+     * Uses Canvas API hit testing via the renderer's handle adapter
      */
     testHandles(e, editor) {
-      const selection = editor.selection.getAll();
-      if (editor.state.selectionBounds && selection.length > 1) {
-        return this.testAABBHandles(e, editor);
-      }
-      if (selection.length === 1) {
-        return this.testSingleSelectionHandles(e, editor, selection[0]);
-      }
-      return { type: null, handle: null };
-    }
-    /**
-     * Test AABB handles for multi-selection or groups
-     */
-    testAABBHandles(e, editor) {
-      if (!editor.state.selectionBounds) {
+      const renderer = editor.renderer;
+      if (!(renderer == null ? void 0 : renderer.getHandleHitTestAdapter)) {
         return { type: null, handle: null };
       }
-      const geometry = HandleGeometryService.getAABBHandleGeometry(
-        editor.state.selectionBounds
-      );
-      const center = HandleHitTestService.getAABBCenter(
-        editor.state.selectionBounds
-      );
-      return HandleHitTestService.testHandles(
-        e.clientX,
-        e.clientY,
-        geometry,
-        center.x,
-        center.y,
-        0
-        // AABB has no rotation
-      );
-    }
-    /**
-     * Test handles for a single selected node (shape or group)
-     */
-    testSingleSelectionHandles(e, editor, nodeId) {
-      const node = editor.document.getNode(nodeId);
-      const shape = editor.document.getShape(nodeId);
-      if (node && !shape && editor.state.selectionBounds) {
-        return this.testAABBHandles(e, editor);
+      const handleAdapter = renderer.getHandleHitTestAdapter();
+      if (!handleAdapter) {
+        return { type: null, handle: null };
       }
-      if (node && shape) {
-        const geometry = HandleGeometryService.getShapeHandleGeometry(shape);
-        const center = HandleHitTestService.getShapeCenter(node, shape);
-        return HandleHitTestService.testHandles(
-          e.clientX,
-          e.clientY,
-          geometry,
-          center.x,
-          center.y,
-          node.transform.rotation
-        );
-      }
-      return { type: null, handle: null };
+      return handleAdapter.testHandles(e.clientX, e.clientY);
     }
   };
 
@@ -3215,13 +2900,42 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/ports/HitTestPort.ts
+  var HitTestHelper = class {
+    /**
+     * Get center position for a node + shape
+     * Node provides position, shape provides dimensions
+     */
+    static getShapeCenter(node, shape) {
+      if (shape.type === "LINE") {
+        return {
+          x: node.transform.x + (shape.geometry.x1 + shape.geometry.x2) / 2,
+          y: node.transform.y + (shape.geometry.y1 + shape.geometry.y2) / 2
+        };
+      }
+      return {
+        x: node.transform.x + shape.geometry.width / 2,
+        y: node.transform.y + shape.geometry.height / 2
+      };
+    }
+    /**
+     * Get center position for an AABB
+     */
+    static getAABBCenter(aabb) {
+      return {
+        x: aabb.minX + (aabb.maxX - aabb.minX) / 2,
+        y: aabb.minY + (aabb.maxY - aabb.minY) / 2
+      };
+    }
+  };
+
   // editor-engine/core/tools/select/resolvers/ResizeHandleResolver.ts
   var ResizeHandleResolver = class extends BaseHandleResolver {
     /**
      * Accept corner and edge handle types for resize operations
      */
     isValidHandleType(type) {
-      return type === "corner" || type === "edge";
+      return type === "CORNER" /* CORNER */ || type === "EDGE" /* EDGE */;
     }
     /**
      * Create a ResizeState with the detected handle
@@ -3428,7 +3142,7 @@ var EditorEngine = (() => {
      * Accept rotation handle type for rotate operations
      */
     isValidHandleType(type) {
-      return type === "rotation";
+      return type === "ROTATION" /* ROTATION */;
     }
     /**
      * Create a RotateState with the detected handle
@@ -3600,9 +3314,8 @@ var EditorEngine = (() => {
       if (!editor.state.hoveredNodeId) {
         return null;
       }
-      const nodeToSelect = this.determineNodeToSelect(e, editor);
       return new DragState({
-        nodeToSelect,
+        nodeToSelect: editor.state.hoveredNodeId,
         shouldAddToSelection: e.shiftKey
       });
     }
@@ -3611,6 +3324,13 @@ var EditorEngine = (() => {
      */
     determineNodeToSelect(e, editor) {
       const hoveredNodeId = editor.state.hoveredNodeId;
+      if (e.ctrlKey || e.metaKey) {
+        return hoveredNodeId;
+      }
+      const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId);
+      if (topLevelParent && topLevelParent.id !== hoveredNodeId) {
+        return topLevelParent.id;
+      }
       return hoveredNodeId;
     }
   };
@@ -3665,7 +3385,7 @@ var EditorEngine = (() => {
     }
   };
 
-  // editor-engine/core/tools/select/strategies/StateTransitionResolver.ts
+  // editor-engine/core/tools/select/resolvers/StateTransitionResolver.ts
   var StateTransitionResolver = class {
     constructor() {
       const resizeResolver = new ResizeHandleResolver();
@@ -4072,7 +3792,7 @@ var EditorEngine = (() => {
     }
     testShape(node, shape, x, y) {
       this.ctx.save();
-      const center = HandleHitTestService.getShapeCenter(node, shape);
+      const center = HitTestHelper.getShapeCenter(node, shape);
       this.ctx.translate(center.x, center.y);
       this.ctx.rotate(node.transform.rotation);
       this.ctx.lineWidth = 10;
@@ -4080,6 +3800,222 @@ var EditorEngine = (() => {
       const hitFound = shape.type === "LINE" ? this.ctx.isPointInStroke(path, x, y) : this.ctx.isPointInPath(path, x, y);
       this.ctx.restore();
       return hitFound;
+    }
+  };
+
+  // editor-engine/core/services/HandleGeometryService.ts
+  var HandleGeometryService = class {
+    static getAABBHandleGeometry(aabb) {
+      const width = aabb.maxX - aabb.minX;
+      const height = aabb.maxY - aabb.minY;
+      const halfW = width / 2;
+      const halfH = height / 2;
+      const centerX = aabb.minX + halfW;
+      const centerY = aabb.minY + halfH;
+      return {
+        corners: {
+          nw: {
+            x: -halfW,
+            y: -halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          },
+          ne: {
+            x: halfW,
+            y: -halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          },
+          se: { x: halfW, y: halfH, size: EditorConfig.handleOptions.cornerSize },
+          sw: {
+            x: -halfW,
+            y: halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          }
+        },
+        edges: {
+          n: { x1: -halfW, y1: -halfH, x2: halfW, y2: -halfH },
+          e: { x1: halfW, y1: -halfH, x2: halfW, y2: halfH },
+          s: { x1: halfW, y1: halfH, x2: -halfW, y2: halfH },
+          w: { x1: -halfW, y1: halfH, x2: -halfW, y2: -halfH }
+        },
+        rotation: {
+          nw: {
+            x: -halfW - EditorConfig.handleOptions.rotationPadding,
+            y: -halfH - EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          ne: {
+            x: halfW + EditorConfig.handleOptions.rotationPadding,
+            y: -halfH - EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          se: {
+            x: halfW + EditorConfig.handleOptions.rotationPadding,
+            y: halfH + EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          sw: {
+            x: -halfW - EditorConfig.handleOptions.rotationPadding,
+            y: halfH + EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          }
+        }
+      };
+    }
+    static getShapeHandleGeometry(shape) {
+      if (shape.type === "LINE") {
+        return this.getLineHandleGeometry(shape);
+      }
+      return this.getRectangularHandleGeometry(shape);
+    }
+    static getLineHandleGeometry(shape) {
+      const centerX = (shape.geometry.x1 + shape.geometry.x2) / 2;
+      const centerY = (shape.geometry.y1 + shape.geometry.y2) / 2;
+      const relP1X = shape.geometry.x1 - centerX;
+      const relP1Y = shape.geometry.y1 - centerY;
+      const relP2X = shape.geometry.x2 - centerX;
+      const relP2Y = shape.geometry.y2 - centerY;
+      const length = Math.sqrt(
+        Math.pow(shape.geometry.x2 - shape.geometry.x1, 2) + Math.pow(shape.geometry.y2 - shape.geometry.y1, 2)
+      );
+      const dirP1X = length > 0 ? relP1X / (length / 2) : 0;
+      const dirP1Y = length > 0 ? relP1Y / (length / 2) : 0;
+      const dirP2X = length > 0 ? relP2X / (length / 2) : 0;
+      const dirP2Y = length > 0 ? relP2Y / (length / 2) : 0;
+      return {
+        corners: {
+          p1: {
+            x: relP1X,
+            y: relP1Y,
+            size: EditorConfig.handleOptions.cornerSize
+          },
+          p2: {
+            x: relP2X,
+            y: relP2Y,
+            size: EditorConfig.handleOptions.cornerSize
+          }
+        },
+        edges: {},
+        // Lines don't have edge handles
+        rotation: {
+          p1: {
+            x: relP1X + dirP1X * EditorConfig.handleOptions.rotationPadding,
+            y: relP1Y + dirP1Y * EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          p2: {
+            x: relP2X + dirP2X * EditorConfig.handleOptions.rotationPadding,
+            y: relP2Y + dirP2Y * EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          }
+        }
+      };
+    }
+    static getRectangularHandleGeometry(shape) {
+      const halfW = shape.geometry.width / 2;
+      const halfH = shape.geometry.height / 2;
+      return {
+        corners: {
+          nw: {
+            x: -halfW,
+            y: -halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          },
+          ne: {
+            x: halfW,
+            y: -halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          },
+          se: { x: halfW, y: halfH, size: EditorConfig.handleOptions.cornerSize },
+          sw: {
+            x: -halfW,
+            y: halfH,
+            size: EditorConfig.handleOptions.cornerSize
+          }
+        },
+        edges: {
+          n: { x1: -halfW, y1: -halfH, x2: halfW, y2: -halfH },
+          e: { x1: halfW, y1: -halfH, x2: halfW, y2: halfH },
+          s: { x1: halfW, y1: halfH, x2: -halfW, y2: halfH },
+          w: { x1: -halfW, y1: halfH, x2: -halfW, y2: -halfH }
+        },
+        rotation: {
+          nw: {
+            x: -halfW - EditorConfig.handleOptions.rotationPadding,
+            y: -halfH - EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          ne: {
+            x: halfW + EditorConfig.handleOptions.rotationPadding,
+            y: -halfH - EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          se: {
+            x: halfW + EditorConfig.handleOptions.rotationPadding,
+            y: halfH + EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          },
+          sw: {
+            x: -halfW - EditorConfig.handleOptions.rotationPadding,
+            y: halfH + EditorConfig.handleOptions.rotationPadding,
+            radius: EditorConfig.handleOptions.rotationRadius
+          }
+        }
+      };
+    }
+  };
+
+  // editor-engine/adapters/CanvasHandleHitTestAdapter.ts
+  var CanvasHandleHitTestAdapter = class {
+    constructor(ctx) {
+      this.lastHandleContext = null;
+      this.ctx = ctx;
+    }
+    /**
+     * Store handle paths and transform context from rendering
+     * Must be called after rendering handles
+     */
+    setHandleContext(paths, centerX, centerY, rotation) {
+      this.lastHandleContext = { paths, centerX, centerY, rotation };
+    }
+    /**
+     * Clear stored handle context
+     */
+    clearHandleContext() {
+      this.lastHandleContext = null;
+    }
+    /**
+     * Test if mouse position hits any handle
+     * Uses Canvas API's isPointInPath/isPointInStroke with stored paths
+     */
+    testHandles(mouseX, mouseY) {
+      if (!this.lastHandleContext) {
+        return { type: null, handle: null };
+      }
+      const { paths, centerX, centerY, rotation } = this.lastHandleContext;
+      this.ctx.save();
+      this.ctx.translate(centerX, centerY);
+      this.ctx.rotate(rotation);
+      for (const [key, path] of Object.entries(paths.rotation)) {
+        if (this.ctx.isPointInPath(path, mouseX, mouseY)) {
+          this.ctx.restore();
+          return { type: "ROTATION" /* ROTATION */, handle: key };
+        }
+      }
+      for (const [key, path] of Object.entries(paths.corners)) {
+        if (this.ctx.isPointInPath(path, mouseX, mouseY)) {
+          this.ctx.restore();
+          return { type: "CORNER" /* CORNER */, handle: key };
+        }
+      }
+      this.ctx.lineWidth = 10;
+      for (const [key, path] of Object.entries(paths.edges)) {
+        if (this.ctx.isPointInStroke(path, mouseX, mouseY)) {
+          this.ctx.restore();
+          return { type: "EDGE" /* EDGE */, handle: key };
+        }
+      }
+      this.ctx.restore();
+      return { type: null, handle: null };
     }
   };
 
@@ -4103,9 +4039,13 @@ var EditorEngine = (() => {
       );
       this.editor = editor;
       this.hitTestAdapter = new CanvasHitTestAdapter(this.ctx);
+      this.handleHitTestAdapter = new CanvasHandleHitTestAdapter(this.ctx);
     }
-    getHitTestAdapter() {
+    getShapeHitTestAdapter() {
       return this.hitTestAdapter;
+    }
+    getHandleHitTestAdapter() {
+      return this.handleHitTestAdapter;
     }
     renderShapes() {
       this.clear();
@@ -4292,6 +4232,7 @@ var EditorEngine = (() => {
       }
     }
     drawHandlesForAABB(paths, aabb, showCorners = true, showRotation = true) {
+      var _a, _b;
       const width = aabb.maxX - aabb.minX;
       const height = aabb.maxY - aabb.minY;
       const centerX = aabb.minX + width / 2;
@@ -4322,8 +4263,10 @@ var EditorEngine = (() => {
         }
       }
       this.ctx.restore();
+      (_b = (_a = this.handleHitTestAdapter).setHandleContext) == null ? void 0 : _b.call(_a, paths, centerX, centerY, 0);
     }
     drawHandlesForShape(paths, node, shape) {
+      var _a, _b;
       this.ctx.save();
       let centerX = node.transform.x;
       let centerY = node.transform.y;
@@ -4358,9 +4301,17 @@ var EditorEngine = (() => {
         this.ctx.stroke(path);
       }
       this.ctx.restore();
+      (_b = (_a = this.handleHitTestAdapter).setHandleContext) == null ? void 0 : _b.call(
+        _a,
+        paths,
+        centerX,
+        centerY,
+        node.transform.rotation
+      );
     }
     clearSelectionBox() {
       this.ctx.putImageData(this.imageData, 0, 0);
+      this.handleHitTestAdapter.clearHandleContext();
     }
   };
   return __toCommonJS(index_exports);
