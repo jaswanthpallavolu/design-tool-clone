@@ -1,4 +1,4 @@
-import { HitTestPort } from "./HitTestPort"
+import { ShapeHitTestPort, HandleHitTestPort } from "./HitTestPort"
 
 export interface RenderPort {
   renderShapes(): void
@@ -11,5 +11,6 @@ export interface RenderPort {
 
   renderHoverOutline(): void
 
-  getHitTestAdapter(): HitTestPort | null
+  getShapeHitTestAdapter(): ShapeHitTestPort
+  getHandleHitTestAdapter(): HandleHitTestPort
 }
