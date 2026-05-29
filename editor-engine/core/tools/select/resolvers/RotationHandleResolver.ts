@@ -1,6 +1,7 @@
 import type { InteractionState } from "../states/InteractionState"
 import { BaseHandleResolver } from "./BaseHandleResolver"
 import { RotateState } from "../states/RotateState"
+import { HandleType } from "../../../ports/HitTestPort"
 
 /**
  * Priority 2: Rotation Handle Resolver
@@ -10,8 +11,8 @@ export class RotationHandleResolver extends BaseHandleResolver {
   /**
    * Accept rotation handle type for rotate operations
    */
-  protected isValidHandleType(type: string | null): boolean {
-    return type === "rotation"
+  protected isValidHandleType(type: HandleType | null): boolean {
+    return type === HandleType.ROTATION
   }
 
   /**

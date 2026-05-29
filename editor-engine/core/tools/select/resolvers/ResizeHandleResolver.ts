@@ -1,6 +1,7 @@
 import type { InteractionState } from "../states/InteractionState"
 import { BaseHandleResolver } from "./BaseHandleResolver"
 import { ResizeState } from "../states/ResizeState"
+import { HandleType } from "../../../ports/HitTestPort"
 
 /**
  * Priority 1: Resize Handle Resolver
@@ -10,8 +11,8 @@ export class ResizeHandleResolver extends BaseHandleResolver {
   /**
    * Accept corner and edge handle types for resize operations
    */
-  protected isValidHandleType(type: string | null): boolean {
-    return type === "corner" || type === "edge"
+  protected isValidHandleType(type: HandleType | null): boolean {
+    return type === HandleType.CORNER || type === HandleType.EDGE
   }
 
   /**

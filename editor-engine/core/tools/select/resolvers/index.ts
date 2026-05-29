@@ -12,5 +12,6 @@ export { RotationHandleResolver } from "./RotationHandleResolver"
 export { SelectedObjectResolver } from "./SelectedObjectResolver"
 export { HoveredObjectResolver } from "./HoveredObjectResolver"
 export { BackgroundResolver } from "./BackgroundResolver"
+export { StateTransitionResolver } from "./StateTransitionResolver"
 
 // Made with Bob
