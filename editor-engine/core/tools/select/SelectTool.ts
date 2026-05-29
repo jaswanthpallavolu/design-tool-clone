@@ -2,16 +2,15 @@ import { Tool, ToolContext } from "../Tool"
 import type { PointerEventData } from "../../types/InputTypes"
 import type { InteractionState } from "./states/InteractionState"
 import { IdleState } from "./states/IdleState"
-import { StateTransitionResolver } from "./strategies/StateTransitionResolver"
+import { StateTransitionResolver } from "./resolvers/StateTransitionResolver"
 import { DeleteShapesCommand } from "../../commands"
 
 /**
  * SelectTool - Main tool for selecting, moving, resizing, and rotating shapes
  *
- * Uses Strategy Pattern for state resolution:
- * - HandleHitStrategy: Detects handle interactions (resize, rotate)
- * - SelectionStrategy: Handles shape selection and drag initiation
- * - StateTransitionResolver: Coordinates strategies using Chain of Responsibility
+ * Uses Chain of Responsibility Pattern for state resolution:
+ * - StateTransitionResolver: Coordinates resolver chain to determine next state
+ * - Resolvers process pointer events in priority order (handles → selection → background)
  *
  * Uses State Pattern for interaction modes:
  * - IdleState: Default state, no interaction

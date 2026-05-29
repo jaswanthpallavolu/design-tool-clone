@@ -1,11 +1,7 @@
 import { InteractionState } from "./InteractionState"
 import { PointerEventData } from "@/editor-engine/core/types/InputTypes"
 import { ToolContext } from "../../Tool"
-import {
-  HandleHitResult,
-  HandleHitTestService,
-} from "@/editor-engine/core/services/HandleHitTestService"
-import { HandleGeometryService } from "@/editor-engine/core/services/HandleGeometryService"
+import { HandleHitResult } from "@/editor-engine/core/ports/HitTestPort"
 import type { Editor } from "../../../Editor"
 
 export class IdleState implements InteractionState {
@@ -67,7 +63,7 @@ export class IdleState implements InteractionState {
     const found = editor.shapeQuery.findShapeAtPoint(
       e.clientX,
       e.clientY,
-      editor.renderer?.getHitTestAdapter(),
+      editor.renderer?.getShapeHitTestAdapter(),
     )
 
     // If the found shape is selected, allow hovering on shapes (not groups)
@@ -90,24 +86,16 @@ export class IdleState implements InteractionState {
     editor: Editor,
     nodeId: string,
   ): HandleHitResult {
-    const node = editor.document.getNode(nodeId)
-    const shape = editor.document.getShape(nodeId)
-
-    // Single shape: use shape-specific handles
-    if (node && shape) {
-      const geometry = HandleGeometryService.getShapeHandleGeometry(shape)
-      const center = HandleHitTestService.getShapeCenter(node, shape)
-
-      return HandleHitTestService.testHandles(
-        e.clientX,
-        e.clientY,
-        geometry,
-        center.x,
-        center.y,
-        node.transform.rotation,
-      )
+    const renderer = editor.renderer
+    if (!renderer?.getHandleHitTestAdapter) {
+      return { type: null, handle: null }
     }
 
-    return { type: null, handle: null }
+    const handleAdapter = renderer.getHandleHitTestAdapter()
+    if (!handleAdapter) {
+      return { type: null, handle: null }
+    }
+
+    return handleAdapter.testHandles(e.clientX, e.clientY)
   }
 }
