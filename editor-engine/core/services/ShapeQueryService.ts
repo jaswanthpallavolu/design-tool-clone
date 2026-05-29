@@ -5,7 +5,7 @@ import { Document } from "../Document"
 import { ShapeNode, isShapeNode } from "../model/Node"
 import { SpatialIndexService } from "./SpatialIndexService"
 import { BoundingBoxService, AABB } from "./BoundingBoxService"
-import { HitTestPort } from "../ports/HitTestPort"
+import { ShapeHitTestPort } from "../ports/HitTestPort"
 
 /**
  * Unified service for querying shapes in the document.
@@ -33,7 +33,7 @@ export class ShapeQueryService {
   findShapeAtPoint(
     x: number,
     y: number,
-    hitTestAdapter?: HitTestPort | null,
+    hitTestAdapter?: ShapeHitTestPort | null,
     priorityNodeId?: string,
   ): ShapeNode | undefined {
     if (!hitTestAdapter) {
