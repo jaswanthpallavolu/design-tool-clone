@@ -1,36 +1,56 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Canvas Tool
 
-## Getting Started
+A **framework-agnostic graphics editor engine** demonstrating Clean Architecture principles through multiple UI implementations.
 
-First, run the development server:
+## Core Innovation: Editor Engine
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+The [`editor-engine/`](editor-engine/) is a pure TypeScript graphics editor built with zero UI framework dependencies:
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- **Clean Architecture** - Business logic independent of frameworks
+- **Ports & Adapters** - Pluggable rendering and input systems
+- **Command Pattern** - Full undo/redo support
+- **Event-Driven** - Decoupled component communication
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+**Key Capabilities:**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Shape primitives (Rectangle, Ellipse, Line)
+- Selection, transformation, grouping
+- Tool system with state machines
+- Hierarchical document model
 
-## Learn More
+[→ See detailed engine documentation](editor-engine/README.md)
 
-To learn more about Next.js, take a look at the following resources:
+## Architecture: One Engine, Multiple UIs
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+This project demonstrates the engine's reusability through two different implementations. The framework-agnostic editor engine serves as the core foundation, with adapters connecting it to different UI frameworks and rendering contexts. This architecture proves that business logic can remain completely independent of presentation layers.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+**Implementation Strategy:**
 
-## Deploy on Vercel
+- The editor engine exposes a clean API through ports (interfaces)
+- Each implementation provides adapters for rendering and input handling
+- State management and business rules remain centralized in the engine
+- UI frameworks only handle presentation and user interaction
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 1. Vanilla JavaScript Implementation
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Location:** [`public/vanilla-app/`](public/vanilla-app/)
+
+Pure JavaScript integration showing the engine's portability without any framework dependencies.
+
+[→ See vanilla app documentation](public/vanilla-app/README.md)
+
+### 2. Full-Stack Next.js Application
+
+**Location:** [`app/design/`](app/design/) + [`server/`](server/)
+
+Production-ready React application with real-time collaboration, authentication, and persistent storage.
+
+[→ See full-stack app documentation](app/README.md)
+
+## Tech Stack
+
+**Core Engine:** TypeScript, Pure functional architecture
+
+**Vanilla App:** HTML5 Canvas, Vanilla JavaScript
+
+**Full-Stack App:** Next.js 16, React 19, Socket.IO, PostgreSQL, Prisma
