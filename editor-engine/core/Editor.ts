@@ -19,13 +19,13 @@ import { InputManager } from "./InputManager"
 
 export class Editor {
   readonly document = new Document()
-  readonly selection = new SelectionManager()
+  readonly events = new EventBus()
+  readonly selection = new SelectionManager(this.events)
+  readonly state = new EditorState(this.events)
   readonly tools = new ToolManager(this)
-  readonly state = new EditorState()
   readonly commands: CommandManager
   readonly input: InputManager
   renderer?: RenderPort
-  readonly events = new EventBus()
 
   readonly groupService = new GroupService(this.document)
   readonly spatialIndex: SpatialIndexService

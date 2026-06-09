@@ -26,6 +26,34 @@ export class KeyboardShortcutManager {
   }
 
   /**
+   * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
+   */
+  isBringToFrontShortcut(e: KeyboardEvent): boolean {
+    return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey
+  }
+
+  /**
+   * Check if the event is a "send to back" shortcut (Cmd/Ctrl+[)
+   */
+  isSendToBackShortcut(e: KeyboardEvent): boolean {
+    return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey
+  }
+
+  /**
+   * Check if the event is a "bring forward" shortcut (Alt+])
+   */
+  isBringForwardShortcut(e: KeyboardEvent): boolean {
+    return e.altKey && e.key === "]" && !e.ctrlKey && !e.metaKey && !e.shiftKey
+  }
+
+  /**
+   * Check if the event is a "send backward" shortcut (Alt+[)
+   */
+  isSendBackwardShortcut(e: KeyboardEvent): boolean {
+    return e.altKey && e.key === "[" && !e.ctrlKey && !e.metaKey && !e.shiftKey
+  }
+
+  /**
    * Get the tool ID for a keyboard shortcut
    * Returns null if no tool is mapped to the key
    */

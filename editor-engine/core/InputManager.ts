@@ -1,7 +1,14 @@
 import type { Editor } from "./Editor"
 import type { PointerEventData } from "./types/InputTypes"
 import { KeyboardShortcutManager } from "./KeyboardShortcutManager"
-import { GroupCommand, UngroupCommand } from "./commands"
+import {
+  GroupCommand,
+  UngroupCommand,
+  BringToFrontCommand,
+  SendToBackCommand,
+  BringForwardCommand,
+  SendBackwardCommand,
+} from "./commands"
 
 /**
  * InputManager - Handles all input events (pointer and keyboard)
@@ -74,6 +81,32 @@ export class InputManager {
     if (this.shortcuts.isUngroupShortcut(e)) {
       e.preventDefault()
       this.editor.commands.execute(new UngroupCommand(this.editor))
+      return
+    }
+
+    // Handle z-order shortcuts
+    // Check more specific shortcuts first (Alt) before less specific (Cmd/Ctrl)
+    if (this.shortcuts.isBringForwardShortcut(e)) {
+      e.preventDefault()
+      this.editor.commands.execute(new BringForwardCommand(this.editor))
+      return
+    }
+
+    if (this.shortcuts.isSendBackwardShortcut(e)) {
+      e.preventDefault()
+      this.editor.commands.execute(new SendBackwardCommand(this.editor))
+      return
+    }
+
+    if (this.shortcuts.isBringToFrontShortcut(e)) {
+      e.preventDefault()
+      this.editor.commands.execute(new BringToFrontCommand(this.editor))
+      return
+    }
+
+    if (this.shortcuts.isSendToBackShortcut(e)) {
+      e.preventDefault()
+      this.editor.commands.execute(new SendToBackCommand(this.editor))
       return
     }
 

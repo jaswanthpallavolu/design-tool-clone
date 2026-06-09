@@ -204,8 +204,10 @@ var EditorEngine = (() => {
     constructor() {
       this.nodes = /* @__PURE__ */ new Map();
       this.shapes = /* @__PURE__ */ new Map();
+      // nodeId -> Shape
+      this.rootNodeIds = /* @__PURE__ */ new Set();
     }
-    // nodeId -> Shape
+    // Cache for root nodes
     // ---------------------------------------------
     // Node Queries
     // ---------------------------------------------
@@ -219,12 +221,12 @@ var EditorEngine = (() => {
       return this.nodes.has(id);
     }
     getRootNodes() {
-      return Array.from(this.nodes.values()).filter((n) => !n.parentId);
+      return Array.from(this.rootNodeIds).map((id) => this.nodes.get(id)).filter(Boolean);
     }
     getChildren(parentId) {
-      return Array.from(this.nodes.values()).filter(
-        (n) => n.parentId === parentId
-      );
+      const parent = this.nodes.get(parentId);
+      if (!parent || !isGroupNode(parent)) return [];
+      return parent.children.map((id) => this.nodes.get(id)).filter(Boolean);
     }
     getParent(childId) {
       const child = this.nodes.get(childId);
@@ -296,24 +298,30 @@ var EditorEngine = (() => {
         if (!parent.children.includes(node.id)) {
           parent.children.push(node.id);
         }
+      } else {
+        this.rootNodeIds.add(node.id);
       }
       this.nodes.set(node.id, node);
     }
     removeNode(id) {
-      const node = this.nodes.get(id);
-      if (!node) return;
-      if (node.parentId) {
-        const parent = this.nodes.get(node.parentId);
-        if (parent && isGroupNode(parent)) {
-          parent.children = parent.children.filter((childId) => childId !== id);
+      const toRemove = [id];
+      while (toRemove.length > 0) {
+        const currentId = toRemove.pop();
+        const node = this.nodes.get(currentId);
+        if (!node) continue;
+        if (isGroupNode(node)) {
+          toRemove.push(...node.children);
         }
-      }
-      this.shapes.delete(id);
-      this.nodes.delete(id);
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.removeNode(childId);
+        if (node.parentId) {
+          const parent = this.nodes.get(node.parentId);
+          if (parent && isGroupNode(parent)) {
+            parent.children = parent.children.filter((cid) => cid !== currentId);
+          }
+        } else {
+          this.rootNodeIds.delete(currentId);
         }
+        this.shapes.delete(currentId);
+        this.nodes.delete(currentId);
       }
     }
     updateNode(node) {
@@ -325,6 +333,7 @@ var EditorEngine = (() => {
     /**
      * Set the z-order of a node by moving it to a specific index
      * Higher index = higher z-order (drawn on top)
+     * Also updates the parent's children array to reflect the new order
      */
     setNodeZOrder(nodeId, targetIndex) {
       const node = this.nodes.get(nodeId);
@@ -341,6 +350,127 @@ var EditorEngine = (() => {
       for (const [id, node2] of nodesArray) {
         this.nodes.set(id, node2);
       }
+      this.updateParentChildrenOrder(nodeId);
+    }
+    /**
+     * Update the parent's children array to match the current Map order
+     */
+    updateParentChildrenOrder(nodeId) {
+      const node = this.nodes.get(nodeId);
+      if (!node) return;
+      const siblings = node.parentId ? this.getChildren(node.parentId) : this.getRootNodes();
+      const allNodes = Array.from(this.nodes.values());
+      const orderedSiblingIds = allNodes.filter((n) => siblings.some((s) => s.id === n.id)).map((n) => n.id);
+      if (node.parentId) {
+        const parent = this.nodes.get(node.parentId);
+        if (parent && isGroupNode(parent)) {
+          parent.children = orderedSiblingIds;
+        }
+      } else {
+        this.rootNodeIds.clear();
+        orderedSiblingIds.forEach((id) => this.rootNodeIds.add(id));
+      }
+    }
+    /**
+     * Bring node to front (highest z-order among siblings)
+     * Higher index = drawn later = appears on top
+     */
+    bringToFront(nodeId) {
+      const node = this.nodes.get(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const allNodes = Array.from(this.nodes.values());
+      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const maxSiblingIndex = Math.max(
+        ...siblings.map((s) => allNodes.findIndex((n) => n.id === s.id))
+      );
+      if (currentIndex > maxSiblingIndex) {
+        return;
+      }
+      this.setNodeZOrder(nodeId, maxSiblingIndex + 1);
+    }
+    /**
+     * Send node to back (lowest z-order among siblings)
+     * Lower index = drawn first = appears at bottom
+     */
+    sendToBack(nodeId) {
+      const node = this.nodes.get(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const allNodes = Array.from(this.nodes.values());
+      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const minSiblingIndex = Math.min(
+        ...siblings.map((s) => allNodes.findIndex((n) => n.id === s.id))
+      );
+      if (currentIndex < minSiblingIndex) {
+        return;
+      }
+      this.setNodeZOrder(nodeId, minSiblingIndex);
+    }
+    /**
+     * Move node one step forward in z-order (among siblings)
+     */
+    bringForward(nodeId) {
+      var _a;
+      const node = this.nodes.get(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const allNodes = Array.from(this.nodes.values());
+      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const siblingIndices = siblings.map((s) => allNodes.findIndex((n) => n.id === s.id)).filter((idx) => idx > currentIndex).sort((a, b) => a - b);
+      console.log("bringForward DEBUG:", {
+        nodeId,
+        nodeName: node.name,
+        currentIndex,
+        allNodesCount: allNodes.length,
+        siblingsCount: siblings.length,
+        siblingNames: siblings.map((s) => s.name),
+        siblingIndices,
+        nextSiblingIndex: siblingIndices[0],
+        nextSiblingName: siblingIndices[0] !== void 0 ? (_a = allNodes[siblingIndices[0]]) == null ? void 0 : _a.name : "none"
+      });
+      if (siblingIndices.length === 0) return;
+      const nextSiblingIndex = siblingIndices[0];
+      this.setNodeZOrder(nodeId, nextSiblingIndex);
+    }
+    /**
+     * Move node one step backward in z-order (among siblings)
+     * Lower index = drawn first = appears behind
+     */
+    sendBackward(nodeId) {
+      const node = this.nodes.get(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const allNodes = Array.from(this.nodes.values());
+      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const siblingIndices = siblings.map((s) => allNodes.findIndex((n) => n.id === s.id)).filter((idx) => idx < currentIndex).sort((a, b) => b - a);
+      if (siblingIndices.length === 0) return;
+      const prevSiblingIndex = siblingIndices[0];
+      this.setNodeZOrder(nodeId, prevSiblingIndex);
+    }
+    /**
+     * Get all sibling nodes (nodes with the same parent)
+     */
+    getSiblings(nodeId) {
+      const node = this.nodes.get(nodeId);
+      if (!node) return [];
+      if (node.parentId) {
+        return this.getChildren(node.parentId).filter((n) => n.id !== nodeId);
+      } else {
+        return this.getRootNodes().filter((n) => n.id !== nodeId);
+      }
     }
     /**
      * Move a node to a new parent (or root if parentId is undefined)
@@ -350,12 +480,17 @@ var EditorEngine = (() => {
       if (!child) {
         throw new Error(`Child node '${childId}' does not exist`);
       }
+      if (newParentId && this.wouldCreateCycle(childId, newParentId)) {
+        throw new Error("Cannot reparent: would create cycle");
+      }
       const oldParentId = child.parentId;
       if (oldParentId) {
         const oldParent = this.nodes.get(oldParentId);
         if (oldParent && isGroupNode(oldParent)) {
           oldParent.children = oldParent.children.filter((id) => id !== childId);
         }
+      } else {
+        this.rootNodeIds.delete(childId);
       }
       child.parentId = newParentId;
       if (newParentId) {
@@ -369,7 +504,21 @@ var EditorEngine = (() => {
         if (!newParent.children.includes(childId)) {
           newParent.children.push(childId);
         }
+      } else {
+        this.rootNodeIds.add(childId);
       }
+    }
+    /**
+     * Check if reparenting would create a cycle in the tree
+     */
+    wouldCreateCycle(childId, newParentId) {
+      let current = newParentId;
+      while (current) {
+        if (current === childId) return true;
+        const node = this.nodes.get(current);
+        current = node == null ? void 0 : node.parentId;
+      }
+      return false;
     }
     // ---------------------------------------------
     // Shape Commands
@@ -402,6 +551,7 @@ var EditorEngine = (() => {
     clear() {
       this.nodes.clear();
       this.shapes.clear();
+      this.rootNodeIds.clear();
     }
     // ---------------------------------------------
     // Debug
@@ -433,13 +583,20 @@ var EditorEngine = (() => {
 
   // editor-engine/core/SelectionManager.ts
   var SelectionManager = class {
-    constructor() {
+    constructor(eventBus) {
+      this.eventBus = eventBus;
       this.selectedIds = /* @__PURE__ */ new Set();
+    }
+    emitChange() {
+      this.eventBus.emit("selection:changed");
     }
     // ---------------------------------------------
     // Queries
     // ---------------------------------------------
     isSelected(id) {
+      return this.selectedIds.has(id);
+    }
+    has(id) {
       return this.selectedIds.has(id);
     }
     getAll() {
@@ -453,16 +610,20 @@ var EditorEngine = (() => {
     // ---------------------------------------------
     clear() {
       this.selectedIds.clear();
+      this.emitChange();
     }
     select(id) {
       this.selectedIds.add(id);
+      this.emitChange();
     }
     deselect(id) {
       this.selectedIds.delete(id);
+      this.emitChange();
     }
     setSingle(id) {
       this.selectedIds.clear();
       this.selectedIds.add(id);
+      this.emitChange();
     }
     toggle(id) {
       if (this.selectedIds.has(id)) {
@@ -470,12 +631,14 @@ var EditorEngine = (() => {
       } else {
         this.selectedIds.add(id);
       }
+      this.emitChange();
     }
     setMany(ids) {
       this.selectedIds.clear();
       for (const id of ids) {
         this.selectedIds.add(id);
       }
+      this.emitChange();
     }
   };
 
@@ -578,16 +741,32 @@ var EditorEngine = (() => {
 
   // editor-engine/core/EditorState.ts
   var EditorState = class {
-    constructor() {
+    constructor(eventBus) {
+      this.eventBus = eventBus;
       this.toolOptions = {
         strokeColor: EditorConfig.defaultToolOptions.strokeColor,
         fillColor: EditorConfig.defaultToolOptions.fillColor
       };
     }
+    setHoveredNodeId(nodeId) {
+      var _a;
+      if (this.hoveredNodeId !== nodeId) {
+        this.hoveredNodeId = nodeId;
+        (_a = this.eventBus) == null ? void 0 : _a.emit("hover:changed", nodeId);
+      }
+    }
+    getHoveredNodeId() {
+      return this.hoveredNodeId;
+    }
     clearTransient() {
+      var _a;
       this.marquee = void 0;
+      const hadHover = this.hoveredNodeId !== void 0;
       this.hoveredNodeId = void 0;
       this.selectionBounds = void 0;
+      if (hadHover) {
+        (_a = this.eventBus) == null ? void 0 : _a.emit("hover:changed", void 0);
+      }
     }
     updateToolOptions(options) {
       Object.entries(options).forEach(([key, value]) => {
@@ -799,6 +978,7 @@ var EditorEngine = (() => {
      * Returns the ID of the newly created group
      */
     groupNodes(nodeIds) {
+      var _a;
       const normalizedIds = this.normalizeSelectionForGrouping(nodeIds);
       if (!this.hasEnoughNodesToGroup(normalizedIds)) {
         return null;
@@ -834,9 +1014,13 @@ var EditorEngine = (() => {
         height: bounds.height
       };
       const allNodes = this.document.getAllNodes();
+      const nodeIndices = /* @__PURE__ */ new Map();
+      allNodes.forEach((node, index) => {
+        nodeIndices.set(node.id, index);
+      });
       let maxZIndex = -1;
       for (const nodeId of normalizedIds) {
-        const index = allNodes.findIndex((n) => n.id === nodeId);
+        const index = (_a = nodeIndices.get(nodeId)) != null ? _a : -1;
         if (index > maxZIndex) {
           maxZIndex = index;
         }
@@ -845,10 +1029,13 @@ var EditorEngine = (() => {
       if (maxZIndex >= 0) {
         this.document.setNodeZOrder(groupNode.id, maxZIndex);
       }
-      const nodesByZOrder = nodes.map((node) => ({
-        node,
-        zIndex: allNodes.findIndex((n) => n.id === node.id)
-      })).sort((a, b) => a.zIndex - b.zIndex);
+      const nodesByZOrder = nodes.map((node) => {
+        var _a2;
+        return {
+          node,
+          zIndex: (_a2 = nodeIndices.get(node.id)) != null ? _a2 : -1
+        };
+      }).sort((a, b) => a.zIndex - b.zIndex);
       for (const { node } of nodesByZOrder) {
         this.document.reparent(node.id, groupId);
       }
@@ -949,12 +1136,21 @@ var EditorEngine = (() => {
       return result;
     }
     getLeafShapeIds(nodeId) {
-      const node = this.document.getNode(nodeId);
-      if (!node) return [];
-      if (isGroupNode(node)) {
-        return node.children.flatMap((childId) => this.getLeafShapeIds(childId));
+      const result = [];
+      const stack = [nodeId];
+      while (stack.length > 0) {
+        const currentId = stack.pop();
+        const node = this.document.getNode(currentId);
+        if (!node) continue;
+        if (isGroupNode(node)) {
+          for (let i = node.children.length - 1; i >= 0; i--) {
+            stack.push(node.children[i]);
+          }
+        } else if (this.document.getShape(currentId)) {
+          result.push(currentId);
+        }
       }
-      return this.document.getShape(nodeId) ? [nodeId] : [];
+      return result;
     }
     isDescendantOf(nodeId, ancestorId) {
       let current = this.document.getNode(nodeId);
@@ -983,18 +1179,26 @@ var EditorEngine = (() => {
     }
     getPathToRoot(nodeId) {
       var _a;
-      const path = ["root"];
+      const path = [];
       let currentId = nodeId;
       while (currentId) {
         path.push(currentId);
         currentId = (_a = this.document.getNode(currentId)) == null ? void 0 : _a.parentId;
       }
-      return path;
+      path.push("root");
+      return path.reverse();
     }
     findLCA(nodeIds) {
+      var _a;
+      if (nodeIds.length === 0) return "root";
+      if (nodeIds.length === 1) {
+        const node = this.document.getNode(nodeIds[0]);
+        return (_a = node == null ? void 0 : node.parentId) != null ? _a : "root";
+      }
       const paths = nodeIds.map((id) => this.getPathToRoot(id));
       let lca = "root";
-      for (let i = 0; i < paths[0].length; i++) {
+      const minLength = Math.min(...paths.map((p) => p.length));
+      for (let i = 0; i < minLength; i++) {
         const segment = paths[0][i];
         if (paths.every((p) => p[i] === segment)) {
           lca = segment;
@@ -1023,17 +1227,19 @@ var EditorEngine = (() => {
       };
     }
     collectNodeAABBs(nodeId, aabbs) {
-      const node = this.document.getNode(nodeId);
-      if (!node) return;
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.collectNodeAABBs(childId, aabbs);
+      const stack = [nodeId];
+      while (stack.length > 0) {
+        const currentId = stack.pop();
+        const node = this.document.getNode(currentId);
+        if (!node) continue;
+        if (isGroupNode(node)) {
+          stack.push(...node.children);
+        } else {
+          const shape = this.document.getShape(currentId);
+          if (shape) {
+            aabbs.push(BoundingBoxService.getAABB(node, shape));
+          }
         }
-        return;
-      }
-      const shape = this.document.getShape(nodeId);
-      if (shape) {
-        aabbs.push(BoundingBoxService.getAABB(node, shape));
       }
     }
   };
@@ -2321,6 +2527,96 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/commands/ZOrderCommands.ts
+  var ZOrderCommand = class extends Command {
+    constructor(editor) {
+      super();
+      this.editor = editor;
+      this.nodeIds = [];
+      this.previousIndices = /* @__PURE__ */ new Map();
+      this.nodeIds = [...this.editor.selection.getAll()];
+    }
+    storePreviousIndices() {
+      const allNodes = this.editor.document.getAllNodes();
+      for (const nodeId of this.nodeIds) {
+        const index = allNodes.findIndex((n) => n.id === nodeId);
+        if (index !== -1) {
+          this.previousIndices.set(nodeId, index);
+        }
+      }
+    }
+    undo() {
+      var _a;
+      for (const [nodeId, index] of this.previousIndices) {
+        this.editor.document.setNodeZOrder(nodeId, index);
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    canExecute() {
+      return this.nodeIds.length > 0;
+    }
+    canUndo() {
+      return this.previousIndices.size > 0;
+    }
+  };
+  var BringToFrontCommand = class extends ZOrderCommand {
+    execute() {
+      var _a;
+      this.storePreviousIndices();
+      for (const nodeId of this.nodeIds) {
+        this.editor.document.bringToFront(nodeId);
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Bring ${this.nodeIds.length} node(s) to front`;
+    }
+  };
+  var SendToBackCommand = class extends ZOrderCommand {
+    execute() {
+      var _a;
+      this.storePreviousIndices();
+      for (const nodeId of this.nodeIds) {
+        this.editor.document.sendToBack(nodeId);
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Send ${this.nodeIds.length} node(s) to back`;
+    }
+  };
+  var BringForwardCommand = class extends ZOrderCommand {
+    execute() {
+      var _a;
+      this.storePreviousIndices();
+      for (const nodeId of this.nodeIds) {
+        this.editor.document.bringForward(nodeId);
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Bring ${this.nodeIds.length} node(s) forward`;
+    }
+  };
+  var SendBackwardCommand = class extends ZOrderCommand {
+    execute() {
+      var _a;
+      this.storePreviousIndices();
+      for (const nodeId of this.nodeIds) {
+        this.editor.document.sendBackward(nodeId);
+      }
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Send ${this.nodeIds.length} node(s) backward`;
+    }
+  };
+
   // editor-engine/core/KeyboardShortcutManager.ts
   var KeyboardShortcutManager = class {
     constructor() {
@@ -2342,6 +2638,30 @@ var EditorEngine = (() => {
      */
     isUngroupShortcut(e) {
       return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && e.shiftKey;
+    }
+    /**
+     * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
+     */
+    isBringToFrontShortcut(e) {
+      return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey;
+    }
+    /**
+     * Check if the event is a "send to back" shortcut (Cmd/Ctrl+[)
+     */
+    isSendToBackShortcut(e) {
+      return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey;
+    }
+    /**
+     * Check if the event is a "bring forward" shortcut (Alt+])
+     */
+    isBringForwardShortcut(e) {
+      return e.altKey && e.key === "]" && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    }
+    /**
+     * Check if the event is a "send backward" shortcut (Alt+[)
+     */
+    isSendBackwardShortcut(e) {
+      return e.altKey && e.key === "[" && !e.ctrlKey && !e.metaKey && !e.shiftKey;
     }
     /**
      * Get the tool ID for a keyboard shortcut
@@ -2429,6 +2749,26 @@ var EditorEngine = (() => {
         this.editor.commands.execute(new UngroupCommand(this.editor));
         return;
       }
+      if (this.shortcuts.isBringForwardShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new BringForwardCommand(this.editor));
+        return;
+      }
+      if (this.shortcuts.isSendBackwardShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new SendBackwardCommand(this.editor));
+        return;
+      }
+      if (this.shortcuts.isBringToFrontShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new BringToFrontCommand(this.editor));
+        return;
+      }
+      if (this.shortcuts.isSendToBackShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new SendToBackCommand(this.editor));
+        return;
+      }
       const toolId = this.shortcuts.getToolForKey(e);
       if (toolId && ((_a = this.editor.tools.getActive()) == null ? void 0 : _a.id) !== toolId) {
         e.preventDefault();
@@ -2452,10 +2792,10 @@ var EditorEngine = (() => {
   var Editor = class {
     constructor() {
       this.document = new Document();
-      this.selection = new SelectionManager();
-      this.tools = new ToolManager(this);
-      this.state = new EditorState();
       this.events = new EventBus();
+      this.selection = new SelectionManager(this.events);
+      this.state = new EditorState(this.events);
+      this.tools = new ToolManager(this);
       this.groupService = new GroupService(this.document);
       this.commands = new CommandManager(this.events);
       this.input = new InputManager(this);
@@ -2561,7 +2901,7 @@ var EditorEngine = (() => {
       if (selection.length === 1) {
         const handleHit = this.testSingleSelectionHandles(e, editor, selection[0]);
         if (handleHit.type) {
-          editor.state.hoveredNodeId = void 0;
+          editor.state.setHoveredNodeId(void 0);
           return;
         }
       }
@@ -2573,7 +2913,7 @@ var EditorEngine = (() => {
       const isFoundShapeSelected = (found == null ? void 0 : found.id) && editor.selection.isSelected(found.id);
       const topLevelParent = !(e.ctrlKey || e.metaKey) && !isFoundShapeSelected && editor.document.getTopLevelParent((_b = found == null ? void 0 : found.id) != null ? _b : "");
       const selectionCandidateId = topLevelParent && topLevelParent.id !== (found == null ? void 0 : found.id) ? topLevelParent.id : found == null ? void 0 : found.id;
-      editor.state.hoveredNodeId = selectionCandidateId;
+      editor.state.setHoveredNodeId(selectionCandidateId);
     }
     testSingleSelectionHandles(e, editor, nodeId) {
       const renderer = editor.renderer;

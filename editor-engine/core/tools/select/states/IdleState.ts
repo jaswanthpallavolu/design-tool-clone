@@ -55,7 +55,7 @@ export class IdleState implements InteractionState {
     if (selection.length === 1) {
       const handleHit = this.testSingleSelectionHandles(e, editor, selection[0])
       if (handleHit.type) {
-        editor.state.hoveredNodeId = undefined
+        editor.state.setHoveredNodeId(undefined)
         return
       }
     }
@@ -78,7 +78,7 @@ export class IdleState implements InteractionState {
       topLevelParent && topLevelParent.id !== found?.id
         ? topLevelParent.id
         : found?.id
-    editor.state.hoveredNodeId = selectionCandidateId
+    editor.state.setHoveredNodeId(selectionCandidateId)
   }
 
   private testSingleSelectionHandles(

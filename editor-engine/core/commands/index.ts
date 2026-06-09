@@ -10,5 +10,11 @@ export { UpdateShapeCommand } from "./UpdateShapeCommand"
 export { UpdateShapesStyleCommand } from "./UpdateShapesStyleCommand"
 export { DeleteShapesCommand } from "./DeleteShapesCommand"
 export { TransformShapesCommand } from "./TransformShapesCommand"
+export {
+  BringToFrontCommand,
+  SendToBackCommand,
+  BringForwardCommand,
+  SendBackwardCommand,
+} from "./ZOrderCommands"
 
 // Made with Bob

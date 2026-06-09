@@ -45,6 +45,47 @@ header {
   height: 100%;
   border: 1px solid var(--secondary);
   background-color: var(--bg);
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+
+.container .layers ul {
+  list-style: none;
+  padding-left: 1rem;
+  margin: 0;
+}
+
+.container .layers ul:first-child {
+  padding-left: 0;
+}
+
+.layer-item {
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+  user-select: none;
+  display: block;
+  margin: 2px 0;
+}
+
+.layer-item:hover {
+  background-color: rgba(20, 184, 166, 0.1);
+}
+
+.layer-item.selected {
+  background-color: rgba(79, 70, 229, 0.2);
+  font-weight: 500;
+  color: var(--primary);
+}
+
+.layer-item.hovered {
+  background-color: rgba(79, 70, 229, 0.1);
+  outline: 1px solid var(--primary);
+}
+
+.layer-item.selected.hovered {
+  background-color: rgba(79, 70, 229, 0.3);
 }
 
 .container #canvas {

@@ -65,10 +65,16 @@ export class GroupService {
 
     // Find the highest z-order index among selected nodes
     const allNodes = this.document.getAllNodes()
-    let maxZIndex = -1
+    const nodeIndices = new Map<string, number>()
 
+    // Build index map once
+    allNodes.forEach((node, index) => {
+      nodeIndices.set(node.id, index)
+    })
+
+    let maxZIndex = -1
     for (const nodeId of normalizedIds) {
-      const index = allNodes.findIndex((n) => n.id === nodeId)
+      const index = nodeIndices.get(nodeId) ?? -1
       if (index > maxZIndex) {
         maxZIndex = index
       }
@@ -85,11 +91,11 @@ export class GroupService {
     // Reparent all selected nodes to the new group, preserving their z-order
     // NOTE: We keep transforms in world space since the renderer doesn't support hierarchical transforms
 
-    // Sort nodes by their current z-order (index in allNodes array)
+    // Sort nodes by their current z-order using pre-built index map
     const nodesByZOrder = nodes
       .map((node) => ({
         node,
-        zIndex: allNodes.findIndex((n) => n.id === node.id),
+        zIndex: nodeIndices.get(node.id) ?? -1,
       }))
       .sort((a, b) => a.zIndex - b.zIndex)
 
@@ -226,14 +232,25 @@ export class GroupService {
   }
 
   private getLeafShapeIds(nodeId: string): string[] {
-    const node = this.document.getNode(nodeId)
-    if (!node) return []
+    const result: string[] = []
+    const stack = [nodeId]
 
-    if (isGroupNode(node)) {
-      return node.children.flatMap((childId) => this.getLeafShapeIds(childId))
+    while (stack.length > 0) {
+      const currentId = stack.pop()!
+      const node = this.document.getNode(currentId)
+      if (!node) continue
+
+      if (isGroupNode(node)) {
+        // Add children to stack (in reverse to maintain order)
+        for (let i = node.children.length - 1; i >= 0; i--) {
+          stack.push(node.children[i])
+        }
+      } else if (this.document.getShape(currentId)) {
+        result.push(currentId)
+      }
     }
 
-    return this.document.getShape(nodeId) ? [nodeId] : []
+    return result
   }
 
   private isDescendantOf(nodeId: string, ancestorId: string): boolean {
@@ -274,19 +291,31 @@ export class GroupService {
   }
 
   private getPathToRoot(nodeId: string): string[] {
-    const path: string[] = ["root"]
+    const path: string[] = []
     let currentId: string | undefined = nodeId
+
     while (currentId) {
       path.push(currentId)
       currentId = this.document.getNode(currentId)?.parentId
     }
-    return path
+
+    path.push("root")
+    return path.reverse() // root at index 0
   }
 
   private findLCA(nodeIds: string[]): string {
+    if (nodeIds.length === 0) return "root"
+    if (nodeIds.length === 1) {
+      const node = this.document.getNode(nodeIds[0])
+      return node?.parentId ?? "root"
+    }
+
     const paths = nodeIds.map((id) => this.getPathToRoot(id))
     let lca = "root"
-    for (let i = 0; i < paths[0].length; i++) {
+
+    // Find common prefix
+    const minLength = Math.min(...paths.map((p) => p.length))
+    for (let i = 0; i < minLength; i++) {
       const segment = paths[0][i]
       if (paths.every((p) => p[i] === segment)) {
         lca = segment
@@ -294,6 +323,7 @@ export class GroupService {
         break
       }
     }
+
     return lca
   }
 
@@ -323,19 +353,22 @@ export class GroupService {
   }
 
   private collectNodeAABBs(nodeId: string, aabbs: AABB[]): void {
-    const node = this.document.getNode(nodeId)
-    if (!node) return
+    const stack = [nodeId]
 
-    if (isGroupNode(node)) {
-      for (const childId of node.children) {
-        this.collectNodeAABBs(childId, aabbs)
+    while (stack.length > 0) {
+      const currentId = stack.pop()!
+      const node = this.document.getNode(currentId)
+      if (!node) continue
+
+      if (isGroupNode(node)) {
+        // Add children to stack
+        stack.push(...node.children)
+      } else {
+        const shape = this.document.getShape(currentId)
+        if (shape) {
+          aabbs.push(BoundingBoxService.getAABB(node, shape))
+        }
       }
-      return
-    }
-
-    const shape = this.document.getShape(nodeId)
-    if (shape) {
-      aabbs.push(BoundingBoxService.getAABB(node, shape))
     }
   }
 }

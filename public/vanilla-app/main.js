@@ -56,8 +56,22 @@ editor.on("tool:changed", (data) => {
 editor.on("document:modified", () => {
   renderer.renderShapes()
   renderer.renderHoverOutline()
+
   renderer.renderSelectionBox()
   renderer.renderSelectionHandles()
+})
+
+editor.on("selection:changed", () => {
+  renderer.clearSelectionBox()
+  renderer.renderSelectionBox()
+  renderer.renderSelectionHandles()
+})
+
+editor.on("hover:changed", () => {
+  renderer.clearSelectionBox()
+  renderer.renderSelectionBox()
+  renderer.renderSelectionHandles()
+  renderer.renderHoverOutline()
 })
 
 editor.on("command:executed", (data) => {
