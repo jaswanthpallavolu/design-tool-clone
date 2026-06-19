@@ -29,28 +29,42 @@ export class KeyboardShortcutManager {
    * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
    */
   isBringToFrontShortcut(e: KeyboardEvent): boolean {
-    return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey
+    return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey && !e.altKey
   }
 
   /**
    * Check if the event is a "send to back" shortcut (Cmd/Ctrl+[)
    */
   isSendToBackShortcut(e: KeyboardEvent): boolean {
-    return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey
+    return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey && !e.altKey
   }
 
   /**
-   * Check if the event is a "bring forward" shortcut (Alt+])
+   * Check if the event is a "bring forward" shortcut
+   * Mac: Cmd+Option+] (Cmd+Alt+]) - may produce special characters
+   * Windows/Linux: Ctrl+Alt+]
    */
   isBringForwardShortcut(e: KeyboardEvent): boolean {
-    return e.altKey && e.key === "]" && !e.ctrlKey && !e.metaKey && !e.shiftKey
+    return (
+      e.altKey &&
+      (e.key === "]" || e.code === "BracketRight") &&
+      (e.ctrlKey || e.metaKey) &&
+      !e.shiftKey
+    )
   }
 
   /**
-   * Check if the event is a "send backward" shortcut (Alt+[)
+   * Check if the event is a "send backward" shortcut
+   * Mac: Cmd+Option+[ (Cmd+Alt+[) - may produce special characters
+   * Windows/Linux: Ctrl+Alt+[
    */
   isSendBackwardShortcut(e: KeyboardEvent): boolean {
-    return e.altKey && e.key === "[" && !e.ctrlKey && !e.metaKey && !e.shiftKey
+    return (
+      e.altKey &&
+      (e.key === "[" || e.code === "BracketLeft") &&
+      (e.ctrlKey || e.metaKey) &&
+      !e.shiftKey
+    )
   }
 
   /**

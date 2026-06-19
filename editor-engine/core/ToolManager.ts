@@ -46,6 +46,10 @@ export class ToolManager {
     return this.activeTool
   }
 
+  getActiveTool(): Tool | undefined {
+    return this.activeTool
+  }
+
   setActive(id: string): void {
     const next = this.tools.get(id)
 
