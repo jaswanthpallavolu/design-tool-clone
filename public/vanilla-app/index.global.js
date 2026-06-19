@@ -206,8 +206,10 @@ var EditorEngine = (() => {
       this.shapes = /* @__PURE__ */ new Map();
       // nodeId -> Shape
       this.rootNodeIds = /* @__PURE__ */ new Set();
+      // Cache for root nodes
+      this.zOrder = [];
     }
-    // Cache for root nodes
+    // Array of node IDs in z-order (lower index = drawn first/behind)
     // ---------------------------------------------
     // Node Queries
     // ---------------------------------------------
@@ -215,13 +217,27 @@ var EditorEngine = (() => {
       return this.nodes.get(id);
     }
     getAllNodes() {
-      return Array.from(this.nodes.values());
+      return this.zOrder.map((id) => this.nodes.get(id)).filter(Boolean);
     }
     hasNode(id) {
       return this.nodes.has(id);
     }
+    /**
+     * Get the z-order array (node IDs in drawing order)
+     * Lower index = drawn first (behind), higher index = drawn last (on top)
+     */
+    getZOrder() {
+      return this.zOrder;
+    }
+    /**
+     * Get the z-index of a node in the z-order array
+     * Returns -1 if node is not found
+     */
+    getNodeZIndex(nodeId) {
+      return this.zOrder.indexOf(nodeId);
+    }
     getRootNodes() {
-      return Array.from(this.rootNodeIds).map((id) => this.nodes.get(id)).filter(Boolean);
+      return this.zOrder.filter((id) => this.rootNodeIds.has(id)).map((id) => this.nodes.get(id)).filter(Boolean);
     }
     getChildren(parentId) {
       const parent = this.nodes.get(parentId);
@@ -270,12 +286,30 @@ var EditorEngine = (() => {
      */
     getShapeNodes() {
       const result = [];
-      for (const node of this.nodes.values()) {
+      const processedNodes = /* @__PURE__ */ new Set();
+      const collectShapes = (nodeId) => {
+        const node = this.nodes.get(nodeId);
+        if (!node || processedNodes.has(nodeId)) return;
         if (node.type === "SHAPE" /* SHAPE */) {
-          const shape = this.shapes.get(node.id);
+          const shape = this.shapes.get(nodeId);
           if (shape) {
             result.push([node, shape]);
+            processedNodes.add(nodeId);
           }
+        } else if (isGroupNode(node)) {
+          processedNodes.add(nodeId);
+          const descendants = this.getNodeAndDescendants(nodeId).filter((id) => id !== nodeId).sort((a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b));
+          for (const descendantId of descendants) {
+            collectShapes(descendantId);
+          }
+        }
+      };
+      for (const nodeId of this.zOrder) {
+        if (processedNodes.has(nodeId)) continue;
+        const node = this.nodes.get(nodeId);
+        if (!node) continue;
+        if (!node.parentId) {
+          collectShapes(nodeId);
         }
       }
       return result;
@@ -302,6 +336,7 @@ var EditorEngine = (() => {
         this.rootNodeIds.add(node.id);
       }
       this.nodes.set(node.id, node);
+      this.zOrder.push(node.id);
     }
     removeNode(id) {
       const toRemove = [id];
@@ -321,6 +356,10 @@ var EditorEngine = (() => {
           this.rootNodeIds.delete(currentId);
         }
         this.shapes.delete(currentId);
+        const zIndex = this.zOrder.indexOf(currentId);
+        if (zIndex !== -1) {
+          this.zOrder.splice(zIndex, 1);
+        }
         this.nodes.delete(currentId);
       }
     }
@@ -340,16 +379,11 @@ var EditorEngine = (() => {
       if (!node) {
         throw new Error(`Node with id '${nodeId}' does not exist`);
       }
-      const nodesArray = Array.from(this.nodes.entries());
-      const currentIndex = nodesArray.findIndex(([id]) => id === nodeId);
+      const currentIndex = this.zOrder.indexOf(nodeId);
       if (currentIndex === -1) return;
-      const [entry] = nodesArray.splice(currentIndex, 1);
-      const clampedIndex = Math.max(0, Math.min(targetIndex, nodesArray.length));
-      nodesArray.splice(clampedIndex, 0, entry);
-      this.nodes.clear();
-      for (const [id, node2] of nodesArray) {
-        this.nodes.set(id, node2);
-      }
+      this.zOrder.splice(currentIndex, 1);
+      const clampedIndex = Math.max(0, Math.min(targetIndex, this.zOrder.length));
+      this.zOrder.splice(clampedIndex, 0, nodeId);
       this.updateParentChildrenOrder(nodeId);
     }
     /**
@@ -359,8 +393,8 @@ var EditorEngine = (() => {
       const node = this.nodes.get(nodeId);
       if (!node) return;
       const siblings = node.parentId ? this.getChildren(node.parentId) : this.getRootNodes();
-      const allNodes = Array.from(this.nodes.values());
-      const orderedSiblingIds = allNodes.filter((n) => siblings.some((s) => s.id === n.id)).map((n) => n.id);
+      const siblingIds = new Set(siblings.map((s) => s.id));
+      const orderedSiblingIds = this.zOrder.filter((id) => siblingIds.has(id));
       if (node.parentId) {
         const parent = this.nodes.get(node.parentId);
         if (parent && isGroupNode(parent)) {
@@ -382,10 +416,9 @@ var EditorEngine = (() => {
       }
       const siblings = this.getSiblings(nodeId);
       if (siblings.length === 0) return;
-      const allNodes = Array.from(this.nodes.values());
-      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const currentIndex = this.zOrder.indexOf(nodeId);
       const maxSiblingIndex = Math.max(
-        ...siblings.map((s) => allNodes.findIndex((n) => n.id === s.id))
+        ...siblings.map((s) => this.zOrder.indexOf(s.id))
       );
       if (currentIndex > maxSiblingIndex) {
         return;
@@ -403,10 +436,9 @@ var EditorEngine = (() => {
       }
       const siblings = this.getSiblings(nodeId);
       if (siblings.length === 0) return;
-      const allNodes = Array.from(this.nodes.values());
-      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
+      const currentIndex = this.zOrder.indexOf(nodeId);
       const minSiblingIndex = Math.min(
-        ...siblings.map((s) => allNodes.findIndex((n) => n.id === s.id))
+        ...siblings.map((s) => this.zOrder.indexOf(s.id))
       );
       if (currentIndex < minSiblingIndex) {
         return;
@@ -415,35 +447,33 @@ var EditorEngine = (() => {
     }
     /**
      * Move node one step forward in z-order (among siblings)
+     * Moves the node and all its descendants to just after the next sibling and its descendants
      */
     bringForward(nodeId) {
-      var _a;
       const node = this.nodes.get(nodeId);
       if (!node) {
         throw new Error(`Node with id '${nodeId}' does not exist`);
       }
       const siblings = this.getSiblings(nodeId);
       if (siblings.length === 0) return;
-      const allNodes = Array.from(this.nodes.values());
-      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
-      const siblingIndices = siblings.map((s) => allNodes.findIndex((n) => n.id === s.id)).filter((idx) => idx > currentIndex).sort((a, b) => a - b);
-      console.log("bringForward DEBUG:", {
-        nodeId,
-        nodeName: node.name,
-        currentIndex,
-        allNodesCount: allNodes.length,
-        siblingsCount: siblings.length,
-        siblingNames: siblings.map((s) => s.name),
-        siblingIndices,
-        nextSiblingIndex: siblingIndices[0],
-        nextSiblingName: siblingIndices[0] !== void 0 ? (_a = allNodes[siblingIndices[0]]) == null ? void 0 : _a.name : "none"
-      });
+      const siblingIndices = siblings.map((s) => ({ id: s.id, index: this.zOrder.indexOf(s.id) })).filter((s) => s.index > this.zOrder.indexOf(nodeId)).sort((a, b) => a.index - b.index);
       if (siblingIndices.length === 0) return;
-      const nextSiblingIndex = siblingIndices[0];
-      this.setNodeZOrder(nodeId, nextSiblingIndex);
+      const nextSibling = siblingIndices[0];
+      const currentDescendants = this.getNodeAndDescendants(nodeId);
+      const nextSiblingDescendants = this.getNodeAndDescendants(nextSibling.id);
+      const newZOrder = this.zOrder.filter(
+        (id) => !currentDescendants.includes(id)
+      );
+      const lastNextSiblingDescendant = nextSiblingDescendants[nextSiblingDescendants.length - 1];
+      const insertIndex = newZOrder.indexOf(lastNextSiblingDescendant) + 1;
+      newZOrder.splice(insertIndex, 0, ...currentDescendants);
+      this.zOrder.length = 0;
+      this.zOrder.push(...newZOrder);
+      this.updateParentChildrenOrder(nodeId);
     }
     /**
      * Move node one step backward in z-order (among siblings)
+     * Moves the node and all its descendants to just before the previous sibling and its descendants
      * Lower index = drawn first = appears behind
      */
     sendBackward(nodeId) {
@@ -453,12 +483,20 @@ var EditorEngine = (() => {
       }
       const siblings = this.getSiblings(nodeId);
       if (siblings.length === 0) return;
-      const allNodes = Array.from(this.nodes.values());
-      const currentIndex = allNodes.findIndex((n) => n.id === nodeId);
-      const siblingIndices = siblings.map((s) => allNodes.findIndex((n) => n.id === s.id)).filter((idx) => idx < currentIndex).sort((a, b) => b - a);
+      const siblingIndices = siblings.map((s) => ({ id: s.id, index: this.zOrder.indexOf(s.id) })).filter((s) => s.index < this.zOrder.indexOf(nodeId)).sort((a, b) => b.index - a.index);
       if (siblingIndices.length === 0) return;
-      const prevSiblingIndex = siblingIndices[0];
-      this.setNodeZOrder(nodeId, prevSiblingIndex);
+      const prevSibling = siblingIndices[0];
+      const currentDescendants = this.getNodeAndDescendants(nodeId);
+      const prevSiblingDescendants = this.getNodeAndDescendants(prevSibling.id);
+      const newZOrder = this.zOrder.filter(
+        (id) => !currentDescendants.includes(id)
+      );
+      const firstPrevSiblingDescendant = prevSiblingDescendants[0];
+      const insertIndex = newZOrder.indexOf(firstPrevSiblingDescendant);
+      newZOrder.splice(insertIndex, 0, ...currentDescendants);
+      this.zOrder.length = 0;
+      this.zOrder.push(...newZOrder);
+      this.updateParentChildrenOrder(nodeId);
     }
     /**
      * Get all sibling nodes (nodes with the same parent)
@@ -471,6 +509,21 @@ var EditorEngine = (() => {
       } else {
         return this.getRootNodes().filter((n) => n.id !== nodeId);
       }
+    }
+    /**
+     * Get a node and all its descendants in z-order
+     */
+    getNodeAndDescendants(nodeId) {
+      const result = [];
+      const node = this.nodes.get(nodeId);
+      if (!node) return result;
+      result.push(nodeId);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          result.push(...this.getNodeAndDescendants(childId));
+        }
+      }
+      return result;
     }
     /**
      * Move a node to a new parent (or root if parentId is undefined)
@@ -552,6 +605,7 @@ var EditorEngine = (() => {
       this.nodes.clear();
       this.shapes.clear();
       this.rootNodeIds.clear();
+      this.zOrder.length = 0;
     }
     // ---------------------------------------------
     // Debug
@@ -673,6 +727,9 @@ var EditorEngine = (() => {
     // Tool state
     // ---------------------------------------------
     getActive() {
+      return this.activeTool;
+    }
+    getActiveTool() {
       return this.activeTool;
     }
     setActive(id) {
@@ -2643,25 +2700,29 @@ var EditorEngine = (() => {
      * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
      */
     isBringToFrontShortcut(e) {
-      return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey;
+      return (e.ctrlKey || e.metaKey) && e.key === "]" && !e.shiftKey && !e.altKey;
     }
     /**
      * Check if the event is a "send to back" shortcut (Cmd/Ctrl+[)
      */
     isSendToBackShortcut(e) {
-      return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey;
+      return (e.ctrlKey || e.metaKey) && e.key === "[" && !e.shiftKey && !e.altKey;
     }
     /**
-     * Check if the event is a "bring forward" shortcut (Alt+])
+     * Check if the event is a "bring forward" shortcut
+     * Mac: Cmd+Option+] (Cmd+Alt+]) - may produce special characters
+     * Windows/Linux: Ctrl+Alt+]
      */
     isBringForwardShortcut(e) {
-      return e.altKey && e.key === "]" && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+      return e.altKey && (e.key === "]" || e.code === "BracketRight") && (e.ctrlKey || e.metaKey) && !e.shiftKey;
     }
     /**
-     * Check if the event is a "send backward" shortcut (Alt+[)
+     * Check if the event is a "send backward" shortcut
+     * Mac: Cmd+Option+[ (Cmd+Alt+[) - may produce special characters
+     * Windows/Linux: Ctrl+Alt+[
      */
     isSendBackwardShortcut(e) {
-      return e.altKey && e.key === "[" && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+      return e.altKey && (e.key === "[" || e.code === "BracketLeft") && (e.ctrlKey || e.metaKey) && !e.shiftKey;
     }
     /**
      * Get the tool ID for a keyboard shortcut
@@ -3706,13 +3767,60 @@ var EditorEngine = (() => {
           marquee.maxX,
           marquee.maxY
         );
-        shapesInRegion.forEach((node) => {
-          editor.selection.select(node.id);
+        const shapeIds = shapesInRegion.map((node) => node.id);
+        const normalizedIds = this.normalizeSelectionForGroups(shapeIds, editor);
+        normalizedIds.forEach((id) => {
+          editor.selection.select(id);
         });
       }
       this.marqueeBox = void 0;
       editor.state.marquee = void 0;
       SelectionBoundsHelper.updateSelectionBounds(ctx);
+    }
+    /**
+     * Normalize selection: if all shapes in a group are selected, select the group instead
+     */
+    normalizeSelectionForGroups(shapeIds, editor) {
+      const selectedSet = new Set(shapeIds);
+      const toRemove = /* @__PURE__ */ new Set();
+      const toAdd = /* @__PURE__ */ new Set();
+      for (const node of editor.document.getAllNodes()) {
+        if (node.type !== "GROUP") continue;
+        const leafShapeIds = this.getLeafShapeIds(node.id, editor);
+        if (leafShapeIds.length === 0) continue;
+        const allLeavesSelected = leafShapeIds.every((id) => selectedSet.has(id));
+        if (allLeavesSelected && !selectedSet.has(node.id)) {
+          toAdd.add(node.id);
+          for (const id of leafShapeIds) {
+            toRemove.add(id);
+          }
+        }
+      }
+      const result = [...selectedSet].filter((id) => !toRemove.has(id));
+      for (const id of toAdd) {
+        result.push(id);
+      }
+      return result;
+    }
+    /**
+     * Get all leaf shape IDs within a node (recursively for groups)
+     */
+    getLeafShapeIds(nodeId, editor) {
+      const result = [];
+      const stack = [nodeId];
+      while (stack.length > 0) {
+        const currentId = stack.pop();
+        const node = editor.document.getNode(currentId);
+        if (!node) continue;
+        if (node.type === "GROUP") {
+          for (let i = node.children.length - 1; i >= 0; i--) {
+            stack.push(node.children[i]);
+          }
+        } else if (editor.document.getShape(currentId)) {
+          result.push(currentId);
+        }
+      }
+      return result;
     }
   };
 
@@ -3752,6 +3860,23 @@ var EditorEngine = (() => {
       this.id = "select";
       this.currentState = new IdleState();
       this.stateResolver = new StateTransitionResolver();
+    }
+    onActivate(ctx) {
+      this.unsubscribeSelectionChanged = ctx.editor.events.on(
+        "selection:changed",
+        () => {
+          SelectionBoundsHelper.updateSelectionBounds(ctx);
+          ctx.renderOverlays();
+        }
+      );
+      SelectionBoundsHelper.updateSelectionBounds(ctx);
+      ctx.renderOverlays();
+    }
+    onDeactivate(ctx) {
+      var _a;
+      (_a = this.unsubscribeSelectionChanged) == null ? void 0 : _a.call(this);
+      this.unsubscribeSelectionChanged = void 0;
+      SelectionBoundsHelper.clearSelectionBounds(ctx);
     }
     onPointerDown(e, ctx) {
       const nextState = this.stateResolver.resolve(e, ctx);
@@ -4389,12 +4514,8 @@ var EditorEngine = (() => {
     }
     renderShapes() {
       this.clear();
-      const shapesInLayerOrder = [];
-      const roots = this.editor.document.getRootNodes().slice().reverse();
-      for (const root of roots) {
-        this.collectShapesInLayerOrder(root.id, shapesInLayerOrder);
-      }
-      for (const [node, shape] of shapesInLayerOrder.reverse()) {
+      const shapesInZOrder = this.editor.document.getShapeNodes();
+      for (const [node, shape] of shapesInZOrder) {
         this.renderShape(node, shape);
       }
       this.imageData = this.ctx.getImageData(
@@ -4412,19 +4533,6 @@ var EditorEngine = (() => {
         this.canvas.width,
         this.canvas.height
       );
-    }
-    /** Same traversal as LayerPanel; paint back-to-front by reversing collected shapes. */
-    collectShapesInLayerOrder(nodeId, out) {
-      const node = this.editor.document.getNode(nodeId);
-      if (!node) return;
-      const children = node.children.slice().reverse();
-      for (const childId of children) {
-        this.collectShapesInLayerOrder(childId, out);
-      }
-      const shape = this.editor.document.getShape(nodeId);
-      if (shape) {
-        out.push([node, shape]);
-      }
     }
     renderShape(node, shape) {
       if (!node.visible) return;

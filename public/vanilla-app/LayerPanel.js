@@ -22,6 +22,23 @@ export class LayerPanel {
       this.renderLayerTree()
     })
   }
+  isNodeOrParentSelected = (nodeId) => {
+    // Check if the node itself is selected
+    if (this.editor.selection.isSelected(nodeId)) {
+      return true
+    }
+
+    // Check if any parent is selected
+    let currentNode = this.editor.document.getNode(nodeId)
+    while (currentNode?.parentId) {
+      if (this.editor.selection.isSelected(currentNode.parentId)) {
+        return true
+      }
+      currentNode = this.editor.document.getNode(currentNode.parentId)
+    }
+
+    return false
+  }
 
   getNodeItem = (nodeId) => {
     const node = this.editor.document.getNode(nodeId)
@@ -33,8 +50,8 @@ export class LayerPanel {
     span.className = "layer-item"
     span.dataset.nodeId = nodeId
 
-    // Apply selection state
-    if (this.editor.selection.isSelected(nodeId)) {
+    // Apply selection state - check if this node or any parent is selected
+    if (this.isNodeOrParentSelected(nodeId)) {
       span.classList.add("selected")
     }
 
@@ -66,19 +83,25 @@ export class LayerPanel {
 
     li.appendChild(span)
 
-    const children = node.children.slice().reverse()
-    const ul = document.createElement("ul")
-    for (let child of children) {
-      const listItem = this.getNodeItem(child)
-      if (listItem) ul.appendChild(listItem)
+    // Display children in reverse z-order (top items first in UI)
+    if (node.children && node.children.length > 0) {
+      const ul = document.createElement("ul")
+      // Children are already in z-order, reverse to show top items first
+      const children = node.children.slice().reverse()
+      for (let child of children) {
+        const listItem = this.getNodeItem(child)
+        if (listItem) ul.appendChild(listItem)
+      }
+      if (ul.hasChildNodes()) li.appendChild(ul)
     }
-    if (ul.hasChildNodes()) li.appendChild(ul)
 
     return li
   }
 
   renderLayerTree = () => {
     const parent = document.createElement("ul")
+    // Get root nodes in reverse z-order (top items first in UI)
+    // getRootNodes() returns nodes in z-order, so reverse for display
     const roots = this.editor.document.getRootNodes().slice().reverse()
     for (let root of roots) {
       const listItem = this.getNodeItem(root.id)

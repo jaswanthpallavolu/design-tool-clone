@@ -113,8 +113,22 @@ colorInput.addEventListener("input", (e) => {
   // Update all currently selected shapes
   const selectedIds = editor.selection.getAll()
   if (selectedIds.length > 0) {
-    // Filter to only get shape nodes (not groups)
-    const shapeIds = selectedIds.filter((id) => editor.document.getShape(id))
+    // Collect all shape IDs including descendants of selected groups
+    const shapeIds = []
+    for (const id of selectedIds) {
+      const node = editor.document.getNode(id)
+      if (!node) continue
+
+      // If it's a shape, add it directly
+      if (editor.document.getShape(id)) {
+        shapeIds.push(id)
+      } else if (node.type === "GROUP") {
+        // If it's a group, collect all descendant shapes
+        const descendantShapes = getDescendantShapeIds(id, editor)
+        shapeIds.push(...descendantShapes)
+      }
+    }
+
     if (shapeIds.length > 0) {
       editor.commands.execute(
         new UpdateShapesStyleCommand(editor, shapeIds, {
@@ -125,6 +139,29 @@ colorInput.addEventListener("input", (e) => {
     }
   }
 })
+
+// Helper function to get all descendant shape IDs from a node (recursively for groups)
+function getDescendantShapeIds(nodeId, editor) {
+  const result = []
+  const stack = [nodeId]
+
+  while (stack.length > 0) {
+    const currentId = stack.pop()
+    const node = editor.document.getNode(currentId)
+    if (!node) continue
+
+    if (node.type === "GROUP") {
+      // Add children to stack (in reverse to maintain order)
+      for (let i = node.children.length - 1; i >= 0; i--) {
+        stack.push(node.children[i])
+      }
+    } else if (editor.document.getShape(currentId)) {
+      result.push(currentId)
+    }
+  }
+
+  return result
+}
 
 // CanvasAdapter
 new CanvasEventAdapter(canvas, editor)
