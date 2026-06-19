@@ -56,12 +56,9 @@ export class CanvasRenderer implements RenderPort {
 
   renderShapes(): void {
     this.clear()
-    const shapesInLayerOrder: Array<[Node, Shape]> = []
-    const roots = this.editor.document.getRootNodes().slice().reverse()
-    for (const root of roots) {
-      this.collectShapesInLayerOrder(root.id, shapesInLayerOrder)
-    }
-    for (const [node, shape] of shapesInLayerOrder.reverse()) {
+    // getShapeNodes() now returns shapes in z-order (back to front)
+    const shapesInZOrder = this.editor.document.getShapeNodes()
+    for (const [node, shape] of shapesInZOrder) {
       this.renderShape(node, shape)
     }
     this.imageData = this.ctx.getImageData(
@@ -80,25 +77,6 @@ export class CanvasRenderer implements RenderPort {
       this.canvas.width,
       this.canvas.height,
     )
-  }
-
-  /** Same traversal as LayerPanel; paint back-to-front by reversing collected shapes. */
-  private collectShapesInLayerOrder(
-    nodeId: string,
-    out: Array<[Node, Shape]>,
-  ): void {
-    const node = this.editor.document.getNode(nodeId)
-    if (!node) return
-
-    const children = node.children.slice().reverse()
-    for (const childId of children) {
-      this.collectShapesInLayerOrder(childId, out)
-    }
-
-    const shape = this.editor.document.getShape(nodeId)
-    if (shape) {
-      out.push([node, shape])
-    }
   }
 
   private renderShape(node: Node, shape: Shape): void {
