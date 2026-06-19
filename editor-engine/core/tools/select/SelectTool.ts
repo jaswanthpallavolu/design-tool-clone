@@ -4,6 +4,7 @@ import type { InteractionState } from "./states/InteractionState"
 import { IdleState } from "./states/IdleState"
 import { StateTransitionResolver } from "./resolvers/StateTransitionResolver"
 import { DeleteShapesCommand } from "../../commands"
+import { SelectionBoundsHelper } from "./helpers/SelectionBoundsHelper"
 
 /**
  * SelectTool - Main tool for selecting, moving, resizing, and rotating shapes
@@ -23,9 +24,34 @@ export class SelectTool implements Tool {
   readonly id = "select"
   private currentState: InteractionState = new IdleState()
   private stateResolver: StateTransitionResolver
+  private unsubscribeSelectionChanged?: () => void
 
   constructor() {
     this.stateResolver = new StateTransitionResolver()
+  }
+
+  onActivate(ctx: ToolContext): void {
+    // Subscribe to selection changes to update bounds reactively
+    this.unsubscribeSelectionChanged = ctx.editor.events.on(
+      "selection:changed",
+      () => {
+        SelectionBoundsHelper.updateSelectionBounds(ctx)
+        ctx.renderOverlays()
+      },
+    )
+
+    // Update bounds immediately when tool activates
+    SelectionBoundsHelper.updateSelectionBounds(ctx)
+    ctx.renderOverlays()
+  }
+
+  onDeactivate(ctx: ToolContext): void {
+    // Unsubscribe from selection changes
+    this.unsubscribeSelectionChanged?.()
+    this.unsubscribeSelectionChanged = undefined
+
+    // Clear selection bounds when tool deactivates
+    SelectionBoundsHelper.clearSelectionBounds(ctx)
   }
 
   onPointerDown(e: PointerEventData, ctx: ToolContext): void {
