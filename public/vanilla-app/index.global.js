@@ -204,15 +204,10 @@ var EditorEngine = (() => {
     constructor() {
       this.nodes = /* @__PURE__ */ new Map();
       this.shapes = /* @__PURE__ */ new Map();
-      // nodeId -> Shape
       this.rootNodeIds = /* @__PURE__ */ new Set();
-      // Cache for root nodes
       this.zOrder = [];
     }
-    // Array of node IDs in z-order (lower index = drawn first/behind)
-    // ---------------------------------------------
-    // Node Queries
-    // ---------------------------------------------
+    // Queries (Read Operations)
     getNode(id) {
       return this.nodes.get(id);
     }
@@ -262,9 +257,6 @@ var EditorEngine = (() => {
       }
       return current;
     }
-    // ---------------------------------------------
-    // Shape Queries
-    // ---------------------------------------------
     getShape(nodeId) {
       return this.shapes.get(nodeId);
     }
@@ -277,9 +269,6 @@ var EditorEngine = (() => {
     getShapesMap() {
       return this.shapes;
     }
-    // ---------------------------------------------
-    // Combined Queries (for convenience)
-    // ---------------------------------------------
     /**
      * Get all nodes that are shapes (not groups)
      * Returns array of [node, shape] tuples
@@ -314,9 +303,7 @@ var EditorEngine = (() => {
       }
       return result;
     }
-    // ---------------------------------------------
-    // Node Commands
-    // ---------------------------------------------
+    // Commands (Write Operations)
     addNode(node) {
       if (this.nodes.has(node.id)) {
         throw new Error(`Node with id '${node.id}' already exists`);
@@ -329,14 +316,28 @@ var EditorEngine = (() => {
         if (!isGroupNode(parent)) {
           throw new Error(`Parent node '${node.parentId}' is not a group`);
         }
-        if (!parent.children.includes(node.id)) {
-          parent.children.push(node.id);
+        parent.children.push(node.id);
+        if (parent.children.length > 1) {
+          const lastChildId = parent.children[parent.children.length - 2];
+          const lastChildZIndex = this.zOrder.indexOf(lastChildId);
+          if (lastChildZIndex !== -1) {
+            this.zOrder.splice(lastChildZIndex + 1, 0, node.id);
+          } else {
+            this.zOrder.push(node.id);
+          }
+        } else {
+          const parentZIndex = this.zOrder.indexOf(node.parentId);
+          if (parentZIndex !== -1) {
+            this.zOrder.splice(parentZIndex + 1, 0, node.id);
+          } else {
+            this.zOrder.push(node.id);
+          }
         }
       } else {
         this.rootNodeIds.add(node.id);
+        this.zOrder.push(node.id);
       }
       this.nodes.set(node.id, node);
-      this.zOrder.push(node.id);
     }
     removeNode(id) {
       const toRemove = [id];
@@ -357,9 +358,7 @@ var EditorEngine = (() => {
         }
         this.shapes.delete(currentId);
         const zIndex = this.zOrder.indexOf(currentId);
-        if (zIndex !== -1) {
-          this.zOrder.splice(zIndex, 1);
-        }
+        this.zOrder.splice(zIndex, 1);
         this.nodes.delete(currentId);
       }
     }
@@ -370,148 +369,58 @@ var EditorEngine = (() => {
       this.nodes.set(node.id, node);
     }
     /**
-     * Set the z-order of a node by moving it to a specific index
-     * Higher index = higher z-order (drawn on top)
-     * Also updates the parent's children array to reflect the new order
+     * Set the z-order position of a node
+     * Automatically maintains parent-children order invariant
+     * @param nodeId - The node to reposition
+     * @param targetIndex - The target index in the z-order array
      */
     setNodeZOrder(nodeId, targetIndex) {
-      const node = this.nodes.get(nodeId);
-      if (!node) {
-        throw new Error(`Node with id '${nodeId}' does not exist`);
-      }
       const currentIndex = this.zOrder.indexOf(nodeId);
       if (currentIndex === -1) return;
       this.zOrder.splice(currentIndex, 1);
       const clampedIndex = Math.max(0, Math.min(targetIndex, this.zOrder.length));
       this.zOrder.splice(clampedIndex, 0, nodeId);
-      this.updateParentChildrenOrder(nodeId);
+      this.maintainParentChildrenInvariant(nodeId);
     }
     /**
-     * Update the parent's children array to match the current Map order
+     * Replace the entire z-order array with a new order
+     * Automatically maintains parent-children order invariants for all affected nodes
+     * @param newZOrder - The new z-order array
      */
-    updateParentChildrenOrder(nodeId) {
+    replaceZOrder(newZOrder) {
+      this.zOrder.length = 0;
+      this.zOrder.push(...newZOrder);
+      this.maintainAllParentChildrenInvariants();
+    }
+    /**
+     * Maintain the invariant that a parent's children array matches z-order
+     * @param nodeId - The node whose parent's children array should be synced
+     */
+    maintainParentChildrenInvariant(nodeId) {
       const node = this.nodes.get(nodeId);
-      if (!node) return;
-      const siblings = node.parentId ? this.getChildren(node.parentId) : this.getRootNodes();
-      const siblingIds = new Set(siblings.map((s) => s.id));
-      const orderedSiblingIds = this.zOrder.filter((id) => siblingIds.has(id));
-      if (node.parentId) {
-        const parent = this.nodes.get(node.parentId);
-        if (parent && isGroupNode(parent)) {
-          parent.children = orderedSiblingIds;
+      if (!(node == null ? void 0 : node.parentId)) return;
+      const parent = this.nodes.get(node.parentId);
+      if (!parent || !isGroupNode(parent)) return;
+      parent.children.sort(
+        (a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b)
+      );
+    }
+    /**
+     * Maintain invariants for all group nodes in the document
+     * Called after bulk z-order changes
+     */
+    maintainAllParentChildrenInvariants() {
+      for (const node of this.nodes.values()) {
+        if (isGroupNode(node)) {
+          node.children.sort(
+            (a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b)
+          );
         }
-      } else {
-        this.rootNodeIds.clear();
-        orderedSiblingIds.forEach((id) => this.rootNodeIds.add(id));
-      }
-    }
-    /**
-     * Bring node to front (highest z-order among siblings)
-     * Higher index = drawn later = appears on top
-     */
-    bringToFront(nodeId) {
-      const node = this.nodes.get(nodeId);
-      if (!node) {
-        throw new Error(`Node with id '${nodeId}' does not exist`);
-      }
-      const siblings = this.getSiblings(nodeId);
-      if (siblings.length === 0) return;
-      const currentIndex = this.zOrder.indexOf(nodeId);
-      const maxSiblingIndex = Math.max(
-        ...siblings.map((s) => this.zOrder.indexOf(s.id))
-      );
-      if (currentIndex > maxSiblingIndex) {
-        return;
-      }
-      this.setNodeZOrder(nodeId, maxSiblingIndex + 1);
-    }
-    /**
-     * Send node to back (lowest z-order among siblings)
-     * Lower index = drawn first = appears at bottom
-     */
-    sendToBack(nodeId) {
-      const node = this.nodes.get(nodeId);
-      if (!node) {
-        throw new Error(`Node with id '${nodeId}' does not exist`);
-      }
-      const siblings = this.getSiblings(nodeId);
-      if (siblings.length === 0) return;
-      const currentIndex = this.zOrder.indexOf(nodeId);
-      const minSiblingIndex = Math.min(
-        ...siblings.map((s) => this.zOrder.indexOf(s.id))
-      );
-      if (currentIndex < minSiblingIndex) {
-        return;
-      }
-      this.setNodeZOrder(nodeId, minSiblingIndex);
-    }
-    /**
-     * Move node one step forward in z-order (among siblings)
-     * Moves the node and all its descendants to just after the next sibling and its descendants
-     */
-    bringForward(nodeId) {
-      const node = this.nodes.get(nodeId);
-      if (!node) {
-        throw new Error(`Node with id '${nodeId}' does not exist`);
-      }
-      const siblings = this.getSiblings(nodeId);
-      if (siblings.length === 0) return;
-      const siblingIndices = siblings.map((s) => ({ id: s.id, index: this.zOrder.indexOf(s.id) })).filter((s) => s.index > this.zOrder.indexOf(nodeId)).sort((a, b) => a.index - b.index);
-      if (siblingIndices.length === 0) return;
-      const nextSibling = siblingIndices[0];
-      const currentDescendants = this.getNodeAndDescendants(nodeId);
-      const nextSiblingDescendants = this.getNodeAndDescendants(nextSibling.id);
-      const newZOrder = this.zOrder.filter(
-        (id) => !currentDescendants.includes(id)
-      );
-      const lastNextSiblingDescendant = nextSiblingDescendants[nextSiblingDescendants.length - 1];
-      const insertIndex = newZOrder.indexOf(lastNextSiblingDescendant) + 1;
-      newZOrder.splice(insertIndex, 0, ...currentDescendants);
-      this.zOrder.length = 0;
-      this.zOrder.push(...newZOrder);
-      this.updateParentChildrenOrder(nodeId);
-    }
-    /**
-     * Move node one step backward in z-order (among siblings)
-     * Moves the node and all its descendants to just before the previous sibling and its descendants
-     * Lower index = drawn first = appears behind
-     */
-    sendBackward(nodeId) {
-      const node = this.nodes.get(nodeId);
-      if (!node) {
-        throw new Error(`Node with id '${nodeId}' does not exist`);
-      }
-      const siblings = this.getSiblings(nodeId);
-      if (siblings.length === 0) return;
-      const siblingIndices = siblings.map((s) => ({ id: s.id, index: this.zOrder.indexOf(s.id) })).filter((s) => s.index < this.zOrder.indexOf(nodeId)).sort((a, b) => b.index - a.index);
-      if (siblingIndices.length === 0) return;
-      const prevSibling = siblingIndices[0];
-      const currentDescendants = this.getNodeAndDescendants(nodeId);
-      const prevSiblingDescendants = this.getNodeAndDescendants(prevSibling.id);
-      const newZOrder = this.zOrder.filter(
-        (id) => !currentDescendants.includes(id)
-      );
-      const firstPrevSiblingDescendant = prevSiblingDescendants[0];
-      const insertIndex = newZOrder.indexOf(firstPrevSiblingDescendant);
-      newZOrder.splice(insertIndex, 0, ...currentDescendants);
-      this.zOrder.length = 0;
-      this.zOrder.push(...newZOrder);
-      this.updateParentChildrenOrder(nodeId);
-    }
-    /**
-     * Get all sibling nodes (nodes with the same parent)
-     */
-    getSiblings(nodeId) {
-      const node = this.nodes.get(nodeId);
-      if (!node) return [];
-      if (node.parentId) {
-        return this.getChildren(node.parentId).filter((n) => n.id !== nodeId);
-      } else {
-        return this.getRootNodes().filter((n) => n.id !== nodeId);
       }
     }
     /**
      * Get a node and all its descendants in z-order
+     * Used internally for tree operations
      */
     getNodeAndDescendants(nodeId) {
       const result = [];
@@ -554,9 +463,7 @@ var EditorEngine = (() => {
         if (!isGroupNode(newParent)) {
           throw new Error(`New parent node '${newParentId}' is not a group`);
         }
-        if (!newParent.children.includes(childId)) {
-          newParent.children.push(childId);
-        }
+        newParent.children.push(childId);
       } else {
         this.rootNodeIds.add(childId);
       }
@@ -573,9 +480,7 @@ var EditorEngine = (() => {
       }
       return false;
     }
-    // ---------------------------------------------
     // Shape Commands
-    // ---------------------------------------------
     addShape(shape) {
       if (this.shapes.has(shape.nodeId)) {
         throw new Error(`Shape for node '${shape.nodeId}' already exists`);
@@ -598,22 +503,14 @@ var EditorEngine = (() => {
       }
       this.shapes.set(shape.nodeId, shape);
     }
-    // ---------------------------------------------
     // Utility
-    // ---------------------------------------------
     clear() {
       this.nodes.clear();
       this.shapes.clear();
       this.rootNodeIds.clear();
       this.zOrder.length = 0;
     }
-    // ---------------------------------------------
     // Debug
-    // ---------------------------------------------
-    /**
-     * Print document tree in depth-first order
-     * Last drawn shape appears first (reverse order)
-     */
     debugTree() {
       console.log("Document Tree:");
       const roots = this.getRootNodes();
@@ -1027,15 +924,15 @@ var EditorEngine = (() => {
 
   // editor-engine/core/services/GroupService.ts
   var GroupService = class {
-    constructor(document) {
+    constructor(document, zOrderService) {
       this.document = document;
+      this.zOrderService = zOrderService;
     }
     /**
      * Group multiple nodes into a new group node
      * Returns the ID of the newly created group
      */
     groupNodes(nodeIds) {
-      var _a;
       const normalizedIds = this.normalizeSelectionForGrouping(nodeIds);
       if (!this.hasEnoughNodesToGroup(normalizedIds)) {
         return null;
@@ -1070,29 +967,21 @@ var EditorEngine = (() => {
         width: bounds.width,
         height: bounds.height
       };
-      const allNodes = this.document.getAllNodes();
-      const nodeIndices = /* @__PURE__ */ new Map();
-      allNodes.forEach((node, index) => {
-        nodeIndices.set(node.id, index);
-      });
       let maxZIndex = -1;
       for (const nodeId of normalizedIds) {
-        const index = (_a = nodeIndices.get(nodeId)) != null ? _a : -1;
+        const index = this.document.getNodeZIndex(nodeId);
         if (index > maxZIndex) {
           maxZIndex = index;
         }
       }
       this.document.addNode(groupNode);
-      if (maxZIndex >= 0) {
-        this.document.setNodeZOrder(groupNode.id, maxZIndex);
+      if (maxZIndex >= 0 && this.zOrderService) {
+        this.zOrderService.setNodeZOrder(groupNode.id, maxZIndex);
       }
-      const nodesByZOrder = nodes.map((node) => {
-        var _a2;
-        return {
-          node,
-          zIndex: (_a2 = nodeIndices.get(node.id)) != null ? _a2 : -1
-        };
-      }).sort((a, b) => a.zIndex - b.zIndex);
+      const nodesByZOrder = nodes.map((node) => ({
+        node,
+        zIndex: this.document.getNodeZIndex(node.id)
+      })).sort((a, b) => a.zIndex - b.zIndex);
       for (const { node } of nodesByZOrder) {
         this.document.reparent(node.id, groupId);
       }
@@ -1298,6 +1187,116 @@ var EditorEngine = (() => {
           }
         }
       }
+    }
+  };
+
+  // editor-engine/core/services/ZOrderService.ts
+  var ZOrderService = class {
+    constructor(document) {
+      this.document = document;
+    }
+    setNodeZOrder(nodeId, targetIndex) {
+      const node = this.document.getNode(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      this.document.setNodeZOrder(nodeId, targetIndex);
+    }
+    bringToFront(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const zOrder = this.document.getZOrder();
+      const currentIndex = zOrder.indexOf(nodeId);
+      const maxSiblingIndex = Math.max(
+        ...siblings.map((s) => zOrder.indexOf(s.id))
+      );
+      if (currentIndex > maxSiblingIndex) {
+        return;
+      }
+      this.setNodeZOrder(nodeId, maxSiblingIndex + 1);
+    }
+    sendToBack(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const zOrder = this.document.getZOrder();
+      const currentIndex = zOrder.indexOf(nodeId);
+      const minSiblingIndex = Math.min(
+        ...siblings.map((s) => zOrder.indexOf(s.id))
+      );
+      if (currentIndex < minSiblingIndex) {
+        return;
+      }
+      this.setNodeZOrder(nodeId, minSiblingIndex);
+    }
+    bringForward(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const zOrder = this.document.getZOrder();
+      const siblingIndices = siblings.map((s) => ({ id: s.id, index: zOrder.indexOf(s.id) })).filter((s) => s.index > zOrder.indexOf(nodeId)).sort((a, b) => a.index - b.index);
+      if (siblingIndices.length === 0) return;
+      const nextSibling = siblingIndices[0];
+      const currentDescendants = this.getNodeAndDescendants(nodeId);
+      const nextSiblingDescendants = this.getNodeAndDescendants(nextSibling.id);
+      const newZOrder = Array.from(zOrder).filter(
+        (id) => !currentDescendants.includes(id)
+      );
+      const lastNextSiblingDescendant = nextSiblingDescendants[nextSiblingDescendants.length - 1];
+      const insertIndex = newZOrder.indexOf(lastNextSiblingDescendant) + 1;
+      newZOrder.splice(insertIndex, 0, ...currentDescendants);
+      this.document.replaceZOrder(newZOrder);
+    }
+    sendBackward(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) {
+        throw new Error(`Node with id '${nodeId}' does not exist`);
+      }
+      const siblings = this.getSiblings(nodeId);
+      if (siblings.length === 0) return;
+      const zOrder = this.document.getZOrder();
+      const siblingIndices = siblings.map((s) => ({ id: s.id, index: zOrder.indexOf(s.id) })).filter((s) => s.index < zOrder.indexOf(nodeId)).sort((a, b) => b.index - a.index);
+      if (siblingIndices.length === 0) return;
+      const prevSibling = siblingIndices[0];
+      const currentDescendants = this.getNodeAndDescendants(nodeId);
+      const prevSiblingDescendants = this.getNodeAndDescendants(prevSibling.id);
+      const newZOrder = Array.from(zOrder).filter(
+        (id) => !currentDescendants.includes(id)
+      );
+      const firstPrevSiblingDescendant = prevSiblingDescendants[0];
+      const insertIndex = newZOrder.indexOf(firstPrevSiblingDescendant);
+      newZOrder.splice(insertIndex, 0, ...currentDescendants);
+      this.document.replaceZOrder(newZOrder);
+    }
+    getSiblings(nodeId) {
+      const node = this.document.getNode(nodeId);
+      if (!node) return [];
+      return this.getSiblingsIncludingSelf(node).filter((n) => n.id !== nodeId);
+    }
+    getSiblingsIncludingSelf(node) {
+      return node.parentId ? this.document.getChildren(node.parentId) : this.document.getRootNodes();
+    }
+    getNodeAndDescendants(nodeId) {
+      const result = [];
+      const node = this.document.getNode(nodeId);
+      if (!node) return result;
+      result.push(nodeId);
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          result.push(...this.getNodeAndDescendants(childId));
+        }
+      }
+      return result;
     }
   };
 
@@ -2605,7 +2604,7 @@ var EditorEngine = (() => {
     undo() {
       var _a;
       for (const [nodeId, index] of this.previousIndices) {
-        this.editor.document.setNodeZOrder(nodeId, index);
+        this.editor.zOrder.setNodeZOrder(nodeId, index);
       }
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
@@ -2622,7 +2621,7 @@ var EditorEngine = (() => {
       var _a;
       this.storePreviousIndices();
       for (const nodeId of this.nodeIds) {
-        this.editor.document.bringToFront(nodeId);
+        this.editor.zOrder.bringToFront(nodeId);
       }
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
@@ -2636,7 +2635,7 @@ var EditorEngine = (() => {
       var _a;
       this.storePreviousIndices();
       for (const nodeId of this.nodeIds) {
-        this.editor.document.sendToBack(nodeId);
+        this.editor.zOrder.sendToBack(nodeId);
       }
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
@@ -2650,7 +2649,7 @@ var EditorEngine = (() => {
       var _a;
       this.storePreviousIndices();
       for (const nodeId of this.nodeIds) {
-        this.editor.document.bringForward(nodeId);
+        this.editor.zOrder.bringForward(nodeId);
       }
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
@@ -2664,7 +2663,7 @@ var EditorEngine = (() => {
       var _a;
       this.storePreviousIndices();
       for (const nodeId of this.nodeIds) {
-        this.editor.document.sendBackward(nodeId);
+        this.editor.zOrder.sendBackward(nodeId);
       }
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
@@ -2857,9 +2856,10 @@ var EditorEngine = (() => {
       this.selection = new SelectionManager(this.events);
       this.state = new EditorState(this.events);
       this.tools = new ToolManager(this);
-      this.groupService = new GroupService(this.document);
       this.commands = new CommandManager(this.events);
       this.input = new InputManager(this);
+      this.zOrder = new ZOrderService(this.document);
+      this.groupService = new GroupService(this.document, this.zOrder);
       this.spatialIndex = new SpatialIndexService(this.document, this.events);
       this.shapeQuery = new ShapeQueryService(this.document, this.spatialIndex);
     }
