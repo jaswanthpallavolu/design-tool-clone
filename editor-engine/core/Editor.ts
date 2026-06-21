@@ -6,6 +6,7 @@ import { Tool } from "./tools/Tool"
 import { RenderPort } from "./ports/RenderPort"
 import type { PointerEventData } from "./types/InputTypes"
 import { GroupService } from "./services/GroupService"
+import { ZOrderService } from "./services/ZOrderService"
 import { SpatialIndexService } from "./services/SpatialIndexService"
 import { ShapeQueryService } from "./services/ShapeQueryService"
 import { EventBus } from "./EventBus"
@@ -27,13 +28,16 @@ export class Editor {
   readonly input: InputManager
   renderer?: RenderPort
 
-  readonly groupService = new GroupService(this.document)
+  readonly zOrder: ZOrderService
+  readonly groupService: GroupService
   readonly spatialIndex: SpatialIndexService
   readonly shapeQuery: ShapeQueryService
 
   constructor() {
     this.commands = new CommandManager(this.events)
     this.input = new InputManager(this)
+    this.zOrder = new ZOrderService(this.document)
+    this.groupService = new GroupService(this.document, this.zOrder)
     this.spatialIndex = new SpatialIndexService(this.document, this.events)
     this.shapeQuery = new ShapeQueryService(this.document, this.spatialIndex)
   }
