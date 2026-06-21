@@ -26,7 +26,7 @@ abstract class ZOrderCommand extends Command {
   undo(): void {
     // Restore previous z-order positions
     for (const [nodeId, index] of this.previousIndices) {
-      this.editor.document.setNodeZOrder(nodeId, index)
+      this.editor.zOrder.setNodeZOrder(nodeId, index)
     }
 
     // Re-render to show changes
@@ -52,7 +52,7 @@ export class BringToFrontCommand extends ZOrderCommand {
     this.storePreviousIndices()
 
     for (const nodeId of this.nodeIds) {
-      this.editor.document.bringToFront(nodeId)
+      this.editor.zOrder.bringToFront(nodeId)
     }
 
     // Re-render to show changes
@@ -74,7 +74,7 @@ export class SendToBackCommand extends ZOrderCommand {
     this.storePreviousIndices()
 
     for (const nodeId of this.nodeIds) {
-      this.editor.document.sendToBack(nodeId)
+      this.editor.zOrder.sendToBack(nodeId)
     }
 
     // Re-render to show changes
@@ -96,7 +96,7 @@ export class BringForwardCommand extends ZOrderCommand {
     this.storePreviousIndices()
 
     for (const nodeId of this.nodeIds) {
-      this.editor.document.bringForward(nodeId)
+      this.editor.zOrder.bringForward(nodeId)
     }
 
     // Re-render to show changes
@@ -118,7 +118,7 @@ export class SendBackwardCommand extends ZOrderCommand {
     this.storePreviousIndices()
 
     for (const nodeId of this.nodeIds) {
-      this.editor.document.sendBackward(nodeId)
+      this.editor.zOrder.sendBackward(nodeId)
     }
 
     // Re-render to show changes
