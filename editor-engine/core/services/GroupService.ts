@@ -10,9 +10,13 @@ import {
   Transform,
 } from "../model/Node"
 import { BoundingBoxService, AABB } from "./BoundingBoxService"
+import type { ZOrderService } from "./ZOrderService"
 
 export class GroupService {
-  constructor(private readonly document: Document) {}
+  constructor(
+    private readonly document: Document,
+    private readonly zOrderService?: ZOrderService,
+  ) {}
 
   /**
    * Group multiple nodes into a new group node
@@ -64,17 +68,9 @@ export class GroupService {
     }
 
     // Find the highest z-order index among selected nodes
-    const allNodes = this.document.getAllNodes()
-    const nodeIndices = new Map<string, number>()
-
-    // Build index map once
-    allNodes.forEach((node, index) => {
-      nodeIndices.set(node.id, index)
-    })
-
     let maxZIndex = -1
     for (const nodeId of normalizedIds) {
-      const index = nodeIndices.get(nodeId) ?? -1
+      const index = this.document.getNodeZIndex(nodeId)
       if (index > maxZIndex) {
         maxZIndex = index
       }
@@ -84,18 +80,18 @@ export class GroupService {
     this.document.addNode(groupNode)
 
     // Move to correct z-order position (at the highest z-order of selected nodes)
-    if (maxZIndex >= 0) {
-      this.document.setNodeZOrder(groupNode.id, maxZIndex)
+    if (maxZIndex >= 0 && this.zOrderService) {
+      this.zOrderService.setNodeZOrder(groupNode.id, maxZIndex)
     }
 
     // Reparent all selected nodes to the new group, preserving their z-order
     // NOTE: We keep transforms in world space since the renderer doesn't support hierarchical transforms
 
-    // Sort nodes by their current z-order using pre-built index map
+    // Sort nodes by their current z-order
     const nodesByZOrder = nodes
       .map((node) => ({
         node,
-        zIndex: nodeIndices.get(node.id) ?? -1,
+        zIndex: this.document.getNodeZIndex(node.id),
       }))
       .sort((a, b) => a.zIndex - b.zIndex)
 
