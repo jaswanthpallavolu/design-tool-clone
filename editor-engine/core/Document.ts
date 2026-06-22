@@ -7,8 +7,6 @@ export class Document {
   private readonly rootNodeIds = new Set<string>()
   private readonly zOrder: string[] = []
 
-  // Queries (Read Operations)
-
   getNode(id: string): Node | undefined {
     return this.nodes.get(id)
   }
@@ -21,23 +19,21 @@ export class Document {
     return this.nodes.has(id)
   }
 
-  /**
-   * Get the z-order array (node IDs in drawing order)
-   * Lower index = drawn first (behind), higher index = drawn last (on top)
-   */
   getZOrder(): readonly string[] {
     return this.zOrder
   }
 
-  /**
-   * Get the z-index of a node in the z-order array
-   * Returns -1 if node is not found
-   */
   getNodeZIndex(nodeId: string): number {
     return this.zOrder.indexOf(nodeId)
   }
 
   getRootNodes(): Node[] {
+    return Array.from(this.rootNodeIds)
+      .map((id) => this.nodes.get(id))
+      .filter(Boolean) as Node[]
+  }
+
+  getRootNodesInZOrder(): Node[] {
     return this.zOrder
       .filter((id) => this.rootNodeIds.has(id))
       .map((id) => this.nodes.get(id))
@@ -57,10 +53,6 @@ export class Document {
     return child?.parentId ? this.nodes.get(child.parentId) : undefined
   }
 
-  /**
-   * Get the top-level parent (root-level node) for a given node
-   * If the node has no parent, returns the node itself
-   */
   getTopLevelParent(nodeId: string): Node | undefined {
     let current = this.nodes.get(nodeId)
     if (!current) return undefined
@@ -90,10 +82,6 @@ export class Document {
     return this.shapes
   }
 
-  /**
-   * Get all nodes that are shapes (not groups)
-   * Returns array of [node, shape] tuples
-   */
   getShapeNodes(): Array<[Node, Shape]> {
     const result: Array<[Node, Shape]> = []
     const processedNodes = new Set<string>()
@@ -133,8 +121,6 @@ export class Document {
 
     return result
   }
-
-  // Commands (Write Operations)
 
   addNode(node: Node): void {
     if (this.nodes.has(node.id)) {
@@ -214,12 +200,6 @@ export class Document {
     this.nodes.set(node.id, node)
   }
 
-  /**
-   * Set the z-order position of a node
-   * Automatically maintains parent-children order invariant
-   * @param nodeId - The node to reposition
-   * @param targetIndex - The target index in the z-order array
-   */
   setNodeZOrder(nodeId: string, targetIndex: number): void {
     const currentIndex = this.zOrder.indexOf(nodeId)
     if (currentIndex === -1) return
@@ -229,27 +209,16 @@ export class Document {
     const clampedIndex = Math.max(0, Math.min(targetIndex, this.zOrder.length))
     this.zOrder.splice(clampedIndex, 0, nodeId)
 
-    // Automatically maintain invariant: parent's children array matches z-order
     this.maintainParentChildrenInvariant(nodeId)
   }
 
-  /**
-   * Replace the entire z-order array with a new order
-   * Automatically maintains parent-children order invariants for all affected nodes
-   * @param newZOrder - The new z-order array
-   */
   replaceZOrder(newZOrder: string[]): void {
     this.zOrder.length = 0
     this.zOrder.push(...newZOrder)
 
-    // Maintain invariants for all group nodes
     this.maintainAllParentChildrenInvariants()
   }
 
-  /**
-   * Maintain the invariant that a parent's children array matches z-order
-   * @param nodeId - The node whose parent's children array should be synced
-   */
   private maintainParentChildrenInvariant(nodeId: string): void {
     const node = this.nodes.get(nodeId)
     if (!node?.parentId) return
@@ -257,20 +226,14 @@ export class Document {
     const parent = this.nodes.get(node.parentId)
     if (!parent || !isGroupNode(parent)) return
 
-    // Reorder parent's children to match z-order
     parent.children.sort(
       (a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b),
     )
   }
 
-  /**
-   * Maintain invariants for all group nodes in the document
-   * Called after bulk z-order changes
-   */
   private maintainAllParentChildrenInvariants(): void {
     for (const node of this.nodes.values()) {
       if (isGroupNode(node)) {
-        // Reorder this group's children to match z-order
         node.children.sort(
           (a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b),
         )
@@ -278,10 +241,6 @@ export class Document {
     }
   }
 
-  /**
-   * Get a node and all its descendants in z-order
-   * Used internally for tree operations
-   */
   private getNodeAndDescendants(nodeId: string): string[] {
     const result: string[] = []
     const node = this.nodes.get(nodeId)
@@ -298,9 +257,6 @@ export class Document {
     return result
   }
 
-  /**
-   * Move a node to a new parent (or root if parentId is undefined)
-   */
   reparent(childId: string, newParentId: string | undefined): void {
     const child = this.nodes.get(childId)
     if (!child) {
@@ -338,9 +294,6 @@ export class Document {
     }
   }
 
-  /**
-   * Check if reparenting would create a cycle in the tree
-   */
   private wouldCreateCycle(childId: string, newParentId: string): boolean {
     let current: string | undefined = newParentId
     while (current) {
@@ -350,8 +303,6 @@ export class Document {
     }
     return false
   }
-
-  // Shape Commands
 
   addShape(shape: Shape): void {
     if (this.shapes.has(shape.nodeId)) {
@@ -381,38 +332,10 @@ export class Document {
     this.shapes.set(shape.nodeId, shape)
   }
 
-  // Utility
-
   clear(): void {
     this.nodes.clear()
     this.shapes.clear()
     this.rootNodeIds.clear()
     this.zOrder.length = 0
-  }
-
-  // Debug
-
-  debugTree(): void {
-    console.log("Document Tree:")
-    const roots = this.getRootNodes()
-
-    for (const root of roots) {
-      this.printNode(root.id, 0)
-    }
-  }
-
-  private printNode(nodeId: string, depth: number): void {
-    const node = this.nodes.get(nodeId)
-    if (!node) return
-
-    const indent = "  ".repeat(depth)
-    const type = node.type === NodeType.GROUP ? "Group" : "Shape"
-    console.log(`${indent}${type} ${node.name} (${node.id})`)
-
-    if (isGroupNode(node)) {
-      for (const childId of node.children) {
-        this.printNode(childId, depth + 1)
-      }
-    }
   }
 }

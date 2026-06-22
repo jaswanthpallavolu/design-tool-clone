@@ -46,9 +46,9 @@ export class UngroupCommand extends Command {
 
     // Re-group each set of children
     for (const { childIds } of this.ungroupedData) {
-      const groupId = this.editor.groupService.groupNodes(childIds)
-      if (groupId) {
-        newGroupIds.push(groupId)
+      const result = this.editor.groupService.groupNodes(childIds)
+      if (result) {
+        newGroupIds.push(result.groupId)
       }
     }
 

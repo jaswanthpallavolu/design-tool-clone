@@ -101,8 +101,8 @@ export class LayerPanel {
   renderLayerTree = () => {
     const parent = document.createElement("ul")
     // Get root nodes in reverse z-order (top items first in UI)
-    // getRootNodes() returns nodes in z-order, so reverse for display
-    const roots = this.editor.document.getRootNodes().slice().reverse()
+    // getRootNodesInZOrder() returns nodes in z-order, so reverse for display
+    const roots = this.editor.document.getRootNodesInZOrder().slice().reverse()
     for (let root of roots) {
       const listItem = this.getNodeItem(root.id)
       if (listItem) parent.appendChild(listItem)

@@ -207,7 +207,6 @@ var EditorEngine = (() => {
       this.rootNodeIds = /* @__PURE__ */ new Set();
       this.zOrder = [];
     }
-    // Queries (Read Operations)
     getNode(id) {
       return this.nodes.get(id);
     }
@@ -217,21 +216,16 @@ var EditorEngine = (() => {
     hasNode(id) {
       return this.nodes.has(id);
     }
-    /**
-     * Get the z-order array (node IDs in drawing order)
-     * Lower index = drawn first (behind), higher index = drawn last (on top)
-     */
     getZOrder() {
       return this.zOrder;
     }
-    /**
-     * Get the z-index of a node in the z-order array
-     * Returns -1 if node is not found
-     */
     getNodeZIndex(nodeId) {
       return this.zOrder.indexOf(nodeId);
     }
     getRootNodes() {
+      return Array.from(this.rootNodeIds).map((id) => this.nodes.get(id)).filter(Boolean);
+    }
+    getRootNodesInZOrder() {
       return this.zOrder.filter((id) => this.rootNodeIds.has(id)).map((id) => this.nodes.get(id)).filter(Boolean);
     }
     getChildren(parentId) {
@@ -243,10 +237,6 @@ var EditorEngine = (() => {
       const child = this.nodes.get(childId);
       return (child == null ? void 0 : child.parentId) ? this.nodes.get(child.parentId) : void 0;
     }
-    /**
-     * Get the top-level parent (root-level node) for a given node
-     * If the node has no parent, returns the node itself
-     */
     getTopLevelParent(nodeId) {
       let current = this.nodes.get(nodeId);
       if (!current) return void 0;
@@ -269,10 +259,6 @@ var EditorEngine = (() => {
     getShapesMap() {
       return this.shapes;
     }
-    /**
-     * Get all nodes that are shapes (not groups)
-     * Returns array of [node, shape] tuples
-     */
     getShapeNodes() {
       const result = [];
       const processedNodes = /* @__PURE__ */ new Set();
@@ -303,7 +289,6 @@ var EditorEngine = (() => {
       }
       return result;
     }
-    // Commands (Write Operations)
     addNode(node) {
       if (this.nodes.has(node.id)) {
         throw new Error(`Node with id '${node.id}' already exists`);
@@ -368,12 +353,6 @@ var EditorEngine = (() => {
       }
       this.nodes.set(node.id, node);
     }
-    /**
-     * Set the z-order position of a node
-     * Automatically maintains parent-children order invariant
-     * @param nodeId - The node to reposition
-     * @param targetIndex - The target index in the z-order array
-     */
     setNodeZOrder(nodeId, targetIndex) {
       const currentIndex = this.zOrder.indexOf(nodeId);
       if (currentIndex === -1) return;
@@ -382,20 +361,11 @@ var EditorEngine = (() => {
       this.zOrder.splice(clampedIndex, 0, nodeId);
       this.maintainParentChildrenInvariant(nodeId);
     }
-    /**
-     * Replace the entire z-order array with a new order
-     * Automatically maintains parent-children order invariants for all affected nodes
-     * @param newZOrder - The new z-order array
-     */
     replaceZOrder(newZOrder) {
       this.zOrder.length = 0;
       this.zOrder.push(...newZOrder);
       this.maintainAllParentChildrenInvariants();
     }
-    /**
-     * Maintain the invariant that a parent's children array matches z-order
-     * @param nodeId - The node whose parent's children array should be synced
-     */
     maintainParentChildrenInvariant(nodeId) {
       const node = this.nodes.get(nodeId);
       if (!(node == null ? void 0 : node.parentId)) return;
@@ -405,10 +375,6 @@ var EditorEngine = (() => {
         (a, b) => this.zOrder.indexOf(a) - this.zOrder.indexOf(b)
       );
     }
-    /**
-     * Maintain invariants for all group nodes in the document
-     * Called after bulk z-order changes
-     */
     maintainAllParentChildrenInvariants() {
       for (const node of this.nodes.values()) {
         if (isGroupNode(node)) {
@@ -418,10 +384,6 @@ var EditorEngine = (() => {
         }
       }
     }
-    /**
-     * Get a node and all its descendants in z-order
-     * Used internally for tree operations
-     */
     getNodeAndDescendants(nodeId) {
       const result = [];
       const node = this.nodes.get(nodeId);
@@ -434,9 +396,6 @@ var EditorEngine = (() => {
       }
       return result;
     }
-    /**
-     * Move a node to a new parent (or root if parentId is undefined)
-     */
     reparent(childId, newParentId) {
       const child = this.nodes.get(childId);
       if (!child) {
@@ -468,9 +427,6 @@ var EditorEngine = (() => {
         this.rootNodeIds.add(childId);
       }
     }
-    /**
-     * Check if reparenting would create a cycle in the tree
-     */
     wouldCreateCycle(childId, newParentId) {
       let current = newParentId;
       while (current) {
@@ -480,7 +436,6 @@ var EditorEngine = (() => {
       }
       return false;
     }
-    // Shape Commands
     addShape(shape) {
       if (this.shapes.has(shape.nodeId)) {
         throw new Error(`Shape for node '${shape.nodeId}' already exists`);
@@ -503,32 +458,11 @@ var EditorEngine = (() => {
       }
       this.shapes.set(shape.nodeId, shape);
     }
-    // Utility
     clear() {
       this.nodes.clear();
       this.shapes.clear();
       this.rootNodeIds.clear();
       this.zOrder.length = 0;
-    }
-    // Debug
-    debugTree() {
-      console.log("Document Tree:");
-      const roots = this.getRootNodes();
-      for (const root of roots) {
-        this.printNode(root.id, 0);
-      }
-    }
-    printNode(nodeId, depth) {
-      const node = this.nodes.get(nodeId);
-      if (!node) return;
-      const indent = "  ".repeat(depth);
-      const type = node.type === "GROUP" /* GROUP */ ? "Group" : "Shape";
-      console.log(`${indent}${type} ${node.name} (${node.id})`);
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.printNode(childId, depth + 1);
-        }
-      }
     }
   };
 
@@ -930,7 +864,7 @@ var EditorEngine = (() => {
     }
     /**
      * Group multiple nodes into a new group node
-     * Returns the ID of the newly created group
+     * Returns the ID of the newly created group and original parent info for undo
      */
     groupNodes(nodeIds) {
       const normalizedIds = this.normalizeSelectionForGrouping(nodeIds);
@@ -938,12 +872,14 @@ var EditorEngine = (() => {
         return null;
       }
       const nodes = [];
+      const originalParents = /* @__PURE__ */ new Map();
       for (const id of normalizedIds) {
         const node = this.document.getNode(id);
         if (!node) {
           return null;
         }
         nodes.push(node);
+        originalParents.set(id, node.parentId);
       }
       const commonParentId = this.getGroupingParentId(normalizedIds);
       if (commonParentId === null) {
@@ -985,7 +921,7 @@ var EditorEngine = (() => {
       for (const { node } of nodesByZOrder) {
         this.document.reparent(node.id, groupId);
       }
-      return groupId;
+      return { groupId, originalParents };
     }
     /**
      * Ungroup a group node, moving its children to the group's parent
@@ -1030,7 +966,6 @@ var EditorEngine = (() => {
       }
       return this.getGroupingParentId(normalizedIds) !== null;
     }
-    /** Need 2+ nodes, or a single shape/group (wrap it in a new parent group). */
     hasEnoughNodesToGroup(normalizedIds) {
       if (normalizedIds.length >= 2) return true;
       if (normalizedIds.length !== 1) return false;
@@ -1039,64 +974,29 @@ var EditorEngine = (() => {
       return isGroupNode(node) || isShapeNode(node);
     }
     /**
-     * Keep only top-level selected nodes: drop descendants of another selected node,
-     * and replace a full leaf selection of a group with the group node itself.
+     * Keep only top-level selected nodes: drop descendants of another selected node.
      */
     normalizeSelectionForGrouping(nodeIds) {
       const uniqueIds = [...new Set(nodeIds)];
-      const withoutDescendants = uniqueIds.filter(
-        (id) => !uniqueIds.some(
-          (otherId) => otherId !== id && this.isDescendantOf(id, otherId)
-        )
-      );
-      const collapsed = this.collapseFullySelectedGroups(withoutDescendants);
-      return collapsed.filter(
-        (id) => !collapsed.some(
-          (otherId) => otherId !== id && this.isDescendantOf(id, otherId)
-        )
-      );
+      const ancestorSets = /* @__PURE__ */ new Map();
+      for (const id of uniqueIds) {
+        ancestorSets.set(id, this.getAncestorSet(id));
+      }
+      return uniqueIds.filter((id) => {
+        const ancestors = ancestorSets.get(id);
+        return !uniqueIds.some(
+          (otherId) => otherId !== id && ancestors.has(otherId)
+        );
+      });
     }
-    /**
-     * When every shape in a group is selected (but the group node is not), treat the group as selected.
-     */
-    collapseFullySelectedGroups(nodeIds) {
-      const set = new Set(nodeIds);
-      const toRemove = /* @__PURE__ */ new Set();
-      const toAdd = /* @__PURE__ */ new Set();
-      for (const node of this.document.getAllNodes()) {
-        if (!isGroupNode(node)) continue;
-        const leafShapeIds = this.getLeafShapeIds(node.id);
-        if (leafShapeIds.length === 0) continue;
-        const allLeavesSelected = leafShapeIds.every((id) => set.has(id));
-        if (allLeavesSelected && !set.has(node.id)) {
-          toAdd.add(node.id);
-          for (const id of leafShapeIds) {
-            toRemove.add(id);
-          }
-        }
+    getAncestorSet(nodeId) {
+      const ancestors = /* @__PURE__ */ new Set();
+      let current = this.document.getNode(nodeId);
+      while (current == null ? void 0 : current.parentId) {
+        ancestors.add(current.parentId);
+        current = this.document.getNode(current.parentId);
       }
-      const result = [...set].filter((id) => !toRemove.has(id));
-      for (const id of toAdd) {
-        result.push(id);
-      }
-      return result;
-    }
-    getLeafShapeIds(nodeId) {
-      const result = [];
-      const stack = [nodeId];
-      while (stack.length > 0) {
-        const currentId = stack.pop();
-        const node = this.document.getNode(currentId);
-        if (!node) continue;
-        if (isGroupNode(node)) {
-          for (let i = node.children.length - 1; i >= 0; i--) {
-            stack.push(node.children[i]);
-          }
-        } else if (this.document.getShape(currentId)) {
-          result.push(currentId);
-        }
-      }
-      return result;
+      return ancestors;
     }
     isDescendantOf(nodeId, ancestorId) {
       let current = this.document.getNode(nodeId);
@@ -1106,10 +1006,6 @@ var EditorEngine = (() => {
       }
       return false;
     }
-    /**
-     * Parent for the new group node. Uses the LCA of the top-level selection so
-     * existing groups stay intact as single children (not flattened).
-     */
     getGroupingParentId(normalizedIds) {
       const lca = this.findLCA(normalizedIds);
       if (lca === "root") {
@@ -1141,12 +1037,18 @@ var EditorEngine = (() => {
         const node = this.document.getNode(nodeIds[0]);
         return (_a = node == null ? void 0 : node.parentId) != null ? _a : "root";
       }
-      const paths = nodeIds.map((id) => this.getPathToRoot(id));
+      const firstPath = this.getPathToRoot(nodeIds[0]);
       let lca = "root";
-      const minLength = Math.min(...paths.map((p) => p.length));
-      for (let i = 0; i < minLength; i++) {
-        const segment = paths[0][i];
-        if (paths.every((p) => p[i] === segment)) {
+      for (let i = 0; i < firstPath.length; i++) {
+        const segment = firstPath[i];
+        let allMatch = true;
+        for (let j = 1; j < nodeIds.length; j++) {
+          if (!this.isAncestorOrSelf(segment, nodeIds[j])) {
+            allMatch = false;
+            break;
+          }
+        }
+        if (allMatch) {
           lca = segment;
         } else {
           break;
@@ -1154,14 +1056,25 @@ var EditorEngine = (() => {
       }
       return lca;
     }
+    isAncestorOrSelf(ancestorId, nodeId) {
+      if (ancestorId === nodeId) return true;
+      if (ancestorId === "root") return true;
+      let current = this.document.getNode(nodeId);
+      while (current) {
+        if (current.id === ancestorId) return true;
+        if (!current.parentId) break;
+        current = this.document.getNode(current.parentId);
+      }
+      return false;
+    }
     /**
      * Calculate bounding box for multiple nodes
-     * Returns { x, y, width, height } or null if no valid bounds
      */
     calculateBoundingBox(nodeIds) {
       const aabbs = [];
+      const aabbCache = /* @__PURE__ */ new Map();
       for (const nodeId of nodeIds) {
-        this.collectNodeAABBs(nodeId, aabbs);
+        this.collectNodeAABBs(nodeId, aabbs, aabbCache);
       }
       if (aabbs.length === 0) return null;
       const union = BoundingBoxService.unionAABBs(aabbs);
@@ -1172,10 +1085,14 @@ var EditorEngine = (() => {
         height: union.maxY - union.minY
       };
     }
-    collectNodeAABBs(nodeId, aabbs) {
+    collectNodeAABBs(nodeId, aabbs, cache) {
       const stack = [nodeId];
       while (stack.length > 0) {
         const currentId = stack.pop();
+        if (cache.has(currentId)) {
+          aabbs.push(cache.get(currentId));
+          continue;
+        }
         const node = this.document.getNode(currentId);
         if (!node) continue;
         if (isGroupNode(node)) {
@@ -1183,7 +1100,9 @@ var EditorEngine = (() => {
         } else {
           const shape = this.document.getShape(currentId);
           if (shape) {
-            aabbs.push(BoundingBoxService.getAABB(node, shape));
+            const aabb = BoundingBoxService.getAABB(node, shape);
+            cache.set(currentId, aabb);
+            aabbs.push(aabb);
           }
         }
       }
@@ -2315,21 +2234,29 @@ var EditorEngine = (() => {
       this.editor = editor;
       this.groupId = null;
       this.selectedIds = [];
+      this.originalParents = /* @__PURE__ */ new Map();
       this.selectedIds = [...this.editor.selection.getAll()];
     }
     execute() {
-      this.groupId = this.editor.groupService.groupNodes(this.selectedIds);
-      if (this.groupId) {
+      const result = this.editor.groupService.groupNodes(this.selectedIds);
+      if (result) {
+        this.groupId = result.groupId;
+        this.originalParents = result.originalParents;
         this.editor.selection.setSingle(this.groupId);
       }
       this.editor.events.emit("document:modified");
     }
     undo() {
       if (!this.groupId) return;
-      const childIds = this.editor.groupService.ungroupNode(this.groupId);
-      if (childIds) {
-        this.editor.selection.setMany(this.selectedIds);
+      const groupNode = this.editor.document.getNode(this.groupId);
+      if (!groupNode) return;
+      const childIds = [...groupNode.children || []];
+      for (const childId of childIds) {
+        const originalParent = this.originalParents.get(childId);
+        this.editor.document.reparent(childId, originalParent);
       }
+      this.editor.document.removeNode(this.groupId);
+      this.editor.selection.setMany(this.selectedIds);
       this.editor.events.emit("document:modified");
     }
     describe() {
@@ -2372,9 +2299,9 @@ var EditorEngine = (() => {
       if (this.ungroupedData.length === 0) return;
       const newGroupIds = [];
       for (const { childIds } of this.ungroupedData) {
-        const groupId = this.editor.groupService.groupNodes(childIds);
-        if (groupId) {
-          newGroupIds.push(groupId);
+        const result = this.editor.groupService.groupNodes(childIds);
+        if (result) {
+          newGroupIds.push(result.groupId);
         }
       }
       if (newGroupIds.length > 0) {
