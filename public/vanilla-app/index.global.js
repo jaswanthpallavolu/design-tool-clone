@@ -602,28 +602,28 @@ var EditorEngine = (() => {
   // editor-engine/config/EditorConfig.ts
   var EditorConfig = {
     defaultToolOptions: {
-      strokeColor: "#ff9f22",
-      fillColor: "#ff9f22"
+      strokeColor: "transparent",
+      fillColor: "#d4d4d4"
     },
     renderOptions: {
-      hoverOutlineColor: "#00aaff",
-      hoverOutlineWidth: 1,
-      selectionBoxStrokeColor: "#0D99FF",
-      selectionBoxStrokeSize: 1,
-      selectionBoxFillColor: "#0D99FF1A"
+      hoverOutlineColor: "#2563eb",
+      hoverOutlineWidth: 2,
+      selectionBoxStrokeColor: "#2563eb",
+      selectionBoxStrokeSize: 1.5,
+      selectionBoxFillColor: "rgba(37, 99, 235, 0.12)"
     },
     handleOptions: {
       cornerSize: 8,
       rotationPadding: 15,
       rotationRadius: 10,
       cornerFillColor: "#ffffff",
-      cornerStrokeColor: "#000000",
-      cornerStrokeWidth: 1,
-      edgeStrokeColor: "#0D99FF",
-      edgeStrokeWidth: 1,
-      rotationFillColor: "#0D99FF",
+      cornerStrokeColor: "#171717",
+      cornerStrokeWidth: 1.5,
+      edgeStrokeColor: "#2563eb",
+      edgeStrokeWidth: 1.5,
+      rotationFillColor: "#2563eb",
       rotationStrokeColor: "#ffffff",
-      rotationStrokeWidth: 1
+      rotationStrokeWidth: 2
     }
   };
 

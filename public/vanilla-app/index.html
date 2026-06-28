@@ -4,23 +4,91 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Canvas Tool</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="./shortcuts-modal.css" />
   </head>
   <body>
     <header>
-      <a href="/">Home</a>
-      <button id="shortcuts-button" title="Keyboard Shortcuts (?)">
-        ⌨️ Shortcuts
-      </button>
+      <div class="header-left">
+        <a href="/" class="logo">
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+          </svg>
+          <span>Canvas Tool</span>
+        </a>
+      </div>
+      <div class="header-right">
+        <button
+          id="shortcuts-button"
+          class="btn-secondary"
+          title="Keyboard Shortcuts (?)"
+        >
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+            <path
+              d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M7 16h10"
+            ></path>
+          </svg>
+          Shortcuts
+        </button>
+      </div>
     </header>
     <section class="container">
       <canvas id="canvas"></canvas>
-      <div class="layers"></div>
+      <div class="layers">
+        <div class="panel-header">
+          <h3>Layers</h3>
+        </div>
+        <div class="layers-content"></div>
+      </div>
       <div class="tools-section">
-        <button id="clear-button">Clear</button>
-        <select id="tool-dropdown"></select>
-        <input type="color" id="color-input" />
+        <div class="tools-group">
+          <button id="clear-button" class="btn-danger">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <path
+                d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"
+              ></path>
+            </svg>
+            Clear
+          </button>
+          <div class="divider"></div>
+          <select id="tool-dropdown" class="tool-select"></select>
+          <div class="color-picker-wrapper">
+            <label for="color-input" class="color-label">Color</label>
+            <input type="color" id="color-input" class="color-input" />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -30,24 +98,60 @@
         <button class="modal-close" id="close-modal">&times;</button>
         <h2>Keyboard Shortcuts</h2>
         <div class="modal-body">
-          <h3>Tools</h3>
-          <p><kbd>V</kbd> Select</p>
-          <p><kbd>R</kbd> Rectangle</p>
-          <p><kbd>O</kbd> Ellipse</p>
-          <p><kbd>L</kbd> Line</p>
+          <div>
+            <h3>Tools</h3>
+            <p><kbd>V</kbd> Select</p>
+            <p><kbd>R</kbd> Rectangle</p>
+            <p><kbd>O</kbd> Ellipse</p>
+            <p><kbd>L</kbd> Line</p>
+          </div>
 
-          <h3>Edit</h3>
-          <p><kbd>Ctrl+Z</kbd> Undo</p>
-          <p><kbd>Ctrl+Shift+Z</kbd> Redo</p>
-          <p><kbd>Delete</kbd> Delete</p>
+          <div>
+            <h3>Edit</h3>
+            <p><kbd>Ctrl</kbd>+<kbd>Z</kbd> / <kbd>⌘</kbd>+<kbd>Z</kbd> Undo</p>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd> /
+              <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>Z</kbd> Redo
+            </p>
+            <p><kbd>Delete</kbd> / <kbd>⌫</kbd> Delete selected</p>
+          </div>
 
-          <h3>Grouping</h3>
-          <p><kbd>Ctrl+G</kbd> Group</p>
-          <p><kbd>Ctrl+Shift+G</kbd> Ungroup</p>
+          <div>
+            <h3>Grouping</h3>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>G</kbd> / <kbd>⌘</kbd>+<kbd>G</kbd> Group
+            </p>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd> /
+              <kbd>⌘</kbd>+<kbd>⇧</kbd>+<kbd>G</kbd> Ungroup
+            </p>
+          </div>
 
-          <h3>Other</h3>
-          <p><kbd>?</kbd> Show shortcuts</p>
-          <p><kbd>Esc</kbd> Close modal</p>
+          <div>
+            <h3>Arrange (Z-Order)</h3>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>]</kbd> / <kbd>⌘</kbd>+<kbd>]</kbd> Bring to
+              front
+            </p>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>[</kbd> / <kbd>⌘</kbd>+<kbd>[</kbd> Send to
+              back
+            </p>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>]</kbd> /
+              <kbd>⌘</kbd>+<kbd>⌥</kbd>+<kbd>]</kbd> Bring forward
+            </p>
+            <p>
+              <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>[</kbd> /
+              <kbd>⌘</kbd>+<kbd>⌥</kbd>+<kbd>]</kbd> Send backward
+            </p>
+          </div>
+
+          <div>
+            <h3>Other</h3>
+            <p><kbd>?</kbd> Show shortcuts</p>
+            <p><kbd>Esc</kbd> Close modal</p>
+          </div>
         </div>
       </div>
     </div>

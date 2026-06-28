@@ -16,7 +16,7 @@ const toolDropdown = document.getElementById("tool-dropdown")
 const colorInput = document.getElementById("color-input")
 const clearButton = document.getElementById("clear-button")
 const canvas = document.getElementById("canvas")
-const layersSection = document.querySelector(".layers")
+const layersSection = document.querySelector(".layers-content")
 
 // Initialize editor with hybrid architecture (Command Pattern + Event Bus)
 const editor = new Editor()

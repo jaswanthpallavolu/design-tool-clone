@@ -1,4 +1,4 @@
-/* Modal Styles */
+/* Modal */
 .modal {
   display: none;
   position: fixed;
@@ -17,46 +17,69 @@
 }
 
 .modal-content {
-  background-color: white;
+  background-color: var(--bg-secondary);
   border-radius: 8px;
-  padding: 1.5rem;
-  max-width: 500px;
+  border: 1px solid var(--border);
+  max-width: 700px;
   width: 90%;
-  max-height: 80vh;
-  overflow-y: auto;
+  max-height: 85vh;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.12);
 }
 
 .modal-close {
   position: absolute;
-  top: 0.5rem;
-  right: 0.5rem;
-  background: none;
-  border: none;
-  font-size: 1.5rem;
+  top: 1rem;
+  right: 1rem;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 1.25rem;
   cursor: pointer;
-  color: #666;
+  color: var(--text-secondary);
   padding: 0.25rem;
   line-height: 1;
+  z-index: 1;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
 }
 
 .modal-close:hover {
-  color: #000;
+  background-color: var(--bg);
+  color: var(--text);
 }
 
 .modal-content h2 {
-  margin: 0 0 1rem 0;
+  margin: 0;
   font-size: 1.25rem;
+  font-weight: 600;
+  padding: 1.5rem 1.5rem 1rem 1.5rem;
+  color: var(--text);
+}
+
+.modal-body {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem 2rem;
+  padding: 0 1.5rem 1.5rem 1.5rem;
+  overflow-y: auto;
+  flex: 1;
 }
 
 .modal-content h3 {
-  margin: 1rem 0 0.5rem 0;
-  font-size: 1rem;
-  color: var(--primary);
-}
-
-.modal-content h3:first-of-type {
-  margin-top: 0;
+  margin: 0 0 0.5rem 0;
+  font-size: 0.75rem;
+  color: var(--text);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .modal-body p {
@@ -64,31 +87,60 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
 }
 
 .modal-body kbd {
-  display: inline-block;
-  padding: 0.25rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.2rem 0.4rem;
   font-family: monospace;
-  font-size: 0.875rem;
-  background-color: #f3f4f6;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
-  min-width: 2rem;
+  font-size: 0.75rem;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  min-width: 1.5rem;
   text-align: center;
+  color: var(--text);
 }
 
-#shortcuts-button {
-  background-color: var(--primary);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.875rem;
+.modal-body > div {
+  display: flex;
+  flex-direction: column;
 }
 
-#shortcuts-button:hover {
-  opacity: 0.9;
+/* Scrollbar */
+.modal-body::-webkit-scrollbar {
+  width: 6px;
+}
+
+.modal-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.modal-body::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .modal-content {
+    width: 95%;
+  }
+
+  .modal-content h2 {
+    font-size: 1.125rem;
+    padding: 1.25rem 1.25rem 0.75rem 1.25rem;
+  }
+
+  .modal-body {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+    padding: 0 1.25rem 1.25rem 1.25rem;
+  }
 }
 
 /* Made with Bob */
