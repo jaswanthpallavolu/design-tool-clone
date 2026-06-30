@@ -1,56 +1,37 @@
-# Canvas Tool
+# Canvas Drawing Tool
 
-A **framework-agnostic graphics editor engine** demonstrating Clean Architecture principles through multiple UI implementations.
+A browser-based drawing tool built on a framework-agnostic engine.
 
-## Core Innovation: Editor Engine
+## Editor engine
 
-The [`editor-engine/`](editor-engine/) is a pure TypeScript graphics editor built with zero UI framework dependencies:
+Framework-agnostic editor engine.
 
-- **Clean Architecture** - Business logic independent of frameworks
-- **Ports & Adapters** - Pluggable rendering and input systems
-- **Command Pattern** - Full undo/redo support
-- **Event-Driven** - Decoupled component communication
+A pure TypeScript engine with a retained-mode scene graph of shapes, transformed via the Command pattern and rendered through pluggable adapters — completely independent of the HTML5 Canvas API or any UI framework.
 
-**Key Capabilities:**
+- Ports & Adapters
+- Command Pattern
+- State Machines
+- Event-Driven
 
-- Shape primitives (Rectangle, Ellipse, Line)
-- Selection, transformation, grouping
-- Tool system with state machines
-- Hierarchical document model
+Open [`editor-engine/README.md`](editor-engine/README.md) for the engine details.
 
-[→ See detailed engine documentation](editor-engine/README.md)
+## App types
 
-## Architecture: One Engine, Multiple UIs
+### Vanilla JavaScript
 
-This project demonstrates the engine's reusability through two different implementations. The framework-agnostic editor engine serves as the core foundation, with adapters connecting it to different UI frameworks and rendering contexts. This architecture proves that business logic can remain completely independent of presentation layers.
+Raw engine integration with no framework. Direct HTML5 Canvas adapter, no build step, no dependencies.
 
-**Implementation Strategy:**
+Open [`public/vanilla-app/README.md`](public/vanilla-app/README.md) for the vanilla app.
 
-- The editor engine exposes a clean API through ports (interfaces)
-- Each implementation provides adapters for rendering and input handling
-- State management and business rules remain centralized in the engine
-- UI frameworks only handle presentation and user interaction
+### Next.js
 
-### 1. Vanilla JavaScript Implementation
+Production-grade React app on the same engine. Real-time collaboration via Socket.IO, auth, and persistent storage.
 
-**Location:** [`public/vanilla-app/`](public/vanilla-app/)
+Open [`app/README.md`](app/README.md) for the full-stack app.
 
-Pure JavaScript integration showing the engine's portability without any framework dependencies.
+## Packages
 
-[→ See vanilla app documentation](public/vanilla-app/README.md)
-
-### 2. Full-Stack Next.js Application
-
-**Location:** [`app/design/`](app/design/) + [`server/`](server/)
-
-Production-ready React application with real-time collaboration, authentication, and persistent storage.
-
-[→ See full-stack app documentation](app/README.md)
-
-## Tech Stack
-
-**Core Engine:** TypeScript, Pure functional architecture
-
-**Vanilla App:** HTML5 Canvas, Vanilla JavaScript
-
-**Full-Stack App:** Next.js 16, React 19, Socket.IO, PostgreSQL, Prisma
+- [`editor-engine/`](editor-engine/) - Core TypeScript editor engine
+- [`public/vanilla-app/`](public/vanilla-app/) - Vanilla JavaScript example
+- [`app/`](app/) - Next.js frontend
+- [`server/`](server/) - Express backend
