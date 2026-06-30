@@ -71,10 +71,10 @@ export function TopBar({ boardName, designId }: TopBarProps) {
         </button>
       </div>
 
-      <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-600 transition-all duration-200 hover:bg-zinc-100/50 hover:text-zinc-900 active:scale-95">
+      {/* <button className="flex items-center gap-2 rounded-lg px-3 py-1.5 text-zinc-600 transition-all duration-200 hover:bg-zinc-100/50 hover:text-zinc-900 active:scale-95">
         <Share2 className="h-4 w-4" />
         <span className="text-sm font-medium">Share</span>
-      </button>
+      </button> */}
     </header>
   )
 }
