@@ -1,6 +1,6 @@
 export const EditorConfig = {
   defaultToolOptions: {
-    strokeColor: "transparent",
+    strokeColor: "#d4d4d4",
     fillColor: "#d4d4d4",
   },
   renderOptions: {

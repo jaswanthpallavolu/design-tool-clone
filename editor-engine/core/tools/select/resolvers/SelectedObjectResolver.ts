@@ -19,10 +19,6 @@ export class SelectedObjectResolver extends StateResolver {
   ): InteractionState | null {
     const { editor } = ctx
 
-    if (!editor.state.hoveredNodeId) {
-      return null
-    }
-
     // Re-resolve the actual click target using the live selection state.
     // hoveredNodeId may be stale (computed on the last pointermove before the
     // selection changed), so we recompute here to get the right target.
@@ -45,10 +41,11 @@ export class SelectedObjectResolver extends StateResolver {
   }
 
   /**
-   * Recompute the click target from the current hit-test result, applying the
-   * same drill-down logic as IdleState: find the deepest selected ancestor and
-   * return its immediate child toward the hit node, or the direct parent when
-   * nothing is selected.
+   * Recompute the click target from the current hit-test result.
+   * Walks up the ancestor chain to find the highest node that is already
+   * selected (or whose child toward the hit node is selected), so that
+   * clicking on a selected shape inside a group correctly identifies that
+   * shape (or its selected ancestor group) as the drag target.
    */
   private resolveClickTarget(
     e: PointerEventData,
@@ -75,13 +72,14 @@ export class SelectedObjectResolver extends StateResolver {
         : undefined
     }
 
-    // Find the deepest selected ancestor and return its child toward the hit node.
-    for (let i = 1; i < chain.length; i++) {
-      if (editor.selection.isSelected(chain[i])) return chain[i - 1]
+    // Find the deepest selected node in the chain (the hit shape itself or
+    // any of its ancestors) and return it as the drag target.
+    for (let i = 0; i < chain.length; i++) {
+      if (editor.selection.isSelected(chain[i])) return chain[i]
     }
 
-    // No ancestor selected — return direct parent, or found.id if root-level.
-    return chain.length > 1 ? chain[1] : found.id
+    // Nothing in the chain is selected — not our concern, pass to next resolver.
+    return null
   }
 
   /**

@@ -9,6 +9,7 @@ export { CreateShapeCommand } from "./CreateShapeCommand"
 export { UpdateShapeCommand } from "./UpdateShapeCommand"
 export { UpdateShapesStyleCommand } from "./UpdateShapesStyleCommand"
 export { DeleteShapesCommand } from "./DeleteShapesCommand"
+export { CopyShapesCommand } from "./CopyShapesCommand"
 export { TransformShapesCommand } from "./TransformShapesCommand"
 export {
   BringToFrontCommand,

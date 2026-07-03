@@ -10,6 +10,7 @@ interface HandleRenderContext {
   centerX: number
   centerY: number
   rotation: number
+  enableEdgeHitTesting: boolean
 }
 
 /**
@@ -33,8 +34,15 @@ export class CanvasHandleHitTestAdapter implements HandleHitTestPort {
     centerX: number,
     centerY: number,
     rotation: number,
+    enableEdgeHitTesting: boolean = true,
   ): void {
-    this.lastHandleContext = { paths, centerX, centerY, rotation }
+    this.lastHandleContext = {
+      paths,
+      centerX,
+      centerY,
+      rotation,
+      enableEdgeHitTesting,
+    }
   }
 
   /**
@@ -53,7 +61,8 @@ export class CanvasHandleHitTestAdapter implements HandleHitTestPort {
       return { type: null, handle: null }
     }
 
-    const { paths, centerX, centerY, rotation } = this.lastHandleContext
+    const { paths, centerX, centerY, rotation, enableEdgeHitTesting } =
+      this.lastHandleContext
 
     this.ctx.save()
     this.ctx.translate(centerX, centerY)
@@ -75,13 +84,15 @@ export class CanvasHandleHitTestAdapter implements HandleHitTestPort {
       }
     }
 
-    // Test edge handles (resize single axis)
-    // Use isPointInStroke for line-based edge handles
-    this.ctx.lineWidth = 10 // Match the hit area threshold
-    for (const [key, path] of Object.entries(paths.edges)) {
-      if (this.ctx.isPointInStroke(path, mouseX, mouseY)) {
-        this.ctx.restore()
-        return { type: HandleType.EDGE, handle: key }
+    if (enableEdgeHitTesting) {
+      // Test edge handles (resize single axis)
+      // Use isPointInStroke for line-based edge handles
+      this.ctx.lineWidth = 10 // Match the hit area threshold
+      for (const [key, path] of Object.entries(paths.edges)) {
+        if (this.ctx.isPointInStroke(path, mouseX, mouseY)) {
+          this.ctx.restore()
+          return { type: HandleType.EDGE, handle: key }
+        }
       }
     }
 

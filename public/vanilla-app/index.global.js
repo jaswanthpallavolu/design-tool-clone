@@ -602,7 +602,7 @@ var EditorEngine = (() => {
   // editor-engine/config/EditorConfig.ts
   var EditorConfig = {
     defaultToolOptions: {
-      strokeColor: "transparent",
+      strokeColor: "#d4d4d4",
       fillColor: "#d4d4d4"
     },
     renderOptions: {
@@ -2483,6 +2483,107 @@ var EditorEngine = (() => {
     }
   };
 
+  // editor-engine/core/commands/CopyShapesCommand.ts
+  var COPY_OFFSET = 10;
+  var CopyShapesCommand = class extends Command {
+    constructor(editor) {
+      super();
+      this.editor = editor;
+      this.copiedItems = [];
+      /** Top-level IDs of the newly created copies (for selection + undo) */
+      this.copiedRootIds = [];
+      this.sourceIds = [...this.editor.selection.getAll()];
+    }
+    /**
+     * Walk the subtree rooted at `rootId` BFS-order and return deep clones of
+     * every node+shape, remapping all IDs consistently.
+     *
+     * Returns { items, newRootId } where `newRootId` is the fresh ID for the root.
+     */
+    cloneSubtree(rootId, newParentId) {
+      const idMap = /* @__PURE__ */ new Map();
+      const queue = [rootId];
+      while (queue.length > 0) {
+        const id = queue.shift();
+        idMap.set(id, crypto.randomUUID());
+        const node = this.editor.document.getNode(id);
+        if (node && isGroupNode(node)) {
+          queue.push(...node.children);
+        }
+      }
+      const newRootId = idMap.get(rootId);
+      const items = [];
+      const queue2 = [rootId];
+      while (queue2.length > 0) {
+        const id = queue2.shift();
+        const node = this.editor.document.getNode(id);
+        if (!node) continue;
+        const newId = idMap.get(id);
+        const isRoot = id === rootId;
+        const clonedNode = JSON.parse(JSON.stringify(node));
+        clonedNode.id = newId;
+        clonedNode.parentId = isRoot ? newParentId : idMap.get(node.parentId);
+        clonedNode.children = [];
+        clonedNode.transform = {
+          ...clonedNode.transform,
+          x: clonedNode.transform.x + COPY_OFFSET,
+          y: clonedNode.transform.y + COPY_OFFSET
+        };
+        let clonedShape;
+        const shape = this.editor.document.getShape(id);
+        if (shape) {
+          clonedShape = JSON.parse(JSON.stringify(shape));
+          clonedShape.nodeId = newId;
+        }
+        items.push({ node: clonedNode, shape: clonedShape });
+        if (isGroupNode(node)) {
+          queue2.push(...node.children);
+        }
+      }
+      return { items, newRootId };
+    }
+    execute() {
+      var _a;
+      this.copiedItems = [];
+      this.copiedRootIds = [];
+      for (const id of this.sourceIds) {
+        if (!this.editor.document.hasNode(id)) continue;
+        const sourceNode = this.editor.document.getNode(id);
+        const { items, newRootId } = this.cloneSubtree(id, sourceNode.parentId);
+        this.copiedItems.push(...items);
+        this.copiedRootIds.push(newRootId);
+      }
+      for (const { node, shape } of this.copiedItems) {
+        this.editor.document.addNode(node);
+        if (shape) this.editor.document.addShape(shape);
+      }
+      this.editor.selection.setMany(this.copiedRootIds);
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    undo() {
+      var _a;
+      for (let i = this.copiedItems.length - 1; i >= 0; i--) {
+        const { node } = this.copiedItems[i];
+        if (this.editor.document.hasNode(node.id)) {
+          this.editor.document.removeNode(node.id);
+        }
+      }
+      this.editor.selection.setMany(this.sourceIds);
+      (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
+      this.editor.events.emit("document:modified");
+    }
+    describe() {
+      return `Duplicate ${this.sourceIds.length} shape(s)`;
+    }
+    canExecute() {
+      return this.sourceIds.length > 0;
+    }
+    canUndo() {
+      return this.copiedRootIds.length > 0;
+    }
+  };
+
   // editor-engine/core/commands/TransformShapesCommand.ts
   var TransformShapesCommand = class extends Command {
     constructor(editor, transforms, operationType = "move") {
@@ -2678,6 +2779,12 @@ var EditorEngine = (() => {
       return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "g" && e.shiftKey;
     }
     /**
+     * Check if the event is a duplicate shortcut (Cmd/Ctrl+D)
+     */
+    isDuplicateShortcut(e) {
+      return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && !e.shiftKey && !e.altKey;
+    }
+    /**
      * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
      */
     isBringToFrontShortcut(e) {
@@ -2779,6 +2886,11 @@ var EditorEngine = (() => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
         e.preventDefault();
         this.editor.commands.redo();
+        return;
+      }
+      if (this.shortcuts.isDuplicateShortcut(e)) {
+        e.preventDefault();
+        this.editor.commands.execute(new CopyShapesCommand(this.editor));
         return;
       }
       if (this.shortcuts.isGroupShortcut(e)) {
@@ -3622,19 +3734,22 @@ var EditorEngine = (() => {
       });
     }
     /**
-     * Deep-snapshot a node (and its children if it is a group) into movedNodes.
+     * Deep-snapshot leaf shape nodes (and recursively descends into groups)
+     * into movedNodes. Group nodes themselves are NOT snapshotted because their
+     * transforms are never moved — only leaf shape transforms are world-space.
      */
     snapshotNodeRecursive(nodeId, editor) {
       const node = editor.document.getNode(nodeId);
       if (!node) return;
-      this.movedNodes.set(nodeId, {
-        node: JSON.parse(JSON.stringify(node)),
-        shape: editor.document.getShape(nodeId) ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId))) : void 0
-      });
       if (isGroupNode(node)) {
         for (const childId of node.children) {
           this.snapshotNodeRecursive(childId, editor);
         }
+      } else {
+        this.movedNodes.set(nodeId, {
+          node: JSON.parse(JSON.stringify(node)),
+          shape: editor.document.getShape(nodeId) ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId))) : void 0
+        });
       }
     }
     /**
@@ -3695,18 +3810,25 @@ var EditorEngine = (() => {
       SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
     /**
-     * Move a node and all its children recursively (for groups)
+     * Move a node and all its children recursively (for groups).
+     * Only leaf shape nodes carry meaningful world-space transforms —
+     * group nodes are purely structural and their transform is never
+     * used by the renderer. Moving a group's transform alongside its
+     * children's transforms would drift the group's stored position
+     * without any visual effect, and can cause double-moves in mixed
+     * selection scenarios. So: traverse groups, move shapes only.
      */
     moveNodeRecursive(nodeId, deltaX, deltaY, editor) {
       const node = editor.document.getNode(nodeId);
       if (!node) return;
-      node.transform.x += deltaX;
-      node.transform.y += deltaY;
-      editor.document.updateNode(node);
       if (isGroupNode(node)) {
         for (const childId of node.children) {
           this.moveNodeRecursive(childId, deltaX, deltaY, editor);
         }
+      } else {
+        node.transform.x += deltaX;
+        node.transform.y += deltaY;
+        editor.document.updateNode(node);
       }
     }
     onPointerUp(_e, ctx) {
@@ -3738,9 +3860,6 @@ var EditorEngine = (() => {
   var SelectedObjectResolver = class extends StateResolver {
     tryResolve(e, ctx) {
       const { editor } = ctx;
-      if (!editor.state.hoveredNodeId) {
-        return null;
-      }
       const target = this.resolveClickTarget(e, ctx);
       if (!target) return null;
       if (editor.selection.isSelected(target)) {
@@ -3753,10 +3872,11 @@ var EditorEngine = (() => {
       return null;
     }
     /**
-     * Recompute the click target from the current hit-test result, applying the
-     * same drill-down logic as IdleState: find the deepest selected ancestor and
-     * return its immediate child toward the hit node, or the direct parent when
-     * nothing is selected.
+     * Recompute the click target from the current hit-test result.
+     * Walks up the ancestor chain to find the highest node that is already
+     * selected (or whose child toward the hit node is selected), so that
+     * clicking on a selected shape inside a group correctly identifies that
+     * shape (or its selected ancestor group) as the drag target.
      */
     resolveClickTarget(e, ctx) {
       var _a;
@@ -3774,10 +3894,10 @@ var EditorEngine = (() => {
         chain.push(current.id);
         current = current.parentId ? editor.document.getNode(current.parentId) : void 0;
       }
-      for (let i = 1; i < chain.length; i++) {
-        if (editor.selection.isSelected(chain[i])) return chain[i - 1];
+      for (let i = 0; i < chain.length; i++) {
+        if (editor.selection.isSelected(chain[i])) return chain[i];
       }
-      return chain.length > 1 ? chain[1] : found.id;
+      return null;
     }
     /**
      * Returns true if any ancestor of `nodeId` is currently selected.
@@ -3796,11 +3916,12 @@ var EditorEngine = (() => {
   var HoveredObjectResolver = class extends StateResolver {
     tryResolve(e, ctx) {
       const { editor } = ctx;
-      if (!editor.state.hoveredNodeId) {
+      const nodeToSelect = this.determineNodeToSelect(e, editor);
+      if (!nodeToSelect) {
         return null;
       }
       return new DragState({
-        nodeToSelect: editor.state.hoveredNodeId,
+        nodeToSelect,
         shouldAddToSelection: e.shiftKey
       });
     }
@@ -3809,12 +3930,8 @@ var EditorEngine = (() => {
      */
     determineNodeToSelect(e, editor) {
       const hoveredNodeId = editor.state.hoveredNodeId;
-      if (e.ctrlKey || e.metaKey) {
-        return hoveredNodeId;
-      }
-      const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId);
-      if (topLevelParent && topLevelParent.id !== hoveredNodeId) {
-        return topLevelParent.id;
+      if (!hoveredNodeId) {
+        return null;
       }
       return hoveredNodeId;
     }
@@ -4494,8 +4611,14 @@ var EditorEngine = (() => {
      * Store handle paths and transform context from rendering
      * Must be called after rendering handles
      */
-    setHandleContext(paths, centerX, centerY, rotation) {
-      this.lastHandleContext = { paths, centerX, centerY, rotation };
+    setHandleContext(paths, centerX, centerY, rotation, enableEdgeHitTesting = true) {
+      this.lastHandleContext = {
+        paths,
+        centerX,
+        centerY,
+        rotation,
+        enableEdgeHitTesting
+      };
     }
     /**
      * Clear stored handle context
@@ -4511,7 +4634,7 @@ var EditorEngine = (() => {
       if (!this.lastHandleContext) {
         return { type: null, handle: null };
       }
-      const { paths, centerX, centerY, rotation } = this.lastHandleContext;
+      const { paths, centerX, centerY, rotation, enableEdgeHitTesting } = this.lastHandleContext;
       this.ctx.save();
       this.ctx.translate(centerX, centerY);
       this.ctx.rotate(rotation);
@@ -4527,11 +4650,13 @@ var EditorEngine = (() => {
           return { type: "CORNER" /* CORNER */, handle: key };
         }
       }
-      this.ctx.lineWidth = 10;
-      for (const [key, path] of Object.entries(paths.edges)) {
-        if (this.ctx.isPointInStroke(path, mouseX, mouseY)) {
-          this.ctx.restore();
-          return { type: "EDGE" /* EDGE */, handle: key };
+      if (enableEdgeHitTesting) {
+        this.ctx.lineWidth = 10;
+        for (const [key, path] of Object.entries(paths.edges)) {
+          if (this.ctx.isPointInStroke(path, mouseX, mouseY)) {
+            this.ctx.restore();
+            return { type: "EDGE" /* EDGE */, handle: key };
+          }
         }
       }
       this.ctx.restore();
@@ -4608,8 +4733,11 @@ var EditorEngine = (() => {
       this.ctx.rotate(node.transform.rotation);
       if (shape.type === "LINE") {
         this.ctx.lineWidth = shape.geometry.lineWidth;
-      } else this.ctx.fill(path);
-      this.ctx.stroke(path);
+        this.ctx.stroke(path);
+      } else {
+        this.ctx.fill(path);
+        this.ctx.stroke(path);
+      }
       this.ctx.restore();
     }
     applyTransform(center, rotation) {
@@ -4766,7 +4894,14 @@ var EditorEngine = (() => {
         }
       }
       this.ctx.restore();
-      (_b = (_a = this.handleHitTestAdapter).setHandleContext) == null ? void 0 : _b.call(_a, paths, centerX, centerY, 0);
+      (_b = (_a = this.handleHitTestAdapter).setHandleContext) == null ? void 0 : _b.call(
+        _a,
+        paths,
+        centerX,
+        centerY,
+        0,
+        showCorners || showRotation
+      );
     }
     drawHandlesForShape(paths, node, shape) {
       var _a, _b;

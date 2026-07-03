@@ -16,18 +16,15 @@ export class HoveredObjectResolver extends StateResolver {
     ctx: ToolContext,
   ): InteractionState | null {
     const { editor } = ctx
+    const nodeToSelect = this.determineNodeToSelect(e, editor)
 
-    // Only handle if there's a hovered node
-    if (!editor.state.hoveredNodeId) {
+    if (!nodeToSelect) {
       return null
     }
 
-    // Determine what to select: group or individual shape
-    // const nodeToSelect = this.determineNodeToSelect(e, editor)
-
     // Return DragState with selection context - let the state handle the selection
     return new DragState({
-      nodeToSelect: editor.state.hoveredNodeId,
+      nodeToSelect,
       shouldAddToSelection: e.shiftKey,
     })
   }
@@ -35,22 +32,18 @@ export class HoveredObjectResolver extends StateResolver {
   /**
    * Determine which node to select based on modifier keys and hierarchy
    */
-  private determineNodeToSelect(e: PointerEventData, editor: Editor): string {
-    const hoveredNodeId = editor.state.hoveredNodeId!
+  private determineNodeToSelect(
+    e: PointerEventData,
+    editor: Editor,
+  ): string | null {
+    const hoveredNodeId = editor.state.hoveredNodeId
 
-    // // If Cmd/Ctrl is held, select the individual shape (drill down into groups)
-    if (e.ctrlKey || e.metaKey) {
-      return hoveredNodeId
+    if (!hoveredNodeId) {
+      return null
     }
 
-    // Otherwise, select the top-level parent (group if exists)
-    const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId)
-
-    if (topLevelParent && topLevelParent.id !== hoveredNodeId) {
-      // The shape is inside a group, select the group instead
-      return topLevelParent.id
-    }
-
+    // hoveredNodeId is already the resolved selection target from hover logic.
+    // Cmd/Ctrl handling is already applied there as well.
     return hoveredNodeId
   }
 }

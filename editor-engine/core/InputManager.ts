@@ -4,6 +4,7 @@ import { KeyboardShortcutManager } from "./KeyboardShortcutManager"
 import {
   GroupCommand,
   UngroupCommand,
+  CopyShapesCommand,
   BringToFrontCommand,
   SendToBackCommand,
   BringForwardCommand,
@@ -68,6 +69,13 @@ export class InputManager {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && e.shiftKey) {
       e.preventDefault()
       this.editor.commands.redo()
+      return
+    }
+
+    // Handle duplicate shortcut (Cmd/Ctrl+D)
+    if (this.shortcuts.isDuplicateShortcut(e)) {
+      e.preventDefault()
+      this.editor.commands.execute(new CopyShapesCommand(this.editor))
       return
     }
 

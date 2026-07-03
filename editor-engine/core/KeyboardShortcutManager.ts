@@ -26,6 +26,13 @@ export class KeyboardShortcutManager {
   }
 
   /**
+   * Check if the event is a duplicate shortcut (Cmd/Ctrl+D)
+   */
+  isDuplicateShortcut(e: KeyboardEvent): boolean {
+    return (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d" && !e.shiftKey && !e.altKey
+  }
+
+  /**
    * Check if the event is a "bring to front" shortcut (Cmd/Ctrl+])
    */
   isBringToFrontShortcut(e: KeyboardEvent): boolean {

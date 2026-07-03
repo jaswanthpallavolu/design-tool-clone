@@ -72,7 +72,9 @@ export class DragState implements InteractionState {
   }
 
   /**
-   * Deep-snapshot a node (and its children if it is a group) into movedNodes.
+   * Deep-snapshot leaf shape nodes (and recursively descends into groups)
+   * into movedNodes. Group nodes themselves are NOT snapshotted because their
+   * transforms are never moved — only leaf shape transforms are world-space.
    */
   private snapshotNodeRecursive(
     nodeId: string,
@@ -80,16 +82,20 @@ export class DragState implements InteractionState {
   ): void {
     const node = editor.document.getNode(nodeId)
     if (!node) return
-    this.movedNodes.set(nodeId, {
-      node: JSON.parse(JSON.stringify(node)),
-      shape: editor.document.getShape(nodeId)
-        ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId)))
-        : undefined,
-    })
+
     if (isGroupNode(node)) {
+      // Traverse into children; the group node itself has no meaningful transform to snapshot
       for (const childId of node.children) {
         this.snapshotNodeRecursive(childId, editor)
       }
+    } else {
+      // Leaf shape node — snapshot its current transform for undo
+      this.movedNodes.set(nodeId, {
+        node: JSON.parse(JSON.stringify(node)),
+        shape: editor.document.getShape(nodeId)
+          ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId)))
+          : undefined,
+      })
     }
   }
 
@@ -165,7 +171,13 @@ export class DragState implements InteractionState {
   }
 
   /**
-   * Move a node and all its children recursively (for groups)
+   * Move a node and all its children recursively (for groups).
+   * Only leaf shape nodes carry meaningful world-space transforms —
+   * group nodes are purely structural and their transform is never
+   * used by the renderer. Moving a group's transform alongside its
+   * children's transforms would drift the group's stored position
+   * without any visual effect, and can cause double-moves in mixed
+   * selection scenarios. So: traverse groups, move shapes only.
    */
   private moveNodeRecursive(
     nodeId: string,
@@ -176,16 +188,16 @@ export class DragState implements InteractionState {
     const node = editor.document.getNode(nodeId)
     if (!node) return
 
-    // Move the node itself
-    node.transform.x += deltaX
-    node.transform.y += deltaY
-    editor.document.updateNode(node)
-
-    // If it's a group, move all children recursively
     if (isGroupNode(node)) {
+      // Groups are structural only — traverse children without moving the group transform
       for (const childId of node.children) {
         this.moveNodeRecursive(childId, deltaX, deltaY, editor)
       }
+    } else {
+      // Leaf shape node — move its absolute world transform
+      node.transform.x += deltaX
+      node.transform.y += deltaY
+      editor.document.updateNode(node)
     }
   }
 

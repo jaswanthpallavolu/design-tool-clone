@@ -104,8 +104,11 @@ export class CanvasRenderer implements RenderPort {
 
     if (shape.type === "LINE") {
       this.ctx.lineWidth = shape.geometry.lineWidth
-    } else this.ctx.fill(path)
-    this.ctx.stroke(path)
+      this.ctx.stroke(path)
+    } else {
+      this.ctx.fill(path)
+      this.ctx.stroke(path)
+    }
     this.ctx.restore()
   }
 
@@ -302,7 +305,13 @@ export class CanvasRenderer implements RenderPort {
     this.ctx.restore()
 
     // Store handle context for hit testing
-    this.handleHitTestAdapter.setHandleContext?.(paths, centerX, centerY, 0)
+    this.handleHitTestAdapter.setHandleContext?.(
+      paths,
+      centerX,
+      centerY,
+      0,
+      showCorners || showRotation,
+    )
   }
 
   private drawHandlesForShape(
