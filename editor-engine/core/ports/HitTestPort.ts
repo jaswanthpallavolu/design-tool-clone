@@ -55,6 +55,7 @@ export interface HandleHitTestPort {
     centerX: number,
     centerY: number,
     rotation: number,
+    enableEdgeHitTesting?: boolean,
   ): void
 
   /**
