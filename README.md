@@ -1,6 +1,6 @@
-# Canvas Drawing Tool
+# Canvas Graphics Editor
 
-A browser-based drawing tool built on a framework-agnostic engine.
+A browser-based graphics editor built on a framework-agnostic engine.
 
 ## Editor engine
 

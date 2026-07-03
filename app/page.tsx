@@ -7,10 +7,10 @@ export default function Home() {
         {/* Hero */}
         <div className="mb-16">
           <h1 className="text-4xl font-bold tracking-tight text-zinc-900 mb-4">
-            Canvas Drawing Tool
+            Canvas Graphics Editor
           </h1>
           <p className="text-lg text-zinc-500 leading-relaxed max-w-xl">
-            A browser-based drawing tool built on a framework-agnostic engine.
+            A browser-based graphics editor built on a framework-agnostic engine.
             One pure TypeScript core. Two independent UI implementations.
           </p>
         </div>
