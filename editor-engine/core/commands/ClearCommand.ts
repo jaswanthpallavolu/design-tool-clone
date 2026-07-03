@@ -1,12 +1,14 @@
 import { Command } from "./Command"
 import type { Editor } from "../Editor"
 import type { Node } from "../model/Node"
+import type { Shape } from "../model/Shape"
 
 /**
  * ClearCommand - Command to clear all shapes from the document
  */
 export class ClearCommand extends Command {
   private savedNodes: Node[] = []
+  private savedShapes: Shape[] = []
   private savedSelection: string[] = []
 
   constructor(private editor: Editor) {
@@ -16,6 +18,7 @@ export class ClearCommand extends Command {
   execute(): void {
     // Save current state before clearing
     this.savedNodes = [...this.editor.document.getAllNodes()]
+    this.savedShapes = [...this.editor.document.getAllShapes()]
     this.savedSelection = [...this.editor.selection.getAll()]
 
     // Clear everything
@@ -28,9 +31,14 @@ export class ClearCommand extends Command {
   }
 
   undo(): void {
-    // Restore saved nodes
+    // Restore saved nodes (must be added before their shapes)
     this.savedNodes.forEach((node) => {
       this.editor.document.addNode(node)
+    })
+
+    // Restore saved shapes
+    this.savedShapes.forEach((shape) => {
+      this.editor.document.addShape(shape)
     })
 
     // Restore selection
@@ -38,9 +46,7 @@ export class ClearCommand extends Command {
       this.editor.selection.setMany(this.savedSelection)
     }
 
-    this.editor.events.emit("document:restored", {
-      nodeCount: this.savedNodes.length,
-    })
+    this.editor.events.emit("document:modified")
   }
 
   describe(): string {

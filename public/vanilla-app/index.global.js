@@ -2196,11 +2196,13 @@ var EditorEngine = (() => {
       super();
       this.editor = editor;
       this.savedNodes = [];
+      this.savedShapes = [];
       this.savedSelection = [];
     }
     execute() {
       var _a;
       this.savedNodes = [...this.editor.document.getAllNodes()];
+      this.savedShapes = [...this.editor.document.getAllShapes()];
       this.savedSelection = [...this.editor.selection.getAll()];
       this.editor.document.clear();
       this.editor.selection.clear();
@@ -2212,12 +2214,13 @@ var EditorEngine = (() => {
       this.savedNodes.forEach((node) => {
         this.editor.document.addNode(node);
       });
+      this.savedShapes.forEach((shape) => {
+        this.editor.document.addShape(shape);
+      });
       if (this.savedSelection.length > 0) {
         this.editor.selection.setMany(this.savedSelection);
       }
-      this.editor.events.emit("document:restored", {
-        nodeCount: this.savedNodes.length
-      });
+      this.editor.events.emit("document:modified");
     }
     describe() {
       return `Clear document (${this.savedNodes.length} nodes)`;
@@ -2376,7 +2379,7 @@ var EditorEngine = (() => {
       this.nodeIds.forEach((nodeId) => {
         const shape = this.editor.document.getShape(nodeId);
         if (shape) {
-          Object.assign(shape.style, this.newStyle);
+          shape.style = { ...shape.style, ...this.newStyle };
           this.editor.document.updateShape(shape);
         }
       });
@@ -2410,20 +2413,45 @@ var EditorEngine = (() => {
     constructor(editor, nodeIds) {
       super();
       this.editor = editor;
+      // Flat list in parent-first BFS order — safe to re-add in this order on undo
       this.deletedItems = [];
       this.deletedIds = [...nodeIds];
+    }
+    /**
+     * Collect node + shape for `id` and all its descendants, breadth-first.
+     * Parent-first order means addNode() on undo won't hit "parent not found".
+     */
+    collectSubtree(rootId) {
+      const items = [];
+      const queue = [rootId];
+      while (queue.length > 0) {
+        const id = queue.shift();
+        const node = this.editor.document.getNode(id);
+        if (!node) continue;
+        const shape = this.editor.document.getShape(id);
+        items.push({
+          node: JSON.parse(JSON.stringify(node)),
+          shape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
+        });
+        if (isGroupNode(node)) {
+          queue.push(...node.children);
+        }
+      }
+      return items;
     }
     execute() {
       var _a;
       this.deletedItems = [];
+      const seen = /* @__PURE__ */ new Set();
       this.deletedIds.forEach((id) => {
-        const node = this.editor.document.getNode(id);
-        const shape = this.editor.document.getShape(id);
-        if (node) {
-          this.deletedItems.push({
-            node: JSON.parse(JSON.stringify(node)),
-            shape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
-          });
+        if (!seen.has(id) && this.editor.document.hasNode(id)) {
+          const subtree = this.collectSubtree(id);
+          subtree.forEach((item) => seen.add(item.node.id));
+          this.deletedItems.push(...subtree);
+        }
+      });
+      this.deletedIds.forEach((id) => {
+        if (this.editor.document.hasNode(id)) {
           this.editor.document.removeNode(id);
         }
       });
@@ -2462,41 +2490,68 @@ var EditorEngine = (() => {
       this.editor = editor;
       this.transforms = [];
       this.operationType = operationType;
-      transforms.forEach(({ nodeId, newNode, newShape }) => {
-        const oldNode = editor.document.getNode(nodeId);
-        const oldShape = editor.document.getShape(nodeId);
-        if (oldNode) {
-          this.transforms.push({
-            nodeId,
-            oldNode: JSON.parse(JSON.stringify(oldNode)),
-            oldShape: oldShape ? JSON.parse(JSON.stringify(oldShape)) : void 0,
-            newNode,
-            newShape
-          });
+      transforms.forEach((entry) => {
+        if ("oldNode" in entry) {
+          this.transforms.push(entry);
+        } else {
+          const { nodeId, newNode, newShape } = entry;
+          const oldNode = editor.document.getNode(nodeId);
+          const oldShape = editor.document.getShape(nodeId);
+          if (oldNode) {
+            this.transforms.push({
+              nodeId,
+              oldNode: JSON.parse(JSON.stringify(oldNode)),
+              oldShape: oldShape ? JSON.parse(JSON.stringify(oldShape)) : void 0,
+              newNode,
+              newShape
+            });
+          }
         }
       });
     }
     execute() {
       var _a;
-      this.transforms.forEach(({ nodeId, newNode, newShape }) => {
+      this.transforms.forEach(({ newNode, newShape }) => {
         this.editor.document.updateNode(newNode);
-        if (newShape) {
-          this.editor.document.updateShape(newShape);
-        }
+        if (newShape) this.editor.document.updateShape(newShape);
       });
+      this.refreshSelectionBounds();
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
     }
     undo() {
       var _a;
-      this.transforms.forEach(({ nodeId, oldNode, oldShape }) => {
+      this.transforms.forEach(({ oldNode, oldShape }) => {
         this.editor.document.updateNode(oldNode);
-        if (oldShape) {
-          this.editor.document.updateShape(oldShape);
-        }
+        if (oldShape) this.editor.document.updateShape(oldShape);
       });
+      this.refreshSelectionBounds();
       (_a = this.editor.renderer) == null ? void 0 : _a.renderShapes();
       this.editor.events.emit("document:modified");
+    }
+    /**
+     * Recompute editor.state.selectionBounds from the current document state so
+     * that selection handles render at the correct position after undo/redo.
+     */
+    refreshSelectionBounds() {
+      const selection = this.editor.selection.getAll();
+      this.editor.state.selectionBounds = void 0;
+      if (selection.length === 0) return;
+      const aabbs = selection.flatMap(
+        (nodeId) => this.collectAABBs(nodeId)
+      );
+      if (aabbs.length > 0) {
+        this.editor.state.selectionBounds = BoundingBoxService.unionAABBs(aabbs);
+      }
+    }
+    collectAABBs(nodeId) {
+      const node = this.editor.document.getNode(nodeId);
+      if (!node) return [];
+      if (isGroupNode(node)) {
+        return node.children.flatMap((childId) => this.collectAABBs(childId));
+      }
+      const shape = this.editor.document.getShape(nodeId);
+      return shape ? [BoundingBoxService.getAABB(node, shape)] : [];
     }
     describe() {
       const count = this.transforms.length;
@@ -2884,7 +2939,7 @@ var EditorEngine = (() => {
      * Called when pointer moves or when Ctrl/Meta keys are pressed/released
      */
     updateHoverState(e, editor) {
-      var _a, _b;
+      var _a;
       const selection = editor.selection.getAll();
       if (selection.length === 1) {
         const handleHit = this.testSingleSelectionHandles(e, editor, selection[0]);
@@ -2898,10 +2953,46 @@ var EditorEngine = (() => {
         e.clientY,
         (_a = editor.renderer) == null ? void 0 : _a.getShapeHitTestAdapter()
       );
-      const isFoundShapeSelected = (found == null ? void 0 : found.id) && editor.selection.isSelected(found.id);
-      const topLevelParent = !(e.ctrlKey || e.metaKey) && !isFoundShapeSelected && editor.document.getTopLevelParent((_b = found == null ? void 0 : found.id) != null ? _b : "");
-      const selectionCandidateId = topLevelParent && topLevelParent.id !== (found == null ? void 0 : found.id) ? topLevelParent.id : found == null ? void 0 : found.id;
+      if (!(found == null ? void 0 : found.id)) {
+        editor.state.setHoveredNodeId(void 0);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey) {
+        editor.state.setHoveredNodeId(found.id);
+        return;
+      }
+      const selectionCandidateId = this.resolveSelectionCandidate(found.id, editor);
       editor.state.setHoveredNodeId(selectionCandidateId);
+    }
+    /**
+     * Resolve the hover/selection candidate for a hit node.
+     *
+     * Strategy: find the deepest (innermost) selected ancestor in the chain,
+     * then return its immediate child toward the hit node. This lets each click
+     * drill one level deeper into the selected subtree.
+     * When no ancestor is selected, return the direct parent group (or the node
+     * itself when it sits at root level).
+     *
+     * Examples (→ = returned value):
+     *   nothing selected:   Group0 > Group1 > Line  →  Group1
+     *   Group1 selected:    Group0 > Group1 > Line  →  Line
+     *   Group0 selected:    Group0 > Group1 > Line  →  Group1
+     *   Group0+Group1 sel:  Group0 > Group1 > Line  →  Line
+     */
+    resolveSelectionCandidate(nodeId, editor) {
+      let current = editor.document.getNode(nodeId);
+      if (!current) return nodeId;
+      const chain = [];
+      while (current) {
+        chain.push(current.id);
+        current = current.parentId ? editor.document.getNode(current.parentId) : void 0;
+      }
+      for (let i = 1; i < chain.length; i++) {
+        if (editor.selection.isSelected(chain[i])) {
+          return chain[i - 1];
+        }
+      }
+      return chain.length > 1 ? chain[1] : nodeId;
     }
     testSingleSelectionHandles(e, editor, nodeId) {
       const renderer = editor.renderer;
@@ -3077,16 +3168,17 @@ var EditorEngine = (() => {
     onPointerUp(e, ctx) {
       const { editor } = ctx;
       const transforms = [];
-      this.originalData.forEach((_, nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        const shape = editor.document.getShape(nodeId);
-        if (node) {
-          transforms.push({
-            nodeId,
-            newNode: JSON.parse(JSON.stringify(node)),
-            newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
-          });
-        }
+      this.originalData.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+        const newNode = editor.document.getNode(nodeId);
+        const newShape = editor.document.getShape(nodeId);
+        if (!newNode) return;
+        transforms.push({
+          nodeId,
+          oldNode,
+          oldShape,
+          newNode: JSON.parse(JSON.stringify(newNode)),
+          newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : void 0
+        });
       });
       if (transforms.length > 0) {
         editor.commands.execute(
@@ -3281,6 +3373,7 @@ var EditorEngine = (() => {
       this.centerPoint = { x: 0, y: 0 };
       this.startAngle = 0;
       this.originalTransforms = /* @__PURE__ */ new Map();
+      this.originalSnapshots = /* @__PURE__ */ new Map();
     }
     onEnter(ctx) {
       const { editor } = ctx;
@@ -3323,6 +3416,11 @@ var EditorEngine = (() => {
         x: node.transform.x,
         y: node.transform.y,
         rotation: node.transform.rotation
+      });
+      const shape = editor.document.getShape(nodeId);
+      this.originalSnapshots.set(node.id, {
+        node: JSON.parse(JSON.stringify(node)),
+        shape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
       });
       if (isGroupNode(node)) {
         for (const childId of node.children) {
@@ -3417,16 +3515,17 @@ var EditorEngine = (() => {
     onPointerUp(e, ctx) {
       const { editor } = ctx;
       const transforms = [];
-      this.originalTransforms.forEach((_, nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        const shape = editor.document.getShape(nodeId);
-        if (node) {
-          transforms.push({
-            nodeId,
-            newNode: JSON.parse(JSON.stringify(node)),
-            newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
-          });
-        }
+      this.originalSnapshots.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+        const newNode = editor.document.getNode(nodeId);
+        const newShape = editor.document.getShape(nodeId);
+        if (!newNode) return;
+        transforms.push({
+          nodeId,
+          oldNode,
+          oldShape,
+          newNode: JSON.parse(JSON.stringify(newNode)),
+          newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : void 0
+        });
       });
       if (transforms.length > 0) {
         editor.commands.execute(
@@ -3489,12 +3588,54 @@ var EditorEngine = (() => {
       this.hasMoved = false;
       this.selectionContext = selectionContext;
     }
+    /**
+     * Returns the set of selected node IDs that are true drag roots — i.e. nodes
+     * whose ancestor is NOT also in the selection. Moving only these (recursively)
+     * prevents double-moving children that are selected alongside their parent group.
+     */
+    getDragRoots(editor) {
+      const selected = new Set(editor.selection.getAll());
+      const roots = /* @__PURE__ */ new Set();
+      for (const nodeId of selected) {
+        let node = editor.document.getNode(nodeId);
+        let isDescendantOfSelected = false;
+        while (node == null ? void 0 : node.parentId) {
+          if (selected.has(node.parentId)) {
+            isDescendantOfSelected = true;
+            break;
+          }
+          node = editor.document.getNode(node.parentId);
+        }
+        if (!isDescendantOfSelected) roots.add(nodeId);
+      }
+      return roots;
+    }
     onPointerDown(e, ctx) {
       if (this.selectionContext) {
         this.applySelection(ctx);
       }
       this.prevMouseX = e.clientX;
       this.prevMouseY = e.clientY;
+      this.movedNodes.clear();
+      this.getDragRoots(ctx.editor).forEach((nodeId) => {
+        this.snapshotNodeRecursive(nodeId, ctx.editor);
+      });
+    }
+    /**
+     * Deep-snapshot a node (and its children if it is a group) into movedNodes.
+     */
+    snapshotNodeRecursive(nodeId, editor) {
+      const node = editor.document.getNode(nodeId);
+      if (!node) return;
+      this.movedNodes.set(nodeId, {
+        node: JSON.parse(JSON.stringify(node)),
+        shape: editor.document.getShape(nodeId) ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId))) : void 0
+      });
+      if (isGroupNode(node)) {
+        for (const childId of node.children) {
+          this.snapshotNodeRecursive(childId, editor);
+        }
+      }
     }
     /**
      * Apply selection based on the provided context
@@ -3545,16 +3686,8 @@ var EditorEngine = (() => {
       const deltaX = e.clientX - this.prevMouseX;
       const deltaY = e.clientY - this.prevMouseY;
       this.hasMoved = true;
-      editor.selection.getAll().forEach((nodeId) => {
-        const node = editor.document.getNode(nodeId);
-        if (!node) return;
-        if (isGroupNode(node)) {
-          this.moveNodeRecursive(nodeId, deltaX, deltaY, editor);
-        } else {
-          node.transform.x += deltaX;
-          node.transform.y += deltaY;
-          editor.document.updateNode(node);
-        }
+      this.getDragRoots(editor).forEach((nodeId) => {
+        this.moveNodeRecursive(nodeId, deltaX, deltaY, editor);
       });
       this.prevMouseX = e.clientX;
       this.prevMouseY = e.clientY;
@@ -3576,37 +3709,27 @@ var EditorEngine = (() => {
         }
       }
     }
-    onPointerUp(e, ctx) {
+    onPointerUp(_e, ctx) {
       if (this.hasMoved) {
         const { editor } = ctx;
         const transforms = [];
-        editor.selection.getAll().forEach((nodeId) => {
-          this.collectTransformedNodes(nodeId, editor, transforms);
+        this.movedNodes.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+          const newNode = editor.document.getNode(nodeId);
+          const newShape = editor.document.getShape(nodeId);
+          if (!newNode) return;
+          transforms.push({
+            nodeId,
+            oldNode,
+            oldShape,
+            newNode: JSON.parse(JSON.stringify(newNode)),
+            newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : void 0
+          });
         });
         if (transforms.length > 0) {
           editor.commands.execute(
             new TransformShapesCommand(editor, transforms, "move")
           );
         }
-      }
-    }
-    /**
-     * Collect all transformed nodes recursively (including group children)
-     */
-    collectTransformedNodes(nodeId, editor, transforms) {
-      const node = editor.document.getNode(nodeId);
-      if (!node) return;
-      if (isGroupNode(node)) {
-        for (const childId of node.children) {
-          this.collectTransformedNodes(childId, editor, transforms);
-        }
-      } else {
-        const shape = editor.document.getShape(nodeId);
-        transforms.push({
-          nodeId,
-          newNode: JSON.parse(JSON.stringify(node)),
-          newShape: shape ? JSON.parse(JSON.stringify(shape)) : void 0
-        });
       }
     }
   };
@@ -3618,20 +3741,54 @@ var EditorEngine = (() => {
       if (!editor.state.hoveredNodeId) {
         return null;
       }
-      if (this.isHoveredShapeInCurrentSelection(e, editor)) {
+      const target = this.resolveClickTarget(e, ctx);
+      if (!target) return null;
+      if (editor.selection.isSelected(target)) {
+        return new DragState();
+      }
+      const isInsideSelectedAncestor = this.hasSelectedAncestor(target, editor);
+      if (isInsideSelectedAncestor) {
         return new DragState();
       }
       return null;
     }
     /**
-     * Check if the hovered node corresponds to the current selection.
-     * - Without Ctrl/Cmd: selection is considered at the top-level parent (group) level.
-     * - With Ctrl/Cmd: selection is considered at the hovered node level (drill-down).
+     * Recompute the click target from the current hit-test result, applying the
+     * same drill-down logic as IdleState: find the deepest selected ancestor and
+     * return its immediate child toward the hit node, or the direct parent when
+     * nothing is selected.
      */
-    isHoveredShapeInCurrentSelection(e, editor) {
-      const hoveredNodeId = editor.state.hoveredNodeId;
-      if (!hoveredNodeId) return false;
-      return editor.selection.isSelected(hoveredNodeId);
+    resolveClickTarget(e, ctx) {
+      var _a;
+      const { editor } = ctx;
+      const found = editor.shapeQuery.findShapeAtPoint(
+        e.clientX,
+        e.clientY,
+        (_a = editor.renderer) == null ? void 0 : _a.getShapeHitTestAdapter()
+      );
+      if (!(found == null ? void 0 : found.id)) return null;
+      if (e.ctrlKey || e.metaKey) return found.id;
+      let current = editor.document.getNode(found.id);
+      const chain = [];
+      while (current) {
+        chain.push(current.id);
+        current = current.parentId ? editor.document.getNode(current.parentId) : void 0;
+      }
+      for (let i = 1; i < chain.length; i++) {
+        if (editor.selection.isSelected(chain[i])) return chain[i - 1];
+      }
+      return chain.length > 1 ? chain[1] : found.id;
+    }
+    /**
+     * Returns true if any ancestor of `nodeId` is currently selected.
+     */
+    hasSelectedAncestor(nodeId, editor) {
+      let node = editor.document.getNode(nodeId);
+      while (node == null ? void 0 : node.parentId) {
+        if (editor.selection.isSelected(node.parentId)) return true;
+        node = editor.document.getNode(node.parentId);
+      }
+      return false;
     }
   };
 
@@ -3694,9 +3851,12 @@ var EditorEngine = (() => {
           marquee.maxX,
           marquee.maxY
         );
-        const shapeIds = shapesInRegion.map((node) => node.id);
-        const normalizedIds = this.normalizeSelectionForGroups(shapeIds, editor);
-        normalizedIds.forEach((id) => {
+        const candidateIds = /* @__PURE__ */ new Set();
+        for (const node of shapesInRegion) {
+          const candidate = this.resolveMarqueeCandidate(node.id, editor);
+          candidateIds.add(candidate);
+        }
+        candidateIds.forEach((id) => {
           editor.selection.select(id);
         });
       }
@@ -3705,49 +3865,17 @@ var EditorEngine = (() => {
       SelectionBoundsHelper.updateSelectionBounds(ctx);
     }
     /**
-     * Normalize selection: if all shapes in a group are selected, select the group instead
+     * Resolve the selection candidate for a marquee-hit shape.
+     * Walks up to the root-level ancestor (no parentId) so that marquee selection
+     * always picks the top-level node, mirroring a first-click selection.
      */
-    normalizeSelectionForGroups(shapeIds, editor) {
-      const selectedSet = new Set(shapeIds);
-      const toRemove = /* @__PURE__ */ new Set();
-      const toAdd = /* @__PURE__ */ new Set();
-      for (const node of editor.document.getAllNodes()) {
-        if (node.type !== "GROUP") continue;
-        const leafShapeIds = this.getLeafShapeIds(node.id, editor);
-        if (leafShapeIds.length === 0) continue;
-        const allLeavesSelected = leafShapeIds.every((id) => selectedSet.has(id));
-        if (allLeavesSelected && !selectedSet.has(node.id)) {
-          toAdd.add(node.id);
-          for (const id of leafShapeIds) {
-            toRemove.add(id);
-          }
-        }
+    resolveMarqueeCandidate(nodeId, editor) {
+      var _a;
+      let current = editor.document.getNode(nodeId);
+      while (current == null ? void 0 : current.parentId) {
+        current = editor.document.getNode(current.parentId);
       }
-      const result = [...selectedSet].filter((id) => !toRemove.has(id));
-      for (const id of toAdd) {
-        result.push(id);
-      }
-      return result;
-    }
-    /**
-     * Get all leaf shape IDs within a node (recursively for groups)
-     */
-    getLeafShapeIds(nodeId, editor) {
-      const result = [];
-      const stack = [nodeId];
-      while (stack.length > 0) {
-        const currentId = stack.pop();
-        const node = editor.document.getNode(currentId);
-        if (!node) continue;
-        if (node.type === "GROUP") {
-          for (let i = node.children.length - 1; i >= 0; i--) {
-            stack.push(node.children[i]);
-          }
-        } else if (editor.document.getShape(currentId)) {
-          result.push(currentId);
-        }
-      }
-      return result;
+      return (_a = current == null ? void 0 : current.id) != null ? _a : nodeId;
     }
   };
 

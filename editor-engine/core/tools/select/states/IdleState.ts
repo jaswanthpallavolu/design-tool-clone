@@ -66,19 +66,66 @@ export class IdleState implements InteractionState {
       editor.renderer?.getShapeHitTestAdapter(),
     )
 
-    // If the found shape is selected, allow hovering on shapes (not groups)
-    const isFoundShapeSelected =
-      found?.id && editor.selection.isSelected(found.id)
+    if (!found?.id) {
+      editor.state.setHoveredNodeId(undefined)
+      return
+    }
 
-    const topLevelParent =
-      !(e.ctrlKey || e.metaKey) &&
-      !isFoundShapeSelected &&
-      editor.document.getTopLevelParent(found?.id ?? "")
-    const selectionCandidateId =
-      topLevelParent && topLevelParent.id !== found?.id
-        ? topLevelParent.id
-        : found?.id
+    if (e.ctrlKey || e.metaKey) {
+      // Cmd/Ctrl: drill all the way down to the exact hit shape
+      editor.state.setHoveredNodeId(found.id)
+      return
+    }
+
+    // Walk up the ancestor chain and stop at the highest ancestor that is NOT
+    // already selected — that is the natural "select target" for this click.
+    // This lets the user click into an already-selected group to pick a child
+    // group (or shape) without needing Cmd/Ctrl.
+    const selectionCandidateId = this.resolveSelectionCandidate(found.id, editor)
     editor.state.setHoveredNodeId(selectionCandidateId)
+  }
+
+  /**
+   * Resolve the hover/selection candidate for a hit node.
+   *
+   * Strategy: find the deepest (innermost) selected ancestor in the chain,
+   * then return its immediate child toward the hit node. This lets each click
+   * drill one level deeper into the selected subtree.
+   * When no ancestor is selected, return the direct parent group (or the node
+   * itself when it sits at root level).
+   *
+   * Examples (→ = returned value):
+   *   nothing selected:   Group0 > Group1 > Line  →  Group1
+   *   Group1 selected:    Group0 > Group1 > Line  →  Line
+   *   Group0 selected:    Group0 > Group1 > Line  →  Group1
+   *   Group0+Group1 sel:  Group0 > Group1 > Line  →  Line
+   */
+  private resolveSelectionCandidate(nodeId: string, editor: Editor): string {
+    let current = editor.document.getNode(nodeId)
+    if (!current) return nodeId
+
+    // Build the chain innermost-first: [nodeId, parent, grandparent, …, root]
+    const chain: string[] = []
+    while (current) {
+      chain.push(current.id)
+      current = current.parentId
+        ? editor.document.getNode(current.parentId)
+        : undefined
+    }
+
+    // chain[0] = nodeId (the hit shape), chain[last] = root ancestor.
+    // Find the deepest selected ancestor (closest to nodeId).
+    // chain[1] is the direct parent, chain[2] the grandparent, etc.
+    for (let i = 1; i < chain.length; i++) {
+      if (editor.selection.isSelected(chain[i])) {
+        // chain[i] is selected; the child one step toward the hit node is chain[i-1].
+        return chain[i - 1]
+      }
+    }
+
+    // No ancestor is selected — return the direct parent (chain[1]),
+    // or the node itself if it has no parent (already at root level).
+    return chain.length > 1 ? chain[1] : nodeId
   }
 
   private testSingleSelectionHandles(

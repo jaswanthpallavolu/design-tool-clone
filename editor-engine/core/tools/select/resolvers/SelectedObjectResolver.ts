@@ -6,7 +6,11 @@ import { DragState } from "../states/DragState"
 
 /**
  * Priority 3: Selected Object Resolver
- * Detects clicks on already selected objects to initiate drag without changing selection
+ * Detects clicks on already selected objects to initiate drag without changing selection.
+ *
+ * Re-resolves the click target at pointer-down time (not from the potentially stale
+ * hoveredNodeId) so that clicking inside an already-selected group correctly drills
+ * down to the child group/shape rather than re-dragging the outer group.
  */
 export class SelectedObjectResolver extends StateResolver {
   protected tryResolve(
@@ -15,15 +19,25 @@ export class SelectedObjectResolver extends StateResolver {
   ): InteractionState | null {
     const { editor } = ctx
 
-    // Only handle if there's a hovered node
     if (!editor.state.hoveredNodeId) {
       return null
     }
 
-    // Only treat it as "clicking already-selected object" when the hovered node
-    // (or its default top-level parent) is actually part of the current selection.
-    // This avoids blocking selection changes when shapes overlap.
-    if (this.isHoveredShapeInCurrentSelection(e, editor)) {
+    // Re-resolve the actual click target using the live selection state.
+    // hoveredNodeId may be stale (computed on the last pointermove before the
+    // selection changed), so we recompute here to get the right target.
+    const target = this.resolveClickTarget(e, ctx)
+    if (!target) return null
+
+    if (editor.selection.isSelected(target)) {
+      // Target is already selected — drag it without changing selection.
+      return new DragState()
+    }
+
+    // Target is not selected but its ancestor is — the click landed inside a
+    // selected group. Drag the selected group as-is; do NOT drill into it.
+    const isInsideSelectedAncestor = this.hasSelectedAncestor(target, editor)
+    if (isInsideSelectedAncestor) {
       return new DragState()
     }
 
@@ -31,32 +45,55 @@ export class SelectedObjectResolver extends StateResolver {
   }
 
   /**
-   * Check if the hovered node corresponds to the current selection.
-   * - Without Ctrl/Cmd: selection is considered at the top-level parent (group) level.
-   * - With Ctrl/Cmd: selection is considered at the hovered node level (drill-down).
+   * Recompute the click target from the current hit-test result, applying the
+   * same drill-down logic as IdleState: find the deepest selected ancestor and
+   * return its immediate child toward the hit node, or the direct parent when
+   * nothing is selected.
    */
-  private isHoveredShapeInCurrentSelection(
+  private resolveClickTarget(
     e: PointerEventData,
-    editor: ToolContext["editor"],
-  ): boolean {
-    const hoveredNodeId = editor.state.hoveredNodeId
-    if (!hoveredNodeId) return false
+    ctx: ToolContext,
+  ): string | null {
+    const { editor } = ctx
 
-    return editor.selection.isSelected(hoveredNodeId)
+    const found = editor.shapeQuery.findShapeAtPoint(
+      e.clientX,
+      e.clientY,
+      editor.renderer?.getShapeHitTestAdapter(),
+    )
+    if (!found?.id) return null
 
-    // Ctrl/Cmd: match selection exactly at hovered node level.
-    // if (e.ctrlKey || e.metaKey) {
-    //   return editor.selection.isSelected(hoveredNodeId)
-    // }
+    if (e.ctrlKey || e.metaKey) return found.id
 
-    // // Default: match selection at top-level parent (group if it exists).
-    // const topLevelParent = editor.document.getTopLevelParent(hoveredNodeId)
-    // const selectionCandidateId =
-    //   topLevelParent && topLevelParent.id !== hoveredNodeId
-    //     ? topLevelParent.id
-    //     : hoveredNodeId
+    // Build chain innermost-first: [found.id, parent, grandparent, …, root]
+    let current = editor.document.getNode(found.id)
+    const chain: string[] = []
+    while (current) {
+      chain.push(current.id)
+      current = current.parentId
+        ? editor.document.getNode(current.parentId)
+        : undefined
+    }
 
-    // return editor.selection.isSelected(selectionCandidateId)
+    // Find the deepest selected ancestor and return its child toward the hit node.
+    for (let i = 1; i < chain.length; i++) {
+      if (editor.selection.isSelected(chain[i])) return chain[i - 1]
+    }
+
+    // No ancestor selected — return direct parent, or found.id if root-level.
+    return chain.length > 1 ? chain[1] : found.id
+  }
+
+  /**
+   * Returns true if any ancestor of `nodeId` is currently selected.
+   */
+  private hasSelectedAncestor(nodeId: string, editor: ToolContext["editor"]): boolean {
+    let node = editor.document.getNode(nodeId)
+    while (node?.parentId) {
+      if (editor.selection.isSelected(node.parentId)) return true
+      node = editor.document.getNode(node.parentId)
+    }
+    return false
   }
 }
 

@@ -323,4 +323,63 @@ button:active {
   }
 }
 
+/* Color Palette Panel */
+.color-palette-panel {
+  position: fixed;
+  right: 1rem;
+  top: calc(var(--header-height) + 1rem);
+  z-index: 50;
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 0.5rem 0.625rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 160px;
+}
+
+.cp-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.cp-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+}
+
+.cp-swatches {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.cp-swatch {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 3px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background-color: var(--swatch-color);
+  cursor: pointer;
+  padding: 0;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.cp-swatch:hover {
+  transform: scale(1.25);
+  box-shadow: 0 0 0 2px var(--accent);
+  background-color: var(--swatch-color);
+}
+
+.cp-swatch:active {
+  transform: scale(1.1);
+}
+
 /* Made with Bob */

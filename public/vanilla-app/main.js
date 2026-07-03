@@ -1,6 +1,7 @@
 import CanvasEventAdapter from "./CanvasEventAdapter.js"
 import { LayerPanel } from "./LayerPanel.js"
 import { ShortcutsModal } from "./ShortcutsModal.js"
+import { loadDemoData, buildColorPalette } from "./loadDemoData.js"
 const {
   Editor,
   CanvasRenderer,
@@ -80,10 +81,12 @@ editor.on("command:executed", (data) => {
 
 editor.on("command:undone", (data) => {
   console.log("↩️ Command undone:", data.command)
+  syncColorInputToSelection()
 })
 
 editor.on("command:redone", (data) => {
   console.log("↪️ Command redone:", data.command)
+  syncColorInputToSelection()
 })
 
 // Listen for tool options changes (Editor → UI)
@@ -140,6 +143,22 @@ colorInput.addEventListener("input", (e) => {
   }
 })
 
+// Sync the color input to the fillColor of the first selected shape.
+// Called after undo/redo so the toolbar always reflects the current state.
+function syncColorInputToSelection() {
+  const selectedIds = editor.selection.getAll()
+  if (selectedIds.length === 0) return
+
+  // Find the first selected id that is a direct shape
+  for (const id of selectedIds) {
+    const shape = editor.document.getShape(id)
+    if (shape && shape.style && shape.style.fillColor) {
+      colorInput.value = shape.style.fillColor
+      return
+    }
+  }
+}
+
 // Helper function to get all descendant shape IDs from a node (recursively for groups)
 function getDescendantShapeIds(nodeId, editor) {
   const result = []
@@ -171,6 +190,8 @@ new LayerPanel(editor, layersSection)
 const renderer = new CanvasRenderer({ canvas, editor })
 
 editor.setRenderer(renderer)
+loadDemoData(editor, canvas)
+buildColorPalette()
 
 // Viewport initialization
 const initViewport = (canvas, onResize) => {

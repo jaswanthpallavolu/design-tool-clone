@@ -40,14 +40,19 @@ export class MarqueeState implements InteractionState {
         marquee.maxY,
       )
 
-      // Get the IDs of shapes in the region
-      const shapeIds = shapesInRegion.map((node) => node.id)
+      // For each hit shape, resolve its selection candidate using the same
+      // parent-promotion logic as hover/click: return the direct parent group
+      // unless that ancestor is already being targeted by another hit in this
+      // marquee. This means dragging a marquee over some shapes inside a group
+      // selects the group, not the individual shapes.
+      const candidateIds = new Set<string>()
+      for (const node of shapesInRegion) {
+        const candidate = this.resolveMarqueeCandidate(node.id, editor)
+        candidateIds.add(candidate)
+      }
 
-      // Normalize selection: if all shapes in a group are selected, select the group instead
-      const normalizedIds = this.normalizeSelectionForGroups(shapeIds, editor)
-
-      // Select the normalized nodes (groups or individual shapes)
-      normalizedIds.forEach((id) => {
+      // Select the resolved nodes
+      candidateIds.forEach((id) => {
         editor.selection.select(id)
       })
     }
@@ -57,69 +62,18 @@ export class MarqueeState implements InteractionState {
   }
 
   /**
-   * Normalize selection: if all shapes in a group are selected, select the group instead
+   * Resolve the selection candidate for a marquee-hit shape.
+   * Walks up to the root-level ancestor (no parentId) so that marquee selection
+   * always picks the top-level node, mirroring a first-click selection.
    */
-  private normalizeSelectionForGroups(
-    shapeIds: string[],
-    editor: ToolContext["editor"],
-  ): string[] {
-    const selectedSet = new Set(shapeIds)
-    const toRemove = new Set<string>()
-    const toAdd = new Set<string>()
-
-    // Check each group in the document
-    for (const node of editor.document.getAllNodes()) {
-      if (node.type !== "GROUP") continue
-
-      // Get all leaf shape IDs in this group
-      const leafShapeIds = this.getLeafShapeIds(node.id, editor)
-      if (leafShapeIds.length === 0) continue
-
-      // Check if all leaf shapes in this group are selected
-      const allLeavesSelected = leafShapeIds.every((id) => selectedSet.has(id))
-
-      // If all leaves are selected but the group itself is not, replace leaves with group
-      if (allLeavesSelected && !selectedSet.has(node.id)) {
-        toAdd.add(node.id)
-        for (const id of leafShapeIds) {
-          toRemove.add(id)
-        }
-      }
-    }
-
-    // Build the final result: original selection minus removed shapes, plus added groups
-    const result = [...selectedSet].filter((id) => !toRemove.has(id))
-    for (const id of toAdd) {
-      result.push(id)
-    }
-    return result
-  }
-
-  /**
-   * Get all leaf shape IDs within a node (recursively for groups)
-   */
-  private getLeafShapeIds(
+  private resolveMarqueeCandidate(
     nodeId: string,
     editor: ToolContext["editor"],
-  ): string[] {
-    const result: string[] = []
-    const stack = [nodeId]
-
-    while (stack.length > 0) {
-      const currentId = stack.pop()!
-      const node = editor.document.getNode(currentId)
-      if (!node) continue
-
-      if (node.type === "GROUP") {
-        // Add children to stack (in reverse to maintain order)
-        for (let i = node.children.length - 1; i >= 0; i--) {
-          stack.push(node.children[i])
-        }
-      } else if (editor.document.getShape(currentId)) {
-        result.push(currentId)
-      }
+  ): string {
+    let current = editor.document.getNode(nodeId)
+    while (current?.parentId) {
+      current = editor.document.getNode(current.parentId)
     }
-
-    return result
+    return current?.id ?? nodeId
   }
 }

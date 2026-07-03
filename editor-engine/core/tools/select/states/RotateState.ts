@@ -7,6 +7,8 @@ import { Shape } from "../../../model/Shape"
 import { Editor } from "../../../Editor"
 import { TransformShapesCommand } from "../../../commands"
 
+import { TransformData } from "../../../commands/TransformShapesCommand"
+
 interface OriginalTransform {
   x: number
   y: number
@@ -18,6 +20,7 @@ export class RotateState implements InteractionState {
   private centerPoint: { x: number; y: number } = { x: 0, y: 0 }
   private startAngle: number = 0
   private originalTransforms: Map<string, OriginalTransform> = new Map()
+  private originalSnapshots: Map<string, { node: Node; shape?: Shape }> = new Map()
 
   constructor(private handleType: string) {}
 
@@ -68,14 +71,18 @@ export class RotateState implements InteractionState {
     const node = editor.document.getNode(nodeId)
     if (!node) return
 
-    // Store this node's transform
     this.originalTransforms.set(node.id, {
       x: node.transform.x,
       y: node.transform.y,
       rotation: node.transform.rotation,
     })
+    // Full snapshot for undo
+    const shape = editor.document.getShape(nodeId)
+    this.originalSnapshots.set(node.id, {
+      node: JSON.parse(JSON.stringify(node)),
+      shape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
+    })
 
-    // If it's a group, recursively collect children
     if (isGroupNode(node)) {
       for (const childId of node.children) {
         this.collectOriginalTransforms(childId, editor)
@@ -199,30 +206,23 @@ export class RotateState implements InteractionState {
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {
-    // Create command for undo/redo
     const { editor } = ctx
-    const transforms: Array<{
-      nodeId: string
-      newNode: Node
-      newShape?: Shape
-    }> = []
+    const transforms: TransformData[] = []
 
-    // Collect all rotated nodes
-    this.originalTransforms.forEach((_, nodeId) => {
-      const node = editor.document.getNode(nodeId)
-      const shape = editor.document.getShape(nodeId)
-
-      if (node) {
-        transforms.push({
-          nodeId,
-          newNode: JSON.parse(JSON.stringify(node)),
-          newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
-        })
-      }
+    this.originalSnapshots.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+      const newNode = editor.document.getNode(nodeId)
+      const newShape = editor.document.getShape(nodeId)
+      if (!newNode) return
+      transforms.push({
+        nodeId,
+        oldNode,
+        oldShape,
+        newNode: JSON.parse(JSON.stringify(newNode)),
+        newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : undefined,
+      })
     })
 
     if (transforms.length > 0) {
-      // Execute command with final state (enables undo/redo)
       editor.commands.execute(
         new TransformShapesCommand(editor, transforms, "rotate"),
       )

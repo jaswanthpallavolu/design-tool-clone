@@ -34,8 +34,8 @@ export class UpdateShapesStyleCommand extends Command {
     this.nodeIds.forEach((nodeId) => {
       const shape = this.editor.document.getShape(nodeId)
       if (shape) {
-        // Update style properties
-        Object.assign(shape.style, this.newStyle)
+        // Assign a new style object so the saved oldStyle reference is never mutated
+        shape.style = { ...shape.style, ...this.newStyle }
         this.editor.document.updateShape(shape)
       }
     })

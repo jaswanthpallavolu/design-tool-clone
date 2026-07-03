@@ -8,6 +8,7 @@ import {
   UpdateToolOptionsCommand,
 } from "../../../commands"
 import { Shape } from "../../../model/Shape"
+import { TransformData } from "../../../commands/TransformShapesCommand"
 
 /**
  * Selection context for DragState
@@ -25,6 +26,30 @@ export class DragState implements InteractionState {
   private movedNodes: Map<string, { node: Node; shape?: Shape }> = new Map()
   private hasMoved = false
 
+  /**
+   * Returns the set of selected node IDs that are true drag roots — i.e. nodes
+   * whose ancestor is NOT also in the selection. Moving only these (recursively)
+   * prevents double-moving children that are selected alongside their parent group.
+   */
+  private getDragRoots(editor: ToolContext["editor"]): Set<string> {
+    const selected = new Set(editor.selection.getAll())
+    const roots = new Set<string>()
+    for (const nodeId of selected) {
+      let node = editor.document.getNode(nodeId)
+      let isDescendantOfSelected = false
+      // Walk up via parentId to check if any ancestor is also selected
+      while (node?.parentId) {
+        if (selected.has(node.parentId)) {
+          isDescendantOfSelected = true
+          break
+        }
+        node = editor.document.getNode(node.parentId)
+      }
+      if (!isDescendantOfSelected) roots.add(nodeId)
+    }
+    return roots
+  }
+
   constructor(selectionContext?: SelectionContext) {
     this.selectionContext = selectionContext
   }
@@ -37,6 +62,35 @@ export class DragState implements InteractionState {
 
     this.prevMouseX = e.clientX
     this.prevMouseY = e.clientY
+
+    // Snapshot pre-drag state for every node that will be moved.
+    // Only snapshot drag roots (and their descendants) to avoid double-counting.
+    this.movedNodes.clear()
+    this.getDragRoots(ctx.editor).forEach((nodeId) => {
+      this.snapshotNodeRecursive(nodeId, ctx.editor)
+    })
+  }
+
+  /**
+   * Deep-snapshot a node (and its children if it is a group) into movedNodes.
+   */
+  private snapshotNodeRecursive(
+    nodeId: string,
+    editor: ToolContext["editor"],
+  ): void {
+    const node = editor.document.getNode(nodeId)
+    if (!node) return
+    this.movedNodes.set(nodeId, {
+      node: JSON.parse(JSON.stringify(node)),
+      shape: editor.document.getShape(nodeId)
+        ? JSON.parse(JSON.stringify(editor.document.getShape(nodeId)))
+        : undefined,
+    })
+    if (isGroupNode(node)) {
+      for (const childId of node.children) {
+        this.snapshotNodeRecursive(childId, editor)
+      }
+    }
   }
 
   /**
@@ -99,19 +153,9 @@ export class DragState implements InteractionState {
 
     this.hasMoved = true
 
-    editor.selection.getAll().forEach((nodeId) => {
-      const node = editor.document.getNode(nodeId)
-      if (!node) return
-
-      // If it's a group, move the entire hierarchy
-      if (isGroupNode(node)) {
-        this.moveNodeRecursive(nodeId, deltaX, deltaY, editor)
-      } else {
-        // If it's a shape, just move it (don't move siblings)
-        node.transform.x += deltaX
-        node.transform.y += deltaY
-        editor.document.updateNode(node)
-      }
+    // Move only drag roots — children are handled recursively inside moveNodeRecursive
+    this.getDragRoots(editor).forEach((nodeId) => {
+      this.moveNodeRecursive(nodeId, deltaX, deltaY, editor)
     })
 
     this.prevMouseX = e.clientX
@@ -145,54 +189,32 @@ export class DragState implements InteractionState {
     }
   }
 
-  onPointerUp(e: PointerEventData, ctx: ToolContext): void {
+  onPointerUp(_e: PointerEventData, ctx: ToolContext): void {
     // If shapes were moved, create a command for undo/redo
     if (this.hasMoved) {
       const { editor } = ctx
-      const transforms: Array<{
-        nodeId: string
-        newNode: Node
-        newShape?: Shape
-      }> = []
 
-      // Collect all moved nodes and their current state
-      editor.selection.getAll().forEach((nodeId) => {
-        this.collectTransformedNodes(nodeId, editor, transforms)
+      // Build transform entries using the pre-drag snapshots captured in
+      // onPointerDown so undo restores the correct original positions.
+      const transforms: TransformData[] = []
+      this.movedNodes.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+        const newNode = editor.document.getNode(nodeId)
+        const newShape = editor.document.getShape(nodeId)
+        if (!newNode) return
+        transforms.push({
+          nodeId,
+          oldNode,
+          oldShape,
+          newNode: JSON.parse(JSON.stringify(newNode)),
+          newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : undefined,
+        })
       })
 
       if (transforms.length > 0) {
-        // Execute command with final state (enables undo/redo)
         editor.commands.execute(
           new TransformShapesCommand(editor, transforms, "move"),
         )
       }
-    }
-  }
-
-  /**
-   * Collect all transformed nodes recursively (including group children)
-   */
-  private collectTransformedNodes(
-    nodeId: string,
-    editor: ToolContext["editor"],
-    transforms: Array<{ nodeId: string; newNode: Node; newShape?: Shape }>,
-  ): void {
-    const node = editor.document.getNode(nodeId)
-    if (!node) return
-
-    if (isGroupNode(node)) {
-      // For groups, collect all children recursively
-      for (const childId of node.children) {
-        this.collectTransformedNodes(childId, editor, transforms)
-      }
-    } else {
-      // For shapes, add to transforms
-      const shape = editor.document.getShape(nodeId)
-      transforms.push({
-        nodeId,
-        newNode: JSON.parse(JSON.stringify(node)),
-        newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
-      })
     }
   }
 }

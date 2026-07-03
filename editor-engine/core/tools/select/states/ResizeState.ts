@@ -91,30 +91,23 @@ export class ResizeState implements InteractionState {
   }
 
   onPointerUp(e: PointerEventData, ctx: ToolContext): void {
-    // Create command for undo/redo
     const { editor } = ctx
-    const transforms: Array<{
-      nodeId: string
-      newNode: Node
-      newShape?: Shape
-    }> = []
+    const transforms: import("../../../commands/TransformShapesCommand").TransformData[] = []
 
-    // Collect all resized shapes
-    this.originalData.forEach((_, nodeId) => {
-      const node = editor.document.getNode(nodeId)
-      const shape = editor.document.getShape(nodeId)
-
-      if (node) {
-        transforms.push({
-          nodeId,
-          newNode: JSON.parse(JSON.stringify(node)),
-          newShape: shape ? JSON.parse(JSON.stringify(shape)) : undefined,
-        })
-      }
+    this.originalData.forEach(({ node: oldNode, shape: oldShape }, nodeId) => {
+      const newNode = editor.document.getNode(nodeId)
+      const newShape = editor.document.getShape(nodeId)
+      if (!newNode) return
+      transforms.push({
+        nodeId,
+        oldNode,
+        oldShape,
+        newNode: JSON.parse(JSON.stringify(newNode)),
+        newShape: newShape ? JSON.parse(JSON.stringify(newShape)) : undefined,
+      })
     })
 
     if (transforms.length > 0) {
-      // Execute command with final state (enables undo/redo)
       editor.commands.execute(
         new TransformShapesCommand(editor, transforms, "resize"),
       )
