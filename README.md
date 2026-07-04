@@ -1,19 +1,34 @@
 # Canvas Graphics Editor
 
-A browser-based graphics editor built on a framework-agnostic engine.
+A browser-based graphics editor powered by a **framework-agnostic editor engine** built entirely in TypeScript.
 
-## Editor engine
+The project explores how modern graphics editors can be architected using a retained-mode document model, command-based editing, and event-driven communication while remaining independent of any rendering technology or UI framework.
 
-Framework-agnostic editor engine.
+## Demo
 
-A pure TypeScript engine with a retained-mode scene graph of shapes, transformed via the Command pattern and rendered through pluggable adapters — completely independent of the HTML5 Canvas API or any UI framework.
+<video src="https://github.com/user-attachments/assets/85fe9ee0-bc91-4890-a1a2-6dfbdf6c937a" controls autoplay loop muted></video>
 
-- Ports & Adapters
+## Editor Engine
+
+The editor is built around a reusable engine that manages editing logic separately from rendering and user interface concerns.
+
+Core architectural concepts include:
+
+- Retained-mode scene graph
+- Ports & Adapters architecture
 - Command Pattern
-- State Machines
-- Event-Driven
+- State machine–driven tools
+- Event-driven communication
+- Framework-independent core
+- Pluggable rendering adapters
 
-Open [`editor-engine/README.md`](editor-engine/README.md) for the engine details.
+The HTML5 Canvas implementation is just one adapter—the core engine can be reused with different rendering technologies or UI frameworks.
+
+For a detailed overview of the engine architecture, see [`editor-engine/README.md`](editor-engine/README.md).
+
+## Architecture
+
+![Architecture](docs/architecture.png)
 
 ## App types
 
